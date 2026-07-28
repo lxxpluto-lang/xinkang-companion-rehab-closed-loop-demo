@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ExternalLink, FileVideo, Play, Upload, Video } from "lucide-react";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 
@@ -34,9 +34,9 @@ export function VideoLibraryPage() {
   const [title, setTitle] = useState("");
   const [subtype, setSubtype] = useState(categorySubtypes["中医运动"][0]);
   const [previewId, setPreviewId] = useState("VIDEO-BDJ-001");
-  const objectUrls = useMemo(() => videos.filter((video) => video.source === "upload" && video.url).map((video) => video.url), [videos]);
+  const uploadedObjectUrls = useRef<string[]>([]);
 
-  useEffect(() => () => objectUrls.forEach((url) => URL.revokeObjectURL(url)), [objectUrls]);
+  useEffect(() => () => uploadedObjectUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
   function changeCategory(next: VideoCategory) {
     setCategory(next);
@@ -46,6 +46,7 @@ export function VideoLibraryPage() {
   function uploadFile(file?: File) {
     if (!file) return;
     const url = URL.createObjectURL(file);
+    uploadedObjectUrls.current.push(url);
     const record: TrainingVideo = {
       id: `VIDEO-UPLOAD-${Date.now()}`,
       title: title.trim() || file.name.replace(/\.[^.]+$/, ""),
