@@ -1,0 +1,318 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family:
+    Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #17324d;
+  background: #edf3f5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 84% 3%, rgba(31, 142, 135, 0.09), transparent 24rem),
+    #edf3f5;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+.ipad-stage {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(31, 142, 135, 0.12), transparent 28rem),
+    linear-gradient(145deg, #eef7f6 0%, #f8fbfb 52%, #edf4f7 100%);
+}
+
+.patient-safe-area {
+  min-height: 100dvh;
+  padding: max(16px, env(safe-area-inset-top))
+    max(18px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(18px, env(safe-area-inset-left));
+}
+
+.patient-touch {
+  min-height: 52px;
+  touch-action: manipulation;
+}
+
+@media (max-width: 1100px) {
+  .patient-safe-area {
+    padding: 12px 14px;
+  }
+}
+
+@media (max-height: 760px) and (orientation: landscape) {
+  .patient-safe-area {
+    padding: 10px 14px;
+  }
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(52, 127, 175, 0.25);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .card {
+    @apply rounded-[14px] border border-[#dbe6ec] bg-white shadow-card;
+  }
+
+  .card-title {
+    @apply text-lg font-bold tracking-tight text-[#17324d];
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.16em] text-medical-600;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-medical-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-medical-700 disabled:cursor-not-allowed disabled:bg-slate-300;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#d5e1e7] bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:border-medical-300 hover:bg-medical-50;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700;
+  }
+
+  .label {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .field-label {
+    @apply mb-2 block text-sm font-semibold text-slate-700;
+  }
+
+  .text-field {
+    @apply w-full rounded-[10px] border border-[#d5e1e7] bg-white px-3.5 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-medical-500;
+  }
+}
+
+.doctor-shell {
+  background:
+    radial-gradient(circle at 78% 0%, rgba(87, 139, 255, 0.08), transparent 24rem),
+    #f3f6fb;
+  color: #27364b;
+}
+
+.doctor-shell .doctor-main {
+  font-size: 12px;
+}
+
+.doctor-shell .doctor-main .card {
+  border-color: #e5eaf2;
+  border-radius: 12px;
+  box-shadow: 0 6px 22px rgba(52, 83, 129, 0.045);
+}
+
+.doctor-shell .doctor-main .text-\[28px\] {
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.doctor-shell .doctor-main .text-4xl {
+  font-size: 26px;
+}
+
+.doctor-shell .doctor-main .text-3xl {
+  font-size: 23px;
+}
+
+.doctor-shell .doctor-main .text-2xl {
+  font-size: 19px;
+}
+
+.doctor-shell .doctor-main .text-xl {
+  font-size: 16px;
+}
+
+.doctor-shell .doctor-main .text-lg,
+.doctor-shell .doctor-main .card-title {
+  font-size: 14px;
+}
+
+.doctor-shell .doctor-main .text-base {
+  font-size: 13px;
+}
+
+.doctor-shell .doctor-main .text-sm,
+.doctor-shell .doctor-main .btn-primary,
+.doctor-shell .doctor-main .btn-secondary,
+.doctor-shell .doctor-main .btn-danger,
+.doctor-shell .doctor-main .field-label,
+.doctor-shell .doctor-main .text-field {
+  font-size: 11px;
+}
+
+.doctor-shell .doctor-main .text-xs,
+.doctor-shell .doctor-main .label,
+.doctor-shell .doctor-main table {
+  font-size: 10px;
+}
+
+.doctor-shell .doctor-main .btn-primary,
+.doctor-shell .doctor-main .btn-secondary,
+.doctor-shell .doctor-main .btn-danger {
+  min-height: 34px;
+  border-radius: 8px;
+  padding: 7px 12px;
+}
+
+.doctor-shell .doctor-main .btn-primary {
+  background: #3f7cff;
+  box-shadow: 0 5px 14px rgba(63, 124, 255, 0.2);
+}
+
+.doctor-shell .doctor-main .btn-primary:hover {
+  background: #306de7;
+}
+
+.doctor-shell .doctor-main [class*="text-medical-"] {
+  color: #3f73df;
+}
+
+.doctor-shell .doctor-main [class*="bg-medical-50"] {
+  background-color: #eef4ff;
+}
+
+.doctor-shell .doctor-main [class*="bg-medical-100"] {
+  background-color: #dce9ff;
+}
+
+.doctor-shell .doctor-main [class*="border-medical-"] {
+  border-color: #cfe0ff;
+}
+
+.doctor-shell .doctor-main .eyebrow {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: #4c7ee8;
+}
+
+.doctor-shell .doctor-main th,
+.doctor-shell .doctor-main td {
+  line-height: 1.45;
+}
+
+.doctor-shell .management-screen {
+  background:
+    radial-gradient(circle at 80% 0%, rgba(70, 121, 244, 0.09), transparent 22rem),
+    #f3f6fb !important;
+  color: #27364b !important;
+}
+
+.doctor-shell .management-screen article {
+  border-color: #e4eaf2 !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  box-shadow: 0 7px 24px rgba(56, 83, 124, 0.05);
+}
+
+.doctor-shell .management-screen .management-donut-center {
+  background: #fff !important;
+}
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  body.printing-prescription * {
+    visibility: hidden !important;
+  }
+
+  body.printing-prescription #printable-prescription,
+  body.printing-prescription #printable-prescription * {
+    visibility: visible !important;
+  }
+
+  body.printing-prescription #printable-prescription {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    border: 0;
+    box-shadow: none;
+    color: #0f172a;
+  }
+
+  body.printing-prescription #printable-prescription button {
+    display: none !important;
+  }
+
+  body.printing-prescription .print-only {
+    display: block;
+    margin-bottom: 24px;
+  }
+
+  body.printing-prescription .print-only h1 {
+    margin-bottom: 10px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  body.printing-prescription .prescription-sign-line {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 36px;
+    border-top: 1px solid #cbd5e1;
+    padding-top: 16px;
+    font-size: 12px;
+  }
+}
+
+.clinical-table tbody tr {
+  transition: background-color 140ms ease;
+}
+
+.clinical-table tbody tr:hover {
+  background: #f6faf9;
+}
+
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.metric-live-dot {
+  animation: soft-pulse 1.7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metric-live-dot {
+    animation: none;
+  }
+}
