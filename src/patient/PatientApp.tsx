@@ -785,35 +785,8 @@ function TrainingScreen(props: {
   }, [elapsed, paused, phase, setPhase, totalSeconds, trainingEnd, warmupEnd]);
 
   return (
-    <section className="flex h-full min-h-[620px] flex-col gap-3" data-testid="page-VIEW-PATIENT-TRAINING">
-      <header className="grid grid-cols-[132px_1fr_132px] items-center gap-5 rounded-3xl border border-white bg-white px-5 py-3.5 shadow-card">
-        <div>
-          <p className="text-[11px] font-bold text-slate-400">运动时间</p>
-          <p className="mt-1 text-3xl font-bold tabular-nums text-slate-950">{formatTime(elapsed)}</p>
-        </div>
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-bold text-medical-800">热身 {warmup} 分钟 · 训练 {trainingMinutes} 分钟 · 放松 {cooldown} 分钟</p>
-            <p className="text-[11px] font-bold text-medical-600">当前阶段：{phaseLabels[phase]}</p>
-          </div>
-          <div className="relative h-9 overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
-            <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-medical-400 to-medical-600 transition-[width] duration-1000 ease-linear" style={{ width: `${overallProgress}%` }} />
-            <div className="relative grid h-full" style={{ gridTemplateColumns: `${warmup}fr ${trainingMinutes}fr ${cooldown}fr` }}>
-              {phasePlan.map((item, index) => (
-                <div key={item.key} className={`flex items-center justify-center text-[11px] font-bold ${index > 0 ? "border-l border-white/80" : ""} ${index < phaseIndex ? "text-white" : "text-slate-600"}`}>
-                  <span className={phase === item.key ? "rounded-full bg-white/90 px-3 py-1 text-medical-800 shadow-sm" : ""}>{item.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-[11px] font-bold text-slate-400">剩余时间</p>
-          <p className="mt-1 text-3xl font-bold tabular-nums text-medical-800">{formatTime(remainingSeconds)}</p>
-        </div>
-      </header>
-
-      <article className="relative min-h-[500px] flex-1 overflow-hidden rounded-3xl bg-medical-50 shadow-card ring-1 ring-white">
+    <section className="h-full min-h-[620px]" data-testid="page-VIEW-PATIENT-TRAINING">
+      <article className="relative h-full min-h-[620px] overflow-hidden rounded-3xl bg-medical-50 shadow-card ring-1 ring-white">
         <video
           ref={videoRef}
           src="/media/phase1-bike-demo-h264.mp4"
@@ -826,7 +799,34 @@ function TrainingScreen(props: {
         />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-white/35 via-white/10 to-transparent" />
         <div className="relative flex h-full flex-col p-4">
-          <div className="flex items-start justify-between">
+          <header className="grid grid-cols-[118px_1fr_118px] items-center gap-4 rounded-2xl border border-white/80 bg-white/82 px-4 py-3 shadow-xl backdrop-blur-xl">
+            <div>
+              <p className="text-[10px] font-bold text-slate-500">运动时间</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums text-slate-950">{formatTime(elapsed)}</p>
+            </div>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-[10px] font-bold text-medical-800">热身 {warmup} 分钟 · 训练 {trainingMinutes} 分钟 · 放松 {cooldown} 分钟</p>
+                <p className="text-[10px] font-bold text-medical-600">当前：{phaseLabels[phase]}</p>
+              </div>
+              <div className="relative h-8 overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200/80">
+                <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-medical-400 to-medical-600 transition-[width] duration-1000 ease-linear" style={{ width: `${overallProgress}%` }} />
+                <div className="relative grid h-full" style={{ gridTemplateColumns: `${warmup}fr ${trainingMinutes}fr ${cooldown}fr` }}>
+                  {phasePlan.map((item, index) => (
+                    <div key={item.key} className={`flex items-center justify-center text-[10px] font-bold ${index > 0 ? "border-l border-white/80" : ""} ${index < phaseIndex ? "text-white" : "text-slate-600"}`}>
+                      <span className={phase === item.key ? "rounded-full bg-white/90 px-2.5 py-0.5 text-medical-800 shadow-sm" : ""}>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-slate-500">剩余时间</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums text-medical-800">{formatTime(remainingSeconds)}</p>
+            </div>
+          </header>
+
+          <div className="mt-2 flex items-start justify-between">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm backdrop-blur-md">
               <span className={`h-2 w-2 rounded-full ${paused ? "bg-amber-400" : "metric-live-dot bg-emerald-500"}`} />
               {paused ? "视频已暂停" : "康复骑行视频正在播放"}
