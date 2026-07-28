@@ -20,7 +20,7 @@ const navItems: { key: DoctorPageKey; label: string; icon: typeof Activity; grou
   { key: "dashboard", label: "今日工作台", icon: LayoutDashboard, group: "clinical" },
   { key: "prescriptions", label: "处方管理", icon: ClipboardList, group: "clinical" },
   { key: "report", label: "报告中心", icon: FileCheck2, group: "clinical" },
-  { key: "patients", label: "患者档案", icon: UsersRound, group: "clinical" },
+  { key: "patients", label: "患者管理", icon: UsersRound, group: "clinical" },
   { key: "abnormal", label: "异常复核", icon: AlertTriangle, group: "clinical" },
   { key: "nurse", label: "院内护士站", icon: MonitorUp, group: "nurse" },
   { key: "videos", label: "训练视频库", icon: Video, group: "quality" },
