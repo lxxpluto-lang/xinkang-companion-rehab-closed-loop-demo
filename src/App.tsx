@@ -10,7 +10,7 @@ import { PatientArchivePage } from "./pages/PatientArchivePage";
 import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
 import { PrescriptionReviewPage } from "./pages/PrescriptionReviewPage";
 import { ReportPage } from "./pages/ReportPage";
-import { VideoLibraryPage } from "./pages/VideoLibraryPage";
+import { defaultBaduanjinVideo, VideoLibraryPage, type PublishedTrainingVideo } from "./pages/VideoLibraryPage";
 import { initialPrescriptionTasks, type PrescriptionTask } from "./prescriptionData";
 import type { DoctorPageKey, TrainingState } from "./types";
 
@@ -23,6 +23,7 @@ export default function App() {
   const [prescriptionTasks, setPrescriptionTasks] = useState<PrescriptionTask[]>(initialPrescriptionTasks);
   const [trainingState, setTrainingState] = useState<TrainingState>("ready");
   const [anomaly, setAnomaly] = useState(false);
+  const [baduanjinVideo, setBaduanjinVideo] = useState<PublishedTrainingVideo | null>(defaultBaduanjinVideo);
 
   const selectedTask = prescriptionTasks.find((task) => task.id === selectedTaskId);
 
@@ -59,7 +60,7 @@ export default function App() {
   if (system === "chooser") return <SystemChooser onChoose={setSystem} />;
 
   if (system === "patient") {
-    return <PatientApp onExit={() => setSystem("chooser")} trainingState={trainingState} setTrainingState={setTrainingState} anomaly={anomaly} setAnomaly={setAnomaly} />;
+    return <PatientApp onExit={() => setSystem("chooser")} trainingState={trainingState} setTrainingState={setTrainingState} anomaly={anomaly} setAnomaly={setAnomaly} baduanjinVideo={baduanjinVideo} />;
   }
 
   const doctorContent: Record<DoctorPageKey, React.ReactNode> = {
@@ -71,7 +72,7 @@ export default function App() {
     patients: <PatientArchivePage />,
     abnormal: <AbnormalPage trainingState={trainingState} setTrainingState={setTrainingState} />,
     nurse: <NurseStationPage />,
-    videos: <VideoLibraryPage />,
+    videos: <VideoLibraryPage onBaduanjinPublicationChange={setBaduanjinVideo} />,
     operations: <OperationsPage onReset={resetDemo} />
   };
 

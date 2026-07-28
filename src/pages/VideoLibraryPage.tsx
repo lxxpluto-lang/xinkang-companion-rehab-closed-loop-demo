@@ -3,6 +3,12 @@ import { Ban, CheckCircle2, ExternalLink, FileVideo, Link2, Play, Upload, Video 
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 
 type VideoCategory = "呼吸训练" | "有氧运动" | "抗阻运动" | "柔韧性运动" | "中医运动";
+export type PublishedTrainingVideo = {
+  id: string;
+  title: string;
+  source: "bilibili" | "upload";
+  url: string;
+};
 type TrainingVideo = {
   id: string;
   title: string;
@@ -14,8 +20,15 @@ type TrainingVideo = {
   fileSize?: string;
 };
 
+export const defaultBaduanjinVideo: PublishedTrainingVideo = {
+  id: "VIDEO-BDJ-001",
+  title: "八段锦完整教学",
+  source: "bilibili",
+  url: "https://player.bilibili.com/player.html?bvid=BV1gT4y1m7ec&page=1&high_quality=1&danmaku=0"
+};
+
 const initialVideos: TrainingVideo[] = [
-  { id: "VIDEO-BDJ-001", title: "八段锦完整教学", category: "中医运动", subtype: "八段锦", source: "bilibili", url: "https://player.bilibili.com/player.html?bvid=BV1gT4y1m7ec&page=1&high_quality=1&danmaku=0", status: "已发布" },
+  { ...defaultBaduanjinVideo, category: "中医运动", subtype: "八段锦", status: "已发布" },
   { id: "VIDEO-BREATH-001", title: "腹式呼吸基础练习", category: "呼吸训练", subtype: "腹式呼吸", source: "upload", url: "", status: "未发布" },
   { id: "VIDEO-RESIST-001", title: "弹力带上肢训练", category: "抗阻运动", subtype: "弹力带", source: "upload", url: "", status: "未发布" }
 ];
@@ -28,7 +41,7 @@ const categorySubtypes: Record<VideoCategory, string[]> = {
   中医运动: ["八段锦", "太极拳"]
 };
 
-export function VideoLibraryPage() {
+export function VideoLibraryPage({ onBaduanjinPublicationChange }: { onBaduanjinPublicationChange: (video: PublishedTrainingVideo | null) => void }) {
   const [videos, setVideos] = useState<TrainingVideo[]>(initialVideos);
   const [sourceMode, setSourceMode] = useState<"upload" | "bilibili">("upload");
   const [category, setCategory] = useState<VideoCategory>("中医运动");
@@ -41,6 +54,15 @@ export function VideoLibraryPage() {
   const uploadedObjectUrls = useRef<string[]>([]);
 
   useEffect(() => () => uploadedObjectUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
+  useEffect(() => {
+    const published = videos.find((video) => video.category === "中医运动" && video.subtype === "八段锦" && video.status === "已发布" && video.url);
+    onBaduanjinPublicationChange(published ? {
+      id: published.id,
+      title: published.title,
+      source: published.source,
+      url: published.url
+    } : null);
+  }, [videos, onBaduanjinPublicationChange]);
 
   function changeCategory(next: VideoCategory) {
     setCategory(next);

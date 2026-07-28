@@ -38,6 +38,7 @@ import {
   Wifi
 } from "lucide-react";
 import type { TrainingState } from "../types";
+import type { PublishedTrainingVideo } from "../pages/VideoLibraryPage";
 import {
   announceHeartRateAlert,
   announcePhase,
@@ -54,6 +55,7 @@ type PatientAppProps = {
   setTrainingState: (state: TrainingState) => void;
   anomaly: boolean;
   setAnomaly: (value: boolean) => void;
+  baduanjinVideo: PublishedTrainingVideo | null;
 };
 
 type View =
@@ -110,7 +112,8 @@ export function PatientApp({
   trainingState,
   setTrainingState,
   anomaly,
-  setAnomaly
+  setAnomaly,
+  baduanjinVideo
 }: PatientAppProps) {
   const [view, setView] = useState<View>("login");
   const [exercise, setExercise] = useState<Exercise>("bike");
@@ -214,6 +217,7 @@ export function PatientApp({
               exercise={exercise}
               onChoose={setExercise}
               onStart={() => setView(exercise === "baduanjin" ? "videoTraining" : "prescription")}
+              baduanjinAvailable={Boolean(baduanjinVideo)}
             />
           )}
           {view === "calendar" && <CalendarScreen onBack={() => setView("home")} />}
@@ -295,7 +299,7 @@ export function PatientApp({
               onFinish={finishTraining}
             />
           )}
-          {view === "videoTraining" && <BaduanjinTrainingScreen onBack={() => setView("home")} onFinish={() => setView("home")} />}
+          {view === "videoTraining" && baduanjinVideo && <BaduanjinTrainingScreen video={baduanjinVideo} onBack={() => setView("home")} onFinish={() => setView("home")} />}
           {view === "result" && (
             <ResultScreen
               totalMinutes={totalMinutes}
@@ -488,7 +492,7 @@ function FlowBar({ view }: { view: View }) {
   );
 }
 
-function HomeScreen({ exercise, onChoose, onStart }: { exercise: Exercise; onChoose: (value: Exercise) => void; onStart: () => void }) {
+function HomeScreen({ exercise, onChoose, onStart, baduanjinAvailable }: { exercise: Exercise; onChoose: (value: Exercise) => void; onStart: () => void; baduanjinAvailable: boolean }) {
   const exerciseNames: Record<Exercise, string> = {
     diaphragmatic: "腹式呼吸",
     mindfulness: "正念呼吸",
@@ -560,10 +564,10 @@ function HomeScreen({ exercise, onChoose, onStart }: { exercise: Exercise; onCho
           <div className="mt-auto flex items-center justify-between rounded-2xl bg-slate-50 p-3.5">
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ShieldCheck className="h-5 w-5" /></span>
-              <div><p className="text-sm font-bold text-slate-800">已选择：{exerciseNames[exercise]}</p><p className="mt-0.5 text-[11px] text-slate-500">{exercise === "bike" ? "医生处方已审核 · 目标心率 100–116 bpm" : exercise === "baduanjin" ? "跟随教学视频完成练习 · 建议医护陪同" : "该项目训练流程将在后续版本接入"}</p></div>
+              <div><p className="text-sm font-bold text-slate-800">已选择：{exerciseNames[exercise]}</p><p className="mt-0.5 text-[11px] text-slate-500">{exercise === "bike" ? "医生处方已审核 · 目标心率 100–116 bpm" : exercise === "baduanjin" ? baduanjinAvailable ? "跟随已发布教学视频完成练习 · 建议医护陪同" : "教学视频尚未发布，请联系医护人员" : "该项目训练流程将在后续版本接入"}</p></div>
             </div>
-            <button type="button" onClick={onStart} disabled={exercise !== "bike" && exercise !== "baduanjin"} className="patient-touch flex items-center gap-2 rounded-2xl bg-medical-600 px-6 font-bold text-white shadow-lg shadow-medical-100 disabled:cursor-not-allowed disabled:bg-slate-300">
-              {exercise === "bike" ? "进入功率车训练" : exercise === "baduanjin" ? "开始八段锦跟练" : "暂未开放"} <ArrowRight className="h-5 w-5" />
+            <button type="button" onClick={onStart} disabled={(exercise !== "bike" && exercise !== "baduanjin") || (exercise === "baduanjin" && !baduanjinAvailable)} className="patient-touch flex items-center gap-2 rounded-2xl bg-medical-600 px-6 font-bold text-white shadow-lg shadow-medical-100 disabled:cursor-not-allowed disabled:bg-slate-300">
+              {exercise === "bike" ? "进入功率车训练" : exercise === "baduanjin" ? baduanjinAvailable ? "开始八段锦跟练" : "视频未发布" : "暂未开放"} <ArrowRight className="h-5 w-5" />
             </button>
           </div>
         </article>
@@ -585,7 +589,7 @@ function HomeScreen({ exercise, onChoose, onStart }: { exercise: Exercise; onCho
   );
 }
 
-function BaduanjinTrainingScreen({ onBack, onFinish }: { onBack: () => void; onFinish: () => void }) {
+function BaduanjinTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrainingVideo; onBack: () => void; onFinish: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const [started, setStarted] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -604,18 +608,22 @@ function BaduanjinTrainingScreen({ onBack, onFinish }: { onBack: () => void; onF
     <section className="grid h-full min-h-[600px] grid-cols-[1.38fr_0.62fr] gap-4" data-testid="page-VIEW-BADUANJIN-TRAINING">
       <article ref={playerRef} className="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-[#0d2432] shadow-xl">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-3 text-white">
-          <div><p className="text-xs font-bold text-teal-200">中医运动 · 视频跟练</p><h1 className="mt-1 text-xl font-bold">八段锦完整教学</h1></div>
+          <div><p className="text-xs font-bold text-teal-200">中医运动 · 视频跟练</p><h1 className="mt-1 text-xl font-bold">{video.title}</h1></div>
           <div className="flex items-center gap-2"><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">跟练计时 {time}</span><button type="button" onClick={openFullscreen} className="flex h-10 items-center gap-2 rounded-xl bg-white/10 px-3 text-xs font-bold text-white hover:bg-white/15"><Maximize2 className="h-4 w-4" />全屏跟练</button></div>
         </div>
         <div className="relative min-h-0 flex-1 bg-black">
-          <iframe
-            title="八段锦跟练视频"
-            src="https://player.bilibili.com/player.html?bvid=BV1gT4y1m7ec&page=1&high_quality=1&danmaku=0"
-            className="absolute inset-0 h-full w-full border-0"
-            allow="autoplay; fullscreen; picture-in-picture"
-            allowFullScreen
-            referrerPolicy="no-referrer"
-          />
+          {video.source === "bilibili" ? (
+            <iframe
+              title={video.title}
+              src={video.url}
+              className="absolute inset-0 h-full w-full border-0"
+              allow="autoplay; fullscreen; picture-in-picture"
+              allowFullScreen
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <video title={video.title} src={video.url} className="absolute inset-0 h-full w-full object-contain" controls playsInline />
+          )}
         </div>
         {showMonitoring && <div className="flex items-center gap-5 border-t border-white/10 bg-[#102c3b] px-5 py-3 text-xs text-white"><span className="font-bold text-teal-200">可选监测</span><span>心率 <b className="ml-1 text-base">86 bpm</b></span><span>血氧 <b className="ml-1 text-base">97%</b></span><span className="flex-1 text-slate-300">心电波形需连接背包后显示；当前Demo不覆盖在视频画面上。</span></div>}
       </article>
