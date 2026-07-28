@@ -3,6 +3,7 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
+  ClipboardList,
   FileCheck2,
   HeartPulse,
   LayoutDashboard,
@@ -10,17 +11,19 @@ import {
   MonitorUp,
   ShieldCheck,
   Stethoscope,
+  Video,
   UsersRound
 } from "lucide-react";
 import type { DoctorPageKey } from "../types";
 
-const navItems: { key: DoctorPageKey; label: string; icon: typeof Activity; group: "clinical" | "quality" }[] = [
+const navItems: { key: DoctorPageKey; label: string; icon: typeof Activity; group: "clinical" | "nurse" | "quality" }[] = [
   { key: "dashboard", label: "今日工作台", icon: LayoutDashboard, group: "clinical" },
-  { key: "patient", label: "患者档案与处方", icon: UsersRound, group: "clinical" },
-  { key: "monitor", label: "在训患者", icon: Activity, group: "clinical" },
+  { key: "prescriptions", label: "处方管理", icon: ClipboardList, group: "clinical" },
+  { key: "report", label: "报告中心", icon: FileCheck2, group: "clinical" },
+  { key: "patients", label: "患者档案", icon: UsersRound, group: "clinical" },
   { key: "abnormal", label: "异常复核", icon: AlertTriangle, group: "clinical" },
-  { key: "report", label: "报告审核", icon: FileCheck2, group: "clinical" },
-  { key: "management", label: "管理大屏", icon: MonitorUp, group: "quality" },
+  { key: "nurse", label: "院内护士站", icon: MonitorUp, group: "nurse" },
+  { key: "videos", label: "训练视频库", icon: Video, group: "quality" },
   { key: "operations", label: "数据管理", icon: BarChart3, group: "quality" }
 ];
 
@@ -83,6 +86,18 @@ export function DoctorLayout({
               </button>
             );
           })}
+          <p className="mb-2 mt-5 px-2.5 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">护士工作区</p>
+          {navItems.filter((item) => item.group === "nurse").map((item) => {
+            const Icon = item.icon;
+            const active = item.key === page;
+            return (
+              <button key={item.key} type="button" onClick={() => onNavigate(item.key)} className={`flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2.5 text-left text-[12px] font-medium ${active ? "bg-[#edf4ff] text-[#3476f6]" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
+                <Icon className={`h-[16px] w-[16px] ${active ? "text-[#3476f6]" : "text-slate-400"}`} />
+                {item.label}
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold text-white">2</span>
+              </button>
+            );
+          })}
           <p className="mb-2 mt-5 px-2.5 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">质量与管理</p>
           {navItems.filter((item) => item.group === "quality").map((item) => {
             const Icon = item.icon;
@@ -142,8 +157,8 @@ export function DoctorLayout({
                   <Stethoscope className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-[9px] text-slate-400">当前登录角色</p>
-                  <p className="text-[11px] font-semibold text-slate-700">康复医生 · 演示账号</p>
+                  <p className="text-[9px] text-slate-400">当前工作区</p>
+                  <p className="text-[11px] font-semibold text-slate-700">{page === "nurse" ? "院内护士站 · 演示账号" : "康复医生 · 演示账号"}</p>
                 </div>
               </div>
             </div>
@@ -155,7 +170,7 @@ export function DoctorLayout({
         </header>
         <main className="doctor-main mx-auto max-w-[1540px] p-5">{children}</main>
         <footer className="px-6 pb-5 text-center text-[9px] text-slate-400">
-          医生 Web 端 · 查看数据、开立处方、异常复核与报告审核
+          医护 Web 端 · 医生处方决策与护士院内训练工作区
         </footer>
       </div>
     </div>

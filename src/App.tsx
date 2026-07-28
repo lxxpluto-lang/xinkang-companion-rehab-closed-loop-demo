@@ -4,11 +4,14 @@ import { SystemChooser } from "./components/SystemChooser";
 import { PatientApp } from "./patient/PatientApp";
 import { AbnormalPage } from "./pages/AbnormalPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { DoctorMonitorPage } from "./pages/DoctorMonitorPage";
+import { NurseStationPage } from "./pages/NurseStationPage";
 import { OperationsPage } from "./pages/OperationsPage";
-import { PatientPage } from "./pages/PatientPage";
+import { PatientArchivePage } from "./pages/PatientArchivePage";
+import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
+import { PrescriptionReviewPage } from "./pages/PrescriptionReviewPage";
 import { ReportPage } from "./pages/ReportPage";
-import { ManagementScreenPage } from "./pages/ManagementScreenPage";
+import { VideoLibraryPage } from "./pages/VideoLibraryPage";
+import { initialPrescriptionTasks, type PrescriptionTask } from "./prescriptionData";
 import type { DoctorPageKey, TrainingState } from "./types";
 
 type SystemKey = "chooser" | "doctor" | "patient";
@@ -16,54 +19,64 @@ type SystemKey = "chooser" | "doctor" | "patient";
 export default function App() {
   const [system, setSystem] = useState<SystemKey>("chooser");
   const [doctorPage, setDoctorPage] = useState<DoctorPageKey>("dashboard");
-  const [prescriptionConfirmed, setPrescriptionConfirmed] = useState(false);
-  const [prescriptionSigned, setPrescriptionSigned] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [prescriptionTasks, setPrescriptionTasks] = useState<PrescriptionTask[]>(initialPrescriptionTasks);
   const [trainingState, setTrainingState] = useState<TrainingState>("ready");
   const [anomaly, setAnomaly] = useState(false);
 
+  const selectedTask = prescriptionTasks.find((task) => task.id === selectedTaskId);
+
+  function navigateDoctor(page: DoctorPageKey) {
+    if (page === "prescriptions") setSelectedTaskId(null);
+    setDoctorPage(page);
+  }
+
+  function openTask(taskId: string) {
+    setSelectedTaskId(taskId);
+    setDoctorPage("prescriptions");
+  }
+
+  function generateDraft(taskId: string) {
+    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, aiDraftStatus: "generated", status: "pending_review", updatedAt: "2026-07-29 10:46" } : task));
+    openTask(taskId);
+  }
+
+  function confirmTask(taskId: string) {
+    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, reviewStatus: "confirmed", status: "pending_signature", confirmedBy: "王医生", confirmedAt: "2026-07-29 10:51", updatedAt: "2026-07-29 10:51" } : task));
+  }
+
+  function signTask(taskId: string) {
+    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, signatureStatus: "signed", status: "completed", signedBy: "王医生", signedAt: "2026-07-29 10:54", updatedAt: "2026-07-29 10:54", version: task.version.replace(" 草稿", "") } : task));
+  }
+
   function resetDemo() {
-    setPrescriptionConfirmed(false);
-    setPrescriptionSigned(false);
+    setPrescriptionTasks(initialPrescriptionTasks);
+    setSelectedTaskId(null);
     setTrainingState("ready");
     setAnomaly(false);
   }
 
-  if (system === "chooser") {
-    return <SystemChooser onChoose={setSystem} />;
-  }
+  if (system === "chooser") return <SystemChooser onChoose={setSystem} />;
 
   if (system === "patient") {
-    return (
-      <PatientApp
-        onExit={() => setSystem("chooser")}
-        trainingState={trainingState}
-        setTrainingState={setTrainingState}
-        anomaly={anomaly}
-        setAnomaly={setAnomaly}
-      />
-    );
+    return <PatientApp onExit={() => setSystem("chooser")} trainingState={trainingState} setTrainingState={setTrainingState} anomaly={anomaly} setAnomaly={setAnomaly} />;
   }
 
   const doctorContent: Record<DoctorPageKey, React.ReactNode> = {
-    dashboard: <DashboardPage onNavigate={(page) => setDoctorPage(page === "training" ? "monitor" : page as DoctorPageKey)} />,
-    patient: (
-      <PatientPage
-        onNavigate={() => setDoctorPage("monitor")}
-        confirmed={prescriptionConfirmed}
-        onConfirm={() => setPrescriptionConfirmed(true)}
-        signed={prescriptionSigned}
-        onSign={() => setPrescriptionSigned(true)}
-      />
-    ),
-    monitor: <DoctorMonitorPage onNavigate={setDoctorPage} />,
+    dashboard: <DashboardPage tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
+    prescriptions: selectedTask
+      ? <PrescriptionReviewPage task={selectedTask} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onSign={signTask} />
+      : <PrescriptionManagementPage tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
+    report: <ReportPage onCreatePrescription={(taskId) => prescriptionTasks.find((task) => task.id === taskId)?.status === "pending_generation" ? generateDraft(taskId) : openTask(taskId)} />,
+    patients: <PatientArchivePage />,
     abnormal: <AbnormalPage trainingState={trainingState} setTrainingState={setTrainingState} />,
-    report: <ReportPage />,
-    management: <ManagementScreenPage />,
+    nurse: <NurseStationPage />,
+    videos: <VideoLibraryPage />,
     operations: <OperationsPage onReset={resetDemo} />
   };
 
   return (
-    <DoctorLayout page={doctorPage} onNavigate={setDoctorPage} onExit={() => setSystem("chooser")}>
+    <DoctorLayout page={doctorPage} onNavigate={navigateDoctor} onExit={() => setSystem("chooser")}>
       {doctorContent[doctorPage]}
     </DoctorLayout>
   );

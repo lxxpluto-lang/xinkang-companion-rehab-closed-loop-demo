@@ -12,10 +12,10 @@ import {
 } from "lucide-react";
 
 const doctorFeatures = [
-  { label: "医生工作台", icon: Activity },
-  { label: "患者与处方", icon: UsersRound },
+  { label: "处方任务", icon: Activity },
+  { label: "报告与档案", icon: UsersRound },
   { label: "异常复核", icon: ShieldCheck },
-  { label: "报告审核", icon: FileCheck2 }
+  { label: "院内护士站", icon: FileCheck2 }
 ];
 
 const patientFeatures = [
@@ -59,7 +59,7 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
               更安全、更清晰。
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-500">
-              根据使用角色进入独立工作端。两端共享训练会话，但页面任务、操作权限与安全边界严格分离。
+              一个医护 Web 工作站与一个患者训练 Pad。两端共享训练会话，医生、护士和患者任务在各自工作区内清晰分离。
             </p>
           </div>
 
@@ -78,12 +78,12 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
                     <Stethoscope className="h-7 w-7 text-teal-100" />
                   </span>
                   <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-teal-50 ring-1 ring-white/15">
-                    医生 Web 工作站
+                    医护 Web 工作站
                   </span>
                 </div>
-                <h3 className="mt-8 text-3xl font-bold tracking-tight">临床决策与康复管理</h3>
+                <h3 className="mt-8 text-3xl font-bold tracking-tight">医生处方与护士院内协作</h3>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-slate-200">
-                  患者评估、运动处方、训练概览、异常复核与 AI 报告审核，形成完整人工审核闭环。
+                  医生根据报告复核和签署运动处方；护士在独立工作区查看院内任务、设备和训练状态。
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
                   {doctorFeatures.map(({ label, icon: Icon }) => (
@@ -94,7 +94,7 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
                   ))}
                 </div>
                 <span className="mt-auto flex items-center gap-2 pt-7 text-sm font-bold">
-                  进入医生工作站
+                  进入医护 Web 工作站
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </div>

@@ -105,8 +105,7 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
     reviewStatus: "pending",
     signatureStatus: "unsigned",
     status: "pending_review",
-    updatedAt: "2026-07-29 08:55",
-    missingFields: ["CPET未完成"]
+    updatedAt: "2026-07-29 08:55"
   },
   {
     id: "RX-TASK-005",
@@ -131,6 +130,25 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
     confirmedAt: "2026-07-29 08:38",
     signedBy: "王医生",
     signedAt: "2026-07-29 08:42"
+  },
+  {
+    id: "RX-TASK-006",
+    patientId: "P-DEMO-006",
+    patientName: "孙女士",
+    age: 64,
+    sex: "女",
+    stage: "首次评估",
+    risk: "中危",
+    kind: "initial",
+    sourceType: "baseline_assessment",
+    sourceLabel: "基线评估 · 信息待补充",
+    version: "V1.0 草稿",
+    aiDraftStatus: "not_required",
+    reviewStatus: "pending",
+    signatureStatus: "unsigned",
+    status: "pending_review",
+    updatedAt: "2026-07-29 08:24",
+    missingFields: ["CPET未完成", "6分钟步行未采集"]
   }
 ];
 

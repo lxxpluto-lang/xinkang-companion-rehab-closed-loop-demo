@@ -4,6 +4,8 @@ export type DoctorPageKey =
   | "report"
   | "patients"
   | "abnormal"
+  | "nurse"
+  | "videos"
   | "operations";
 
 export type NursePageKey = "overview" | "tasks" | "stations" | "events";
