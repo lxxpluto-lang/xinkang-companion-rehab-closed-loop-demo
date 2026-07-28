@@ -26,7 +26,7 @@ export default function App() {
   const [trainingVideos, setTrainingVideos] = useState<TrainingVideo[]>(initialTrainingVideos);
 
   const selectedTask = prescriptionTasks.find((task) => task.id === selectedTaskId);
-  const baduanjinVideo = trainingVideos.find((video) => video.subtype === "八段锦" && video.status === "已发布" && video.url) ?? null;
+  const publishedTrainingVideos = trainingVideos.filter((video) => video.status === "已发布" && video.url);
 
   function navigateDoctor(page: DoctorPageKey) {
     if (page === "prescriptions") setSelectedTaskId(null);
@@ -61,7 +61,7 @@ export default function App() {
   if (system === "chooser") return <SystemChooser onChoose={setSystem} />;
 
   if (system === "patient") {
-    return <PatientApp onExit={() => setSystem("chooser")} trainingState={trainingState} setTrainingState={setTrainingState} anomaly={anomaly} setAnomaly={setAnomaly} baduanjinVideo={baduanjinVideo} />;
+    return <PatientApp onExit={() => setSystem("chooser")} trainingState={trainingState} setTrainingState={setTrainingState} anomaly={anomaly} setAnomaly={setAnomaly} publishedTrainingVideos={publishedTrainingVideos} />;
   }
 
   const doctorContent: Record<DoctorPageKey, React.ReactNode> = {

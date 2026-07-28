@@ -55,7 +55,7 @@ type PatientAppProps = {
   setTrainingState: (state: TrainingState) => void;
   anomaly: boolean;
   setAnomaly: (value: boolean) => void;
-  baduanjinVideo: PublishedTrainingVideo | null;
+  publishedTrainingVideos: PublishedTrainingVideo[];
 };
 
 type View =
@@ -80,12 +80,27 @@ type Exercise =
   | "elliptical"
   | "dumbbell"
   | "resistanceBand"
-  | "flexibility"
+  | "flexibilityUpper"
+  | "flexibilityLower"
+  | "flexibilityFull"
   | "baduanjin"
   | "taichi";
 type TrainingType = "continuous" | "interval";
 type BpMode = "twice" | "multiple" | "none";
 type Phase = "warmup" | "training" | "cooldown";
+
+const exerciseVideoSubtypes: Partial<Record<Exercise, string>> = {
+  diaphragmatic: "腹式呼吸",
+  mindfulness: "正念呼吸",
+  elliptical: "椭圆机",
+  dumbbell: "哑铃",
+  resistanceBand: "弹力带",
+  flexibilityUpper: "上肢拉伸",
+  flexibilityLower: "下肢拉伸",
+  flexibilityFull: "全身柔韧",
+  baduanjin: "八段锦",
+  taichi: "太极拳"
+};
 
 const patient = {
   name: "陈女士",
@@ -113,7 +128,7 @@ export function PatientApp({
   setTrainingState,
   anomaly,
   setAnomaly,
-  baduanjinVideo
+  publishedTrainingVideos
 }: PatientAppProps) {
   const [view, setView] = useState<View>("login");
   const [exercise, setExercise] = useState<Exercise>("bike");
@@ -133,6 +148,7 @@ export function PatientApp({
   const [paused, setPaused] = useState(false);
   const [measuredBp, setMeasuredBp] = useState("126 / 78");
   const [reportToOpen, setReportToOpen] = useState<string | null>(null);
+  const selectedTrainingVideo = publishedTrainingVideos.find((video) => video.subtype === exerciseVideoSubtypes[exercise]) ?? null;
 
   const totalMinutes = warmup + mainMinutes * repeats + cooldown;
   useEffect(() => {
@@ -216,8 +232,8 @@ export function PatientApp({
             <HomeScreen
               exercise={exercise}
               onChoose={setExercise}
-              onStart={() => setView(exercise === "baduanjin" ? "videoTraining" : "prescription")}
-              baduanjinAvailable={Boolean(baduanjinVideo)}
+              onStart={() => setView(exercise === "bike" ? "prescription" : "videoTraining")}
+              publishedTrainingVideos={publishedTrainingVideos}
             />
           )}
           {view === "calendar" && <CalendarScreen onBack={() => setView("home")} />}
@@ -299,7 +315,7 @@ export function PatientApp({
               onFinish={finishTraining}
             />
           )}
-          {view === "videoTraining" && baduanjinVideo && <BaduanjinTrainingScreen video={baduanjinVideo} onBack={() => setView("home")} onFinish={() => setView("home")} />}
+          {view === "videoTraining" && selectedTrainingVideo && <VideoTrainingScreen video={selectedTrainingVideo} onBack={() => setView("home")} onFinish={() => setView("home")} />}
           {view === "result" && (
             <ResultScreen
               totalMinutes={totalMinutes}
@@ -459,7 +475,7 @@ function PatientSidebar({ active, onNavigate }: { active: View; onNavigate: (vie
 }
 
 function PatientHeader({ view, onExit }: { view: View; onExit: () => void }) {
-  const title = view === "home" ? "今日康复" : view === "calendar" ? "打卡日历" : view === "report" ? "训练报告" : view === "profile" ? "个人档案" : view === "videoTraining" ? "八段锦跟练" : "功率车训练";
+  const title = view === "home" ? "今日康复" : view === "calendar" ? "打卡日历" : view === "report" ? "训练报告" : view === "profile" ? "个人档案" : view === "videoTraining" ? "视频跟练" : "功率车训练";
   return (
     <header className="flex h-[66px] shrink-0 items-center justify-between rounded-2xl border border-white/80 bg-white/90 px-5 shadow-card backdrop-blur">
       <div className="flex items-center gap-3">
@@ -492,7 +508,7 @@ function FlowBar({ view }: { view: View }) {
   );
 }
 
-function HomeScreen({ exercise, onChoose, onStart, baduanjinAvailable }: { exercise: Exercise; onChoose: (value: Exercise) => void; onStart: () => void; baduanjinAvailable: boolean }) {
+function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos }: { exercise: Exercise; onChoose: (value: Exercise) => void; onStart: () => void; publishedTrainingVideos: PublishedTrainingVideo[] }) {
   const exerciseNames: Record<Exercise, string> = {
     diaphragmatic: "腹式呼吸",
     mindfulness: "正念呼吸",
@@ -500,7 +516,9 @@ function HomeScreen({ exercise, onChoose, onStart, baduanjinAvailable }: { exerc
     elliptical: "椭圆机",
     dumbbell: "哑铃",
     resistanceBand: "弹力带",
-    flexibility: "柔韧拉伸",
+    flexibilityUpper: "上肢拉伸",
+    flexibilityLower: "下肢拉伸",
+    flexibilityFull: "全身柔韧",
     baduanjin: "八段锦",
     taichi: "太极拳"
   };
@@ -508,9 +526,12 @@ function HomeScreen({ exercise, onChoose, onStart, baduanjinAvailable }: { exerc
     { title: "呼吸训练", icon: HeartPulse, items: ["diaphragmatic", "mindfulness"] },
     { title: "有氧运动", icon: Bike, items: ["bike", "elliptical"] },
     { title: "抗阻运动", icon: Dumbbell, items: ["dumbbell", "resistanceBand"] },
-    { title: "柔韧性运动", icon: Activity, items: ["flexibility"] },
+    { title: "柔韧性运动", icon: Activity, items: ["flexibilityUpper", "flexibilityLower", "flexibilityFull"] },
     { title: "中医运动", icon: Waves, items: ["baduanjin", "taichi"] }
   ];
+  const videoForExercise = (item: Exercise) => publishedTrainingVideos.find((video) => video.subtype === exerciseVideoSubtypes[item]);
+  const selectedVideo = videoForExercise(exercise);
+  const canStart = exercise === "bike" || Boolean(selectedVideo);
   return (
     <section className="flex h-full min-h-[570px] flex-col gap-4" data-testid="page-VIEW-PATIENT-HOME">
       <article className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#123d54] via-[#17636e] to-[#21877f] px-7 py-6 text-white shadow-xl">
@@ -548,12 +569,13 @@ function HomeScreen({ exercise, onChoose, onStart, baduanjinAvailable }: { exerc
                         type="button"
                         key={item}
                         onClick={() => onChoose(item)}
-                        className={`min-h-9 rounded-xl border px-3 text-xs font-bold ${
+                        className={`relative min-h-9 rounded-xl border px-3 text-xs font-bold ${
                           exercise === item ? "border-medical-500 bg-medical-600 text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:border-medical-300"
                         }`}
                       >
                         {exercise === item && <Check className="mr-1 inline h-3 w-3" />}
                         {exerciseNames[item]}
+                        {item !== "bike" && videoForExercise(item) && <span className={`ml-1.5 inline-block h-1.5 w-1.5 rounded-full ${exercise === item ? "bg-white" : "bg-emerald-500"}`} title="已有已发布视频" />}
                       </button>
                     ))}
                   </div>
@@ -564,10 +586,10 @@ function HomeScreen({ exercise, onChoose, onStart, baduanjinAvailable }: { exerc
           <div className="mt-auto flex items-center justify-between rounded-2xl bg-slate-50 p-3.5">
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ShieldCheck className="h-5 w-5" /></span>
-              <div><p className="text-sm font-bold text-slate-800">已选择：{exerciseNames[exercise]}</p><p className="mt-0.5 text-[11px] text-slate-500">{exercise === "bike" ? "医生处方已审核 · 目标心率 100–116 bpm" : exercise === "baduanjin" ? baduanjinAvailable ? "跟随已发布教学视频完成练习 · 建议医护陪同" : "教学视频尚未发布，请联系医护人员" : "该项目训练流程将在后续版本接入"}</p></div>
+              <div><p className="text-sm font-bold text-slate-800">已选择：{exerciseNames[exercise]}</p><p className="mt-0.5 text-[11px] text-slate-500">{exercise === "bike" ? "医生处方已审核 · 目标心率 100–116 bpm" : selectedVideo ? `已发布视频：${selectedVideo.title}` : "该子项目尚无已发布视频，请联系医护人员"}</p></div>
             </div>
-            <button type="button" onClick={onStart} disabled={(exercise !== "bike" && exercise !== "baduanjin") || (exercise === "baduanjin" && !baduanjinAvailable)} className="patient-touch flex items-center gap-2 rounded-2xl bg-medical-600 px-6 font-bold text-white shadow-lg shadow-medical-100 disabled:cursor-not-allowed disabled:bg-slate-300">
-              {exercise === "bike" ? "进入功率车训练" : exercise === "baduanjin" ? baduanjinAvailable ? "开始八段锦跟练" : "视频未发布" : "暂未开放"} <ArrowRight className="h-5 w-5" />
+            <button type="button" onClick={onStart} disabled={!canStart} className="patient-touch flex items-center gap-2 rounded-2xl bg-medical-600 px-6 font-bold text-white shadow-lg shadow-medical-100 disabled:cursor-not-allowed disabled:bg-slate-300">
+              {exercise === "bike" ? "进入功率车训练" : selectedVideo ? `开始${exerciseNames[exercise]}跟练` : "视频未发布"} <ArrowRight className="h-5 w-5" />
             </button>
           </div>
         </article>
@@ -589,7 +611,7 @@ function HomeScreen({ exercise, onChoose, onStart, baduanjinAvailable }: { exerc
   );
 }
 
-function BaduanjinTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrainingVideo; onBack: () => void; onFinish: () => void }) {
+function VideoTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrainingVideo; onBack: () => void; onFinish: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const [started, setStarted] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -605,10 +627,10 @@ function BaduanjinTrainingScreen({ video, onBack, onFinish }: { video: Published
   const openFullscreen = () => playerRef.current?.requestFullscreen?.();
 
   return (
-    <section className="grid h-full min-h-[600px] grid-cols-[1.38fr_0.62fr] gap-4" data-testid="page-VIEW-BADUANJIN-TRAINING">
+    <section className="grid h-full min-h-[600px] grid-cols-[1.38fr_0.62fr] gap-4" data-testid="page-VIEW-VIDEO-TRAINING">
       <article ref={playerRef} className="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-[#0d2432] shadow-xl">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-3 text-white">
-          <div><p className="text-xs font-bold text-teal-200">中医运动 · 视频跟练</p><h1 className="mt-1 text-xl font-bold">{video.title}</h1></div>
+          <div><p className="text-xs font-bold text-teal-200">{video.category} · {video.subtype}</p><h1 className="mt-1 text-xl font-bold">{video.title}</h1></div>
           <div className="flex items-center gap-2"><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">跟练计时 {time}</span><button type="button" onClick={openFullscreen} className="flex h-10 items-center gap-2 rounded-xl bg-white/10 px-3 text-xs font-bold text-white hover:bg-white/15"><Maximize2 className="h-4 w-4" />全屏跟练</button></div>
         </div>
         <div className="relative min-h-0 flex-1 bg-black">
@@ -629,9 +651,9 @@ function BaduanjinTrainingScreen({ video, onBack, onFinish }: { video: Published
       </article>
       <aside className="flex flex-col gap-4">
         <article className="rounded-3xl border border-white bg-white p-5 shadow-card">
-          <p className="text-xs font-bold text-medical-600">训练处方</p><h2 className="mt-1 text-xl font-bold text-slate-950">八段锦 · 1遍</h2>
-          <div className="mt-4 grid grid-cols-2 gap-3">{[["建议时长", "12–15分钟"], ["目标强度", "RPE 9–11"], ["动作节奏", "舒缓均匀"], ["呼吸要求", "自然呼吸"]].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold text-slate-400">{label}</p><p className="mt-2 text-sm font-bold text-slate-800">{value}</p></div>)}</div>
-          <p className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-800">请在安全、宽敞的区域练习。若出现胸闷、头晕、心悸或明显气促，请立即停止并呼叫医护。</p>
+          <p className="text-xs font-bold text-medical-600">训练处方</p><h2 className="mt-1 text-xl font-bold text-slate-950">{video.subtype} · 视频跟练</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3">{[["建议时长", "按视频完成"], ["目标强度", "RPE 9–11"], ["动作节奏", "跟随指导"], ["呼吸要求", "自然呼吸"]].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold text-slate-400">{label}</p><p className="mt-2 text-sm font-bold text-slate-800">{value}</p></div>)}</div>
+          <p className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-800">请按医护人员确认的处方练习。若出现胸闷、头晕、心悸或明显气促，请立即停止并呼叫医护。</p>
         </article>
         <article className="rounded-3xl border border-white bg-white p-5 shadow-card">
           <div className="flex items-center justify-between"><div><p className="font-bold text-slate-900">生理监测内容</p><p className="mt-1 text-xs text-slate-500">默认不遮挡教学视频</p></div><button type="button" onClick={() => setShowMonitoring((value) => !value)} className={`relative h-7 w-12 rounded-full transition ${showMonitoring ? "bg-medical-600" : "bg-slate-200"}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${showMonitoring ? "left-6" : "left-1"}`} /></button></div>
