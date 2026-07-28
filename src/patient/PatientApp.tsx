@@ -20,6 +20,7 @@ import {
   House,
   IdCard,
   LockKeyhole,
+  Maximize2,
   Pause,
   Play,
   RotateCcw,
@@ -67,6 +68,7 @@ type View =
   | "psych"
   | "bp"
   | "training"
+  | "videoTraining"
   | "result";
 
 type Exercise =
@@ -204,14 +206,14 @@ export function PatientApp({
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <PatientHeader view={view} onExit={onExit} />
-          {!mainView && view !== "result" && <FlowBar view={view} />}
+          {flow.some(([key]) => key === view) && <FlowBar view={view} />}
 
           <div className="min-h-0 flex-1 py-3">
           {view === "home" && (
             <HomeScreen
               exercise={exercise}
               onChoose={setExercise}
-              onStart={() => setView("prescription")}
+              onStart={() => setView(exercise === "baduanjin" ? "videoTraining" : "prescription")}
             />
           )}
           {view === "calendar" && <CalendarScreen onBack={() => setView("home")} />}
@@ -293,6 +295,7 @@ export function PatientApp({
               onFinish={finishTraining}
             />
           )}
+          {view === "videoTraining" && <BaduanjinTrainingScreen onBack={() => setView("home")} onFinish={() => setView("home")} />}
           {view === "result" && (
             <ResultScreen
               totalMinutes={totalMinutes}
@@ -452,7 +455,7 @@ function PatientSidebar({ active, onNavigate }: { active: View; onNavigate: (vie
 }
 
 function PatientHeader({ view, onExit }: { view: View; onExit: () => void }) {
-  const title = view === "home" ? "今日康复" : view === "calendar" ? "打卡日历" : view === "report" ? "训练报告" : view === "profile" ? "个人档案" : "功率车训练";
+  const title = view === "home" ? "今日康复" : view === "calendar" ? "打卡日历" : view === "report" ? "训练报告" : view === "profile" ? "个人档案" : view === "videoTraining" ? "八段锦跟练" : "功率车训练";
   return (
     <header className="flex h-[66px] shrink-0 items-center justify-between rounded-2xl border border-white/80 bg-white/90 px-5 shadow-card backdrop-blur">
       <div className="flex items-center gap-3">
@@ -557,10 +560,10 @@ function HomeScreen({ exercise, onChoose, onStart }: { exercise: Exercise; onCho
           <div className="mt-auto flex items-center justify-between rounded-2xl bg-slate-50 p-3.5">
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ShieldCheck className="h-5 w-5" /></span>
-              <div><p className="text-sm font-bold text-slate-800">已选择：{exerciseNames[exercise]}</p><p className="mt-0.5 text-[11px] text-slate-500">{exercise === "bike" ? "医生处方已审核 · 目标心率 100–116 bpm" : "该项目训练流程将在后续版本接入"}</p></div>
+              <div><p className="text-sm font-bold text-slate-800">已选择：{exerciseNames[exercise]}</p><p className="mt-0.5 text-[11px] text-slate-500">{exercise === "bike" ? "医生处方已审核 · 目标心率 100–116 bpm" : exercise === "baduanjin" ? "跟随教学视频完成练习 · 建议医护陪同" : "该项目训练流程将在后续版本接入"}</p></div>
             </div>
-            <button type="button" onClick={onStart} disabled={exercise !== "bike"} className="patient-touch flex items-center gap-2 rounded-2xl bg-medical-600 px-6 font-bold text-white shadow-lg shadow-medical-100 disabled:cursor-not-allowed disabled:bg-slate-300">
-              {exercise === "bike" ? "进入功率车训练" : "暂未开放"} <ArrowRight className="h-5 w-5" />
+            <button type="button" onClick={onStart} disabled={exercise !== "bike" && exercise !== "baduanjin"} className="patient-touch flex items-center gap-2 rounded-2xl bg-medical-600 px-6 font-bold text-white shadow-lg shadow-medical-100 disabled:cursor-not-allowed disabled:bg-slate-300">
+              {exercise === "bike" ? "进入功率车训练" : exercise === "baduanjin" ? "开始八段锦跟练" : "暂未开放"} <ArrowRight className="h-5 w-5" />
             </button>
           </div>
         </article>
@@ -578,6 +581,58 @@ function HomeScreen({ exercise, onChoose, onStart }: { exercise: Exercise; onCho
           </article>
         </aside>
       </div>
+    </section>
+  );
+}
+
+function BaduanjinTrainingScreen({ onBack, onFinish }: { onBack: () => void; onFinish: () => void }) {
+  const playerRef = useRef<HTMLDivElement>(null);
+  const [started, setStarted] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [showMonitoring, setShowMonitoring] = useState(false);
+
+  useEffect(() => {
+    if (!started) return;
+    const timer = window.setInterval(() => setSeconds((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [started]);
+
+  const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  const openFullscreen = () => playerRef.current?.requestFullscreen?.();
+
+  return (
+    <section className="grid h-full min-h-[600px] grid-cols-[1.38fr_0.62fr] gap-4" data-testid="page-VIEW-BADUANJIN-TRAINING">
+      <article ref={playerRef} className="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-[#0d2432] shadow-xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-3 text-white">
+          <div><p className="text-xs font-bold text-teal-200">中医运动 · 视频跟练</p><h1 className="mt-1 text-xl font-bold">八段锦完整教学</h1></div>
+          <div className="flex items-center gap-2"><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">跟练计时 {time}</span><button type="button" onClick={openFullscreen} className="flex h-10 items-center gap-2 rounded-xl bg-white/10 px-3 text-xs font-bold text-white hover:bg-white/15"><Maximize2 className="h-4 w-4" />全屏跟练</button></div>
+        </div>
+        <div className="relative min-h-0 flex-1 bg-black">
+          <iframe
+            title="八段锦跟练视频"
+            src="https://player.bilibili.com/player.html?bvid=BV1gT4y1m7ec&page=1&high_quality=1&danmaku=0"
+            className="absolute inset-0 h-full w-full border-0"
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+            referrerPolicy="no-referrer"
+          />
+        </div>
+        {showMonitoring && <div className="flex items-center gap-5 border-t border-white/10 bg-[#102c3b] px-5 py-3 text-xs text-white"><span className="font-bold text-teal-200">可选监测</span><span>心率 <b className="ml-1 text-base">86 bpm</b></span><span>血氧 <b className="ml-1 text-base">97%</b></span><span className="flex-1 text-slate-300">心电波形需连接背包后显示；当前Demo不覆盖在视频画面上。</span></div>}
+      </article>
+      <aside className="flex flex-col gap-4">
+        <article className="rounded-3xl border border-white bg-white p-5 shadow-card">
+          <p className="text-xs font-bold text-medical-600">训练处方</p><h2 className="mt-1 text-xl font-bold text-slate-950">八段锦 · 1遍</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3">{[["建议时长", "12–15分钟"], ["目标强度", "RPE 9–11"], ["动作节奏", "舒缓均匀"], ["呼吸要求", "自然呼吸"]].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold text-slate-400">{label}</p><p className="mt-2 text-sm font-bold text-slate-800">{value}</p></div>)}</div>
+          <p className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-800">请在安全、宽敞的区域练习。若出现胸闷、头晕、心悸或明显气促，请立即停止并呼叫医护。</p>
+        </article>
+        <article className="rounded-3xl border border-white bg-white p-5 shadow-card">
+          <div className="flex items-center justify-between"><div><p className="font-bold text-slate-900">生理监测内容</p><p className="mt-1 text-xs text-slate-500">默认不遮挡教学视频</p></div><button type="button" onClick={() => setShowMonitoring((value) => !value)} className={`relative h-7 w-12 rounded-full transition ${showMonitoring ? "bg-medical-600" : "bg-slate-200"}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${showMonitoring ? "left-6" : "left-1"}`} /></button></div>
+        </article>
+        <div className="mt-auto grid grid-cols-2 gap-3">
+          <button type="button" onClick={onBack} className="btn-secondary patient-touch"><ArrowLeft className="h-4 w-4" />返回首页</button>
+          {!started ? <button type="button" onClick={() => setStarted(true)} className="btn-primary patient-touch"><Play className="h-5 w-5 fill-current" />开始跟练计时</button> : <button type="button" onClick={onFinish} className="patient-touch flex items-center justify-center gap-2 rounded-xl bg-emerald-600 font-bold text-white"><CheckCircle2 className="h-5 w-5" />完成练习</button>}
+        </div>
+      </aside>
     </section>
   );
 }
@@ -758,7 +813,7 @@ function TrainingScreen(props: {
         </div>
       </header>
 
-      <article className="relative min-h-[330px] flex-1 overflow-hidden rounded-3xl bg-medical-50 shadow-card ring-1 ring-white">
+      <article className="relative min-h-[500px] flex-1 overflow-hidden rounded-3xl bg-medical-50 shadow-card ring-1 ring-white">
         <video
           ref={videoRef}
           src="/media/phase1-bike-demo-h264.mp4"
@@ -769,6 +824,7 @@ function TrainingScreen(props: {
           preload="auto"
           className={`absolute inset-0 h-full w-full object-cover transition duration-300 ${paused ? "scale-[1.01] opacity-55" : "opacity-100"}`}
         />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-white/35 via-white/10 to-transparent" />
         <div className="relative flex h-full flex-col p-4">
           <div className="flex items-start justify-between">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm backdrop-blur-md">
@@ -797,42 +853,42 @@ function TrainingScreen(props: {
               </div>
             )}
           </div>
+
+          <div className="mb-2 ml-auto grid w-[520px] grid-cols-3 gap-2">
+            <button type="button" onClick={() => setPaused(!paused)} className="patient-touch flex items-center justify-center gap-2 rounded-xl border border-white/80 bg-white/90 font-bold text-medical-800 shadow-lg backdrop-blur-xl">{paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}{paused ? "继续训练" : "暂停训练"}</button>
+            <button type="button" onClick={nextPhase} className="patient-touch flex items-center justify-center gap-2 rounded-xl bg-medical-600/95 font-bold text-white shadow-lg backdrop-blur-xl">{phase === "cooldown" ? <CircleStop className="h-5 w-5" /> : <ArrowRight className="h-5 w-5" />}{phase === "cooldown" ? "结束训练" : "下一阶段"}</button>
+            <button type="button" onClick={() => setAnomaly(!anomaly)} className={`patient-touch rounded-xl font-bold shadow-lg backdrop-blur-xl ${anomaly ? "border border-red-200 bg-red-50/95 text-red-700" : "border border-amber-200 bg-amber-50/95 text-amber-800"}`}>{anomaly ? "恢复正常指标" : "演示心率异常"}</button>
+          </div>
+
+          <div className="grid grid-cols-9 gap-2 rounded-2xl border border-white/80 bg-white/75 p-2.5 shadow-xl backdrop-blur-xl">
+            <TrainingMetric icon={HeartPulse} label="实时心率" value={String(hr)} unit="bpm" tone={anomaly ? "red" : "rose"} note={anomaly ? "高于目标" : `${targetHr - 8}–${targetHr + 8}`} />
+            <TrainingMetric icon={Gauge} label="速度" value={speed.toFixed(1)} unit="km/h" />
+            <TrainingMetric icon={Activity} label="距离" value={(elapsed * speed / 3600).toFixed(2)} unit="km" />
+            <TrainingMetric icon={Bike} label="功率" value={phase === "training" ? "68" : "42"} unit="W" />
+            <TrainingMetric icon={Settings2} label="阻力" value={phase === "training" ? "5" : "3"} unit="级" />
+            <TrainingMetric icon={Clock3} label="热量" value={String(Math.round(elapsed / 8))} unit="kcal" />
+            <TrainingMetric icon={ThermometerSun} label="血氧" value="97" unit="%" />
+            <button type="button" onClick={onMeasureBp} disabled={bpMode === "none"} className="rounded-xl border border-sky-100 bg-sky-50/90 p-2 text-left shadow-sm disabled:opacity-50">
+              <p className="text-[9px] font-bold text-sky-600">血压 · 测量</p>
+              <p className="mt-1 text-sm font-bold text-slate-950">{bpMode === "none" ? "— / —" : measuredBp}</p>
+              <p className="mt-0.5 text-[8px] text-slate-500">mmHg</p>
+            </button>
+            <label className="rounded-xl border border-violet-100 bg-violet-50/90 p-2 shadow-sm">
+              <p className="text-[9px] font-bold text-violet-600">主观用力 RPE</p>
+              <p className="mt-1 text-sm font-bold text-slate-950">{rpe}<span className="ml-1 text-[8px] text-slate-500">/ 20</span></p>
+              <input type="range" min="6" max="20" value={rpe} onChange={(event) => setRpe(Number(event.target.value))} className="mt-1 w-full accent-violet-600" />
+            </label>
+          </div>
         </div>
       </article>
-
-      <div className="grid grid-cols-[1fr_1fr_1fr] gap-3 rounded-2xl border border-white bg-white p-2 shadow-card">
-        <button type="button" onClick={() => setPaused(!paused)} className="patient-touch flex items-center justify-center gap-2 rounded-xl border border-medical-100 bg-medical-50 font-bold text-medical-800">{paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}{paused ? "继续训练与视频" : "暂停训练"}</button>
-        <button type="button" onClick={nextPhase} className="patient-touch flex items-center justify-center gap-2 rounded-xl bg-medical-600 font-bold text-white shadow-sm">{phase === "cooldown" ? <CircleStop className="h-5 w-5" /> : <ArrowRight className="h-5 w-5" />}{phase === "cooldown" ? "结束训练" : "演示下一阶段"}</button>
-        <button type="button" onClick={() => setAnomaly(!anomaly)} className={`patient-touch rounded-xl font-bold ${anomaly ? "border border-red-200 bg-red-50 text-red-700" : "border border-amber-200 bg-amber-50 text-amber-800"}`}>{anomaly ? "恢复正常指标" : "演示心率异常"}</button>
-      </div>
-
-      <div className="grid grid-cols-9 gap-2 rounded-3xl border border-white bg-white p-3 shadow-card">
-        <TrainingMetric icon={HeartPulse} label="实时心率" value={String(hr)} unit="bpm" tone={anomaly ? "red" : "rose"} note={anomaly ? "高于目标" : `${targetHr - 8}–${targetHr + 8}`} />
-        <TrainingMetric icon={Gauge} label="速度" value={speed.toFixed(1)} unit="km/h" />
-        <TrainingMetric icon={Activity} label="距离" value={(elapsed * speed / 3600).toFixed(2)} unit="km" />
-        <TrainingMetric icon={Bike} label="功率" value={phase === "training" ? "68" : "42"} unit="W" />
-        <TrainingMetric icon={Settings2} label="阻力" value={phase === "training" ? "5" : "3"} unit="级" />
-        <TrainingMetric icon={Clock3} label="热量" value={String(Math.round(elapsed / 8))} unit="kcal" />
-        <TrainingMetric icon={ThermometerSun} label="血氧" value="97" unit="%" />
-        <button type="button" onClick={onMeasureBp} disabled={bpMode === "none"} className="rounded-2xl border border-sky-100 bg-sky-50 p-2.5 text-left disabled:opacity-50">
-          <p className="text-[9px] font-bold text-sky-600">血压 · 点击测量</p>
-          <p className="mt-1 text-base font-bold text-slate-950">{bpMode === "none" ? "— / —" : measuredBp}</p>
-          <p className="mt-0.5 text-[8px] text-slate-500">mmHg</p>
-        </button>
-        <label className="rounded-2xl border border-violet-100 bg-violet-50 p-2.5">
-          <p className="text-[9px] font-bold text-violet-600">主观用力 RPE</p>
-          <p className="mt-1 text-base font-bold text-slate-950">{rpe}<span className="ml-1 text-[8px] text-slate-500">/ 20</span></p>
-          <input type="range" min="6" max="20" value={rpe} onChange={(event) => setRpe(Number(event.target.value))} className="mt-1 w-full accent-violet-600" />
-        </label>
-      </div>
     </section>
   );
 }
 
 function TrainingMetric({ icon: Icon, label, value, unit, tone = "blue", note }: { icon: typeof Gauge; label: string; value: string; unit: string; tone?: "blue" | "rose" | "red"; note?: string }) {
-  const toneClasses = tone === "red" ? "border-red-100 bg-red-50 text-red-600" : tone === "rose" ? "border-rose-100 bg-rose-50 text-rose-600" : "border-medical-100 bg-medical-50 text-medical-600";
+  const toneClasses = tone === "red" ? "border-red-100 bg-red-50/90 text-red-600" : tone === "rose" ? "border-rose-100 bg-rose-50/90 text-rose-600" : "border-medical-100 bg-medical-50/90 text-medical-600";
   return (
-    <div className={`rounded-2xl border p-2.5 ${toneClasses}`}>
+    <div className={`rounded-xl border p-2 shadow-sm ${toneClasses}`}>
       <div className="flex items-center gap-1"><Icon className="h-3.5 w-3.5" /><p className="text-[9px] font-bold">{label}</p></div>
       <p className="mt-1 text-base font-bold text-slate-950">{value}<span className="ml-0.5 text-[8px] text-slate-500">{unit}</span></p>
       {note && <p className="mt-0.5 truncate text-[8px] font-bold">{note}</p>}
