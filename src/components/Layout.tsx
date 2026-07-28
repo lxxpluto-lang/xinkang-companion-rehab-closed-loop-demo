@@ -55,7 +55,7 @@ export function DoctorLayout({
             </div>
             <div>
               <p className="text-[15px] font-bold tracking-wide text-slate-900">心康伴侣</p>
-              <p className="mt-0.5 text-[9px] text-slate-400">医生 Web 工作站</p>
+              <p className="mt-0.5 text-[9px] text-slate-400">医护 Web 工作站</p>
             </div>
           </div>
         </div>
