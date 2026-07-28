@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Ban, CheckCircle2, ExternalLink, FileVideo, Link2, Play, Upload, Video } from "lucide-react";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 
@@ -51,9 +51,6 @@ export function VideoLibraryPage({ onBaduanjinPublicationChange }: { onBaduanjin
   const [initialStatus, setInitialStatus] = useState<TrainingVideo["status"]>("未发布");
   const [linkError, setLinkError] = useState("");
   const [previewId, setPreviewId] = useState("VIDEO-BDJ-001");
-  const uploadedObjectUrls = useRef<string[]>([]);
-
-  useEffect(() => () => uploadedObjectUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
   useEffect(() => {
     const published = videos.find((video) => video.category === "中医运动" && video.subtype === "八段锦" && video.status === "已发布" && video.url);
     onBaduanjinPublicationChange(published ? {
@@ -72,7 +69,6 @@ export function VideoLibraryPage({ onBaduanjinPublicationChange }: { onBaduanjin
   function uploadFile(file?: File) {
     if (!file) return;
     const url = URL.createObjectURL(file);
-    uploadedObjectUrls.current.push(url);
     const record: TrainingVideo = {
       id: `VIDEO-UPLOAD-${Date.now()}`,
       title: title.trim() || file.name.replace(/\.[^.]+$/, ""),
