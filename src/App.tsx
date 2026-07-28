@@ -10,7 +10,7 @@ import { PatientArchivePage } from "./pages/PatientArchivePage";
 import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
 import { PrescriptionReviewPage } from "./pages/PrescriptionReviewPage";
 import { ReportPage } from "./pages/ReportPage";
-import { defaultBaduanjinVideo, VideoLibraryPage, type PublishedTrainingVideo } from "./pages/VideoLibraryPage";
+import { initialTrainingVideos, VideoLibraryPage, type TrainingVideo } from "./pages/VideoLibraryPage";
 import { initialPrescriptionTasks, type PrescriptionTask } from "./prescriptionData";
 import type { DoctorPageKey, TrainingState } from "./types";
 
@@ -23,9 +23,10 @@ export default function App() {
   const [prescriptionTasks, setPrescriptionTasks] = useState<PrescriptionTask[]>(initialPrescriptionTasks);
   const [trainingState, setTrainingState] = useState<TrainingState>("ready");
   const [anomaly, setAnomaly] = useState(false);
-  const [baduanjinVideo, setBaduanjinVideo] = useState<PublishedTrainingVideo | null>(defaultBaduanjinVideo);
+  const [trainingVideos, setTrainingVideos] = useState<TrainingVideo[]>(initialTrainingVideos);
 
   const selectedTask = prescriptionTasks.find((task) => task.id === selectedTaskId);
+  const baduanjinVideo = trainingVideos.find((video) => video.subtype === "八段锦" && video.status === "已发布" && video.url) ?? null;
 
   function navigateDoctor(page: DoctorPageKey) {
     if (page === "prescriptions") setSelectedTaskId(null);
@@ -72,7 +73,7 @@ export default function App() {
     patients: <PatientArchivePage />,
     abnormal: <AbnormalPage trainingState={trainingState} setTrainingState={setTrainingState} />,
     nurse: <NurseStationPage />,
-    videos: <VideoLibraryPage onBaduanjinPublicationChange={setBaduanjinVideo} />,
+    videos: <VideoLibraryPage videos={trainingVideos} setVideos={setTrainingVideos} />,
     operations: <OperationsPage onReset={resetDemo} />
   };
 

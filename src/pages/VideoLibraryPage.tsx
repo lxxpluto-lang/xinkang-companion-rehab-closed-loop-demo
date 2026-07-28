@@ -1,21 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { Ban, CheckCircle2, ExternalLink, FileVideo, Link2, Play, Upload, Video } from "lucide-react";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 
-type VideoCategory = "呼吸训练" | "有氧运动" | "抗阻运动" | "柔韧性运动" | "中医运动";
+export type VideoCategory = "呼吸训练" | "有氧运动" | "抗阻运动" | "柔韧性运动" | "中医运动";
 export type PublishedTrainingVideo = {
-  id: string;
-  title: string;
-  source: "bilibili" | "upload";
-  url: string;
-};
-type TrainingVideo = {
   id: string;
   title: string;
   category: VideoCategory;
   subtype: string;
   source: "bilibili" | "upload";
   url: string;
+};
+export type TrainingVideo = PublishedTrainingVideo & {
   status: "已发布" | "未发布";
   fileSize?: string;
 };
@@ -23,12 +19,14 @@ type TrainingVideo = {
 export const defaultBaduanjinVideo: PublishedTrainingVideo = {
   id: "VIDEO-BDJ-001",
   title: "八段锦完整教学",
+  category: "中医运动",
+  subtype: "八段锦",
   source: "bilibili",
   url: "https://player.bilibili.com/player.html?bvid=BV1gT4y1m7ec&page=1&high_quality=1&danmaku=0"
 };
 
-const initialVideos: TrainingVideo[] = [
-  { ...defaultBaduanjinVideo, category: "中医运动", subtype: "八段锦", status: "已发布" },
+export const initialTrainingVideos: TrainingVideo[] = [
+  { ...defaultBaduanjinVideo, status: "已发布" },
   { id: "VIDEO-BREATH-001", title: "腹式呼吸基础练习", category: "呼吸训练", subtype: "腹式呼吸", source: "upload", url: "", status: "未发布" },
   { id: "VIDEO-RESIST-001", title: "弹力带上肢训练", category: "抗阻运动", subtype: "弹力带", source: "upload", url: "", status: "未发布" }
 ];
@@ -41,8 +39,7 @@ const categorySubtypes: Record<VideoCategory, string[]> = {
   中医运动: ["八段锦", "太极拳"]
 };
 
-export function VideoLibraryPage({ onBaduanjinPublicationChange }: { onBaduanjinPublicationChange: (video: PublishedTrainingVideo | null) => void }) {
-  const [videos, setVideos] = useState<TrainingVideo[]>(initialVideos);
+export function VideoLibraryPage({ videos, setVideos }: { videos: TrainingVideo[]; setVideos: Dispatch<SetStateAction<TrainingVideo[]>> }) {
   const [sourceMode, setSourceMode] = useState<"upload" | "bilibili">("upload");
   const [category, setCategory] = useState<VideoCategory>("中医运动");
   const [title, setTitle] = useState("");
@@ -51,15 +48,6 @@ export function VideoLibraryPage({ onBaduanjinPublicationChange }: { onBaduanjin
   const [initialStatus, setInitialStatus] = useState<TrainingVideo["status"]>("未发布");
   const [linkError, setLinkError] = useState("");
   const [previewId, setPreviewId] = useState("VIDEO-BDJ-001");
-  useEffect(() => {
-    const published = videos.find((video) => video.category === "中医运动" && video.subtype === "八段锦" && video.status === "已发布" && video.url);
-    onBaduanjinPublicationChange(published ? {
-      id: published.id,
-      title: published.title,
-      source: published.source,
-      url: published.url
-    } : null);
-  }, [videos, onBaduanjinPublicationChange]);
 
   function changeCategory(next: VideoCategory) {
     setCategory(next);
