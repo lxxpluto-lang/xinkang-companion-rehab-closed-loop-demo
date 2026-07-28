@@ -284,6 +284,8 @@ export function PatientApp({
               warmup={warmup}
               mainMinutes={mainMinutes}
               cooldown={cooldown}
+              repeats={repeats}
+              setElapsed={setElapsed}
               rpe={rpe}
               setRpe={setRpe}
               anomaly={anomaly}
@@ -680,13 +682,35 @@ function BpModeScreen({ mode, setMode, onBack, onStart }: { mode: BpMode | null;
 
 function TrainingScreen(props: {
   phase: Phase; setPhase: (value: Phase) => void; elapsed: number; paused: boolean; setPaused: (value: boolean) => void; bpMode: BpMode; measuredBp: string; onMeasureBp: () => void;
-  targetHr: number; warmup: number; mainMinutes: number; cooldown: number; rpe: number; setRpe: (value: number) => void; anomaly: boolean; setAnomaly: (value: boolean) => void; onFinish: () => void;
+  targetHr: number; warmup: number; mainMinutes: number; cooldown: number; repeats: number; setElapsed: (value: number) => void; rpe: number; setRpe: (value: number) => void; anomaly: boolean; setAnomaly: (value: boolean) => void; onFinish: () => void;
 }) {
-  const { phase, setPhase, elapsed, paused, setPaused, bpMode, measuredBp, onMeasureBp, targetHr, warmup, mainMinutes, cooldown, rpe, setRpe, anomaly, setAnomaly, onFinish } = props;
+  const { phase, setPhase, elapsed, paused, setPaused, bpMode, measuredBp, onMeasureBp, targetHr, warmup, mainMinutes, cooldown, repeats, setElapsed, rpe, setRpe, anomaly, setAnomaly, onFinish } = props;
   const hr = anomaly ? targetHr + 24 : phase === "warmup" ? targetHr - 14 : phase === "cooldown" ? targetHr - 10 : targetHr + (elapsed % 5) - 2;
   const speed = paused ? 0 : phase === "training" ? 22.6 : 16.8;
   const phaseLabels: Record<Phase, string> = { warmup: "热身", training: "主要训练", cooldown: "放松" };
-  const nextPhase = () => phase === "warmup" ? setPhase("training") : phase === "training" ? setPhase("cooldown") : onFinish();
+  const trainingMinutes = mainMinutes * repeats;
+  const totalSeconds = (warmup + trainingMinutes + cooldown) * 60;
+  const warmupEnd = warmup * 60;
+  const trainingEnd = (warmup + trainingMinutes) * 60;
+  const remainingSeconds = Math.max(totalSeconds - elapsed, 0);
+  const overallProgress = Math.min((elapsed / totalSeconds) * 100, 100);
+  const phasePlan: { key: Phase; label: string; minutes: number }[] = [
+    { key: "warmup", label: "热身", minutes: warmup },
+    { key: "training", label: "训练", minutes: trainingMinutes },
+    { key: "cooldown", label: "放松", minutes: cooldown }
+  ];
+  const phaseIndex = phasePlan.findIndex((item) => item.key === phase);
+  const nextPhase = () => {
+    if (phase === "warmup") {
+      setElapsed(warmupEnd);
+      setPhase("training");
+    } else if (phase === "training") {
+      setElapsed(trainingEnd);
+      setPhase("cooldown");
+    } else {
+      onFinish();
+    }
+  };
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -699,9 +723,42 @@ function TrainingScreen(props: {
     void video.play().catch(() => undefined);
   }, [paused]);
 
+  useEffect(() => {
+    if (paused || elapsed >= totalSeconds) return;
+    const expectedPhase: Phase = elapsed < warmupEnd ? "warmup" : elapsed < trainingEnd ? "training" : "cooldown";
+    if (expectedPhase !== phase) setPhase(expectedPhase);
+  }, [elapsed, paused, phase, setPhase, totalSeconds, trainingEnd, warmupEnd]);
+
   return (
-    <section className="grid h-full min-h-[540px] grid-cols-[1.34fr_0.66fr] gap-4" data-testid="page-VIEW-PATIENT-TRAINING">
-      <article className="relative overflow-hidden rounded-3xl bg-[#102f3b] shadow-xl ring-1 ring-slate-900/10">
+    <section className="flex h-full min-h-[620px] flex-col gap-3" data-testid="page-VIEW-PATIENT-TRAINING">
+      <header className="grid grid-cols-[132px_1fr_132px] items-center gap-5 rounded-3xl border border-white bg-white px-5 py-3.5 shadow-card">
+        <div>
+          <p className="text-[11px] font-bold text-slate-400">运动时间</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums text-slate-950">{formatTime(elapsed)}</p>
+        </div>
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-bold text-medical-800">热身 {warmup} 分钟 · 训练 {trainingMinutes} 分钟 · 放松 {cooldown} 分钟</p>
+            <p className="text-[11px] font-bold text-medical-600">当前阶段：{phaseLabels[phase]}</p>
+          </div>
+          <div className="relative h-9 overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
+            <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-medical-400 to-medical-600 transition-[width] duration-1000 ease-linear" style={{ width: `${overallProgress}%` }} />
+            <div className="relative grid h-full" style={{ gridTemplateColumns: `${warmup}fr ${trainingMinutes}fr ${cooldown}fr` }}>
+              {phasePlan.map((item, index) => (
+                <div key={item.key} className={`flex items-center justify-center text-[11px] font-bold ${index > 0 ? "border-l border-white/80" : ""} ${index < phaseIndex ? "text-white" : "text-slate-600"}`}>
+                  <span className={phase === item.key ? "rounded-full bg-white/90 px-3 py-1 text-medical-800 shadow-sm" : ""}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] font-bold text-slate-400">剩余时间</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums text-medical-800">{formatTime(remainingSeconds)}</p>
+        </div>
+      </header>
+
+      <article className="relative min-h-[330px] flex-1 overflow-hidden rounded-3xl bg-medical-50 shadow-card ring-1 ring-white">
         <video
           ref={videoRef}
           src="/media/phase1-bike-demo-h264.mp4"
@@ -710,84 +767,77 @@ function TrainingScreen(props: {
           muted
           playsInline
           preload="auto"
-          className={`absolute inset-0 h-full w-full object-cover transition duration-300 ${paused ? "scale-[1.01] brightness-[0.45]" : "brightness-[0.92]"}`}
+          className={`absolute inset-0 h-full w-full object-cover transition duration-300 ${paused ? "scale-[1.01] opacity-55" : "opacity-100"}`}
         />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-slate-950/80 via-slate-950/35 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-slate-950/90 via-slate-950/45 to-transparent" />
-        <div className="relative flex h-full flex-col p-4 text-white">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-[11px] font-bold backdrop-blur-md ring-1 ring-white/20">
-                <span className={`h-2 w-2 rounded-full ${paused ? "bg-amber-400" : "metric-live-dot bg-emerald-400"}`} />
-                {paused ? "视频已暂停" : "康复骑行视频正在播放"}
-              </div>
-              <p className="mt-2 pl-1 text-[11px] text-white/70">跟随画面保持均匀踏频，训练时请目视前方</p>
+        <div className="relative flex h-full flex-col p-4">
+          <div className="flex items-start justify-between">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm backdrop-blur-md">
+              <span className={`h-2 w-2 rounded-full ${paused ? "bg-amber-400" : "metric-live-dot bg-emerald-500"}`} />
+              {paused ? "视频已暂停" : "康复骑行视频正在播放"}
             </div>
-            <div className="rounded-2xl bg-black/35 px-4 py-2.5 text-right backdrop-blur-md ring-1 ring-white/20">
-              <p className="text-[10px] font-bold text-white/65">{phaseLabels[phase]} · 已进行</p>
-              <p className="mt-0.5 text-3xl font-bold tabular-nums">{formatTime(elapsed)}</p>
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm backdrop-blur-md ${anomaly ? "border-red-200 bg-red-50/95 text-red-700" : "border-medical-100 bg-white/90 text-medical-800"}`}>
+              <Volume2 className={`h-4 w-4 ${anomaly ? "animate-pulse" : ""}`} />
+              {anomaly ? "声音警报：心率高于目标区间" : `语音提示：${phaseAnnouncements[phase]}`}
             </div>
-          </div>
-
-          <div className="mt-3 grid max-w-[560px] grid-cols-3 gap-2">
-            {([["warmup", "热身", warmup], ["training", "主要训练", mainMinutes], ["cooldown", "放松", cooldown]] as [Phase, string, number][]).map(([key, label, minutes]) => (
-              <div key={key} className={`flex items-center justify-between rounded-xl px-3 py-2 backdrop-blur-md ring-1 ${phase === key ? "bg-white text-slate-900 ring-white" : "bg-black/30 text-white/75 ring-white/15"}`}>
-                <span className="text-[11px] font-bold">{label}</span>
-                <span className="text-[10px] font-semibold">{minutes} 分钟{phase === key ? " · 当前" : ""}</span>
-              </div>
-            ))}
           </div>
 
           <div className="flex flex-1 items-center justify-center">
             {paused && (
-              <div className="flex flex-col items-center rounded-3xl bg-black/45 px-10 py-7 text-center backdrop-blur-md ring-1 ring-white/25">
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-900"><Pause className="h-7 w-7" /></span>
+              <div className="flex flex-col items-center rounded-3xl border border-white bg-white/92 px-10 py-7 text-center text-slate-900 shadow-xl backdrop-blur-md">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-medical-50 text-medical-700"><Pause className="h-7 w-7" /></span>
                 <p className="mt-4 text-xl font-bold">训练与视频已暂停</p>
-                <p className="mt-1 text-xs text-white/70">点击下方“继续训练”恢复视频播放</p>
+                <p className="mt-1 text-xs text-slate-500">点击下方“继续训练”恢复视频播放</p>
               </div>
             )}
             {anomaly && !paused && (
-              <div className="rounded-3xl border border-red-300/60 bg-red-600/90 px-8 py-5 text-center shadow-2xl backdrop-blur-md">
-                <AlertTriangle className="mx-auto h-8 w-8 animate-pulse" />
+              <div className="rounded-3xl border border-red-200 bg-red-50/95 px-8 py-5 text-center text-red-800 shadow-xl backdrop-blur-md">
+                <AlertTriangle className="mx-auto h-8 w-8 animate-pulse text-red-600" />
                 <p className="mt-2 text-lg font-bold">请降低踏频并等待医护确认</p>
-                <p className="mt-1 text-xs text-red-50">心率已高于目标控制区间</p>
+                <p className="mt-1 text-xs text-red-600">心率已高于目标控制区间</p>
               </div>
             )}
           </div>
-
-          <div className={`mb-3 flex items-center gap-2 self-center rounded-full border px-4 py-2 text-[11px] font-bold backdrop-blur-md ${anomaly ? "border-red-300 bg-red-600/90" : "border-white/20 bg-black/35"}`}>
-            <Volume2 className={`h-4 w-4 ${anomaly ? "animate-pulse" : ""}`} />
-            {anomaly ? "声音警报：心率高于目标区间" : `语音提示：${phaseAnnouncements[phase]}`}
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <button type="button" onClick={() => setPaused(!paused)} className="patient-touch flex items-center justify-center gap-2 rounded-2xl bg-black/35 font-bold ring-1 ring-white/30 backdrop-blur-md hover:bg-black/50">{paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}{paused ? "继续训练与视频" : "暂停训练"}</button>
-            <button type="button" onClick={nextPhase} className="patient-touch flex items-center justify-center gap-2 rounded-2xl bg-white font-bold text-slate-900 shadow-lg">{phase === "cooldown" ? <CircleStop className="h-5 w-5" /> : <ArrowRight className="h-5 w-5" />}{phase === "cooldown" ? "结束训练" : "演示下一阶段"}</button>
-            <button type="button" onClick={() => setAnomaly(!anomaly)} className={`patient-touch rounded-2xl font-bold shadow-lg ${anomaly ? "bg-white text-red-700" : "bg-amber-400 text-amber-950"}`}>{anomaly ? "恢复正常指标" : "演示心率异常"}</button>
-          </div>
         </div>
       </article>
-      <aside className="flex flex-col gap-3">
-        <div className={`rounded-3xl border bg-white p-4 shadow-card ${anomaly ? "border-red-300" : "border-white"}`}>
-          <div className="flex items-center justify-between"><p className="text-xs font-bold text-slate-500">实时心率</p><span className={`h-2.5 w-2.5 rounded-full ${anomaly ? "bg-red-500" : "metric-live-dot bg-emerald-500"}`} /></div><div className="mt-1 flex items-end gap-2"><HeartPulse className={`mb-1 h-7 w-7 ${anomaly ? "text-red-500" : "text-rose-500"}`} /><span className="text-4xl font-bold text-slate-950">{hr}</span><span className="pb-1 text-xs text-slate-500">bpm</span></div><p className={`mt-2 rounded-xl px-3 py-1.5 text-center text-[11px] font-bold ${anomaly ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{anomaly ? "高于安全控制区间" : `目标区间 ${targetHr - 8}–${targetHr + 8}`}</p>
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <Metric icon={Gauge} label="速度" value={speed.toFixed(1)} unit="km/h" />
-          <Metric icon={Bike} label="功率" value={phase === "training" ? "68" : "42"} unit="W" />
-          <Metric icon={Settings2} label="阻力" value={phase === "training" ? "5" : "3"} unit="级" />
-          <Metric icon={ThermometerSun} label="血氧" value="97" unit="%" />
-          <Metric icon={Activity} label="距离" value={(elapsed * speed / 3600).toFixed(2)} unit="km" />
-          <Metric icon={Clock3} label="热量" value={String(Math.round(elapsed / 8))} unit="kcal" />
-        </div>
-        <button type="button" onClick={onMeasureBp} disabled={bpMode === "none"} className="rounded-2xl border border-sky-100 bg-sky-50 p-3 text-left disabled:opacity-50"><div className="flex items-center justify-between"><span className="text-[11px] font-bold text-sky-700">血压 · {bpMode === "multiple" ? "分阶段" : bpMode === "twice" ? "前后各一次" : "本次不测"}</span><span className="text-[9px] font-bold text-sky-600">点击测量</span></div><p className="mt-1 text-xl font-bold text-slate-950">{bpMode === "none" ? "— / —" : measuredBp}<span className="ml-1 text-[10px] text-slate-500">mmHg</span></p></button>
-        <label className="rounded-2xl border border-violet-100 bg-violet-50 p-3"><span className="text-[11px] font-bold text-violet-700">主观用力程度 RPE：{rpe}</span><input type="range" min="6" max="20" value={rpe} onChange={(event) => setRpe(Number(event.target.value))} className="mt-2 w-full accent-violet-600" /><div className="flex justify-between text-[9px] text-violet-500"><span>轻松 6</span><span>极度用力 20</span></div></label>
-      </aside>
+
+      <div className="grid grid-cols-[1fr_1fr_1fr] gap-3 rounded-2xl border border-white bg-white p-2 shadow-card">
+        <button type="button" onClick={() => setPaused(!paused)} className="patient-touch flex items-center justify-center gap-2 rounded-xl border border-medical-100 bg-medical-50 font-bold text-medical-800">{paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}{paused ? "继续训练与视频" : "暂停训练"}</button>
+        <button type="button" onClick={nextPhase} className="patient-touch flex items-center justify-center gap-2 rounded-xl bg-medical-600 font-bold text-white shadow-sm">{phase === "cooldown" ? <CircleStop className="h-5 w-5" /> : <ArrowRight className="h-5 w-5" />}{phase === "cooldown" ? "结束训练" : "演示下一阶段"}</button>
+        <button type="button" onClick={() => setAnomaly(!anomaly)} className={`patient-touch rounded-xl font-bold ${anomaly ? "border border-red-200 bg-red-50 text-red-700" : "border border-amber-200 bg-amber-50 text-amber-800"}`}>{anomaly ? "恢复正常指标" : "演示心率异常"}</button>
+      </div>
+
+      <div className="grid grid-cols-9 gap-2 rounded-3xl border border-white bg-white p-3 shadow-card">
+        <TrainingMetric icon={HeartPulse} label="实时心率" value={String(hr)} unit="bpm" tone={anomaly ? "red" : "rose"} note={anomaly ? "高于目标" : `${targetHr - 8}–${targetHr + 8}`} />
+        <TrainingMetric icon={Gauge} label="速度" value={speed.toFixed(1)} unit="km/h" />
+        <TrainingMetric icon={Activity} label="距离" value={(elapsed * speed / 3600).toFixed(2)} unit="km" />
+        <TrainingMetric icon={Bike} label="功率" value={phase === "training" ? "68" : "42"} unit="W" />
+        <TrainingMetric icon={Settings2} label="阻力" value={phase === "training" ? "5" : "3"} unit="级" />
+        <TrainingMetric icon={Clock3} label="热量" value={String(Math.round(elapsed / 8))} unit="kcal" />
+        <TrainingMetric icon={ThermometerSun} label="血氧" value="97" unit="%" />
+        <button type="button" onClick={onMeasureBp} disabled={bpMode === "none"} className="rounded-2xl border border-sky-100 bg-sky-50 p-2.5 text-left disabled:opacity-50">
+          <p className="text-[9px] font-bold text-sky-600">血压 · 点击测量</p>
+          <p className="mt-1 text-base font-bold text-slate-950">{bpMode === "none" ? "— / —" : measuredBp}</p>
+          <p className="mt-0.5 text-[8px] text-slate-500">mmHg</p>
+        </button>
+        <label className="rounded-2xl border border-violet-100 bg-violet-50 p-2.5">
+          <p className="text-[9px] font-bold text-violet-600">主观用力 RPE</p>
+          <p className="mt-1 text-base font-bold text-slate-950">{rpe}<span className="ml-1 text-[8px] text-slate-500">/ 20</span></p>
+          <input type="range" min="6" max="20" value={rpe} onChange={(event) => setRpe(Number(event.target.value))} className="mt-1 w-full accent-violet-600" />
+        </label>
+      </div>
     </section>
   );
 }
 
-function Metric({ icon: Icon, label, value, unit }: { icon: typeof Gauge; label: string; value: string; unit: string }) {
-  return <div className="rounded-xl border border-white bg-white p-2.5 shadow-card"><div className="flex items-center gap-1"><Icon className="h-3.5 w-3.5 text-medical-600" /><p className="text-[9px] font-bold text-slate-400">{label}</p></div><p className="mt-1 text-base font-bold text-slate-900">{value}<span className="ml-0.5 text-[8px] text-slate-500">{unit}</span></p></div>;
+function TrainingMetric({ icon: Icon, label, value, unit, tone = "blue", note }: { icon: typeof Gauge; label: string; value: string; unit: string; tone?: "blue" | "rose" | "red"; note?: string }) {
+  const toneClasses = tone === "red" ? "border-red-100 bg-red-50 text-red-600" : tone === "rose" ? "border-rose-100 bg-rose-50 text-rose-600" : "border-medical-100 bg-medical-50 text-medical-600";
+  return (
+    <div className={`rounded-2xl border p-2.5 ${toneClasses}`}>
+      <div className="flex items-center gap-1"><Icon className="h-3.5 w-3.5" /><p className="text-[9px] font-bold">{label}</p></div>
+      <p className="mt-1 text-base font-bold text-slate-950">{value}<span className="ml-0.5 text-[8px] text-slate-500">{unit}</span></p>
+      {note && <p className="mt-0.5 truncate text-[8px] font-bold">{note}</p>}
+    </div>
+  );
 }
 
 function ResultScreen({
