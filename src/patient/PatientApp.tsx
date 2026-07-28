@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -687,28 +687,83 @@ function TrainingScreen(props: {
   const speed = paused ? 0 : phase === "training" ? 22.6 : 16.8;
   const phaseLabels: Record<Phase, string> = { warmup: "热身", training: "主要训练", cooldown: "放松" };
   const nextPhase = () => phase === "warmup" ? setPhase("training") : phase === "training" ? setPhase("cooldown") : onFinish();
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (paused) {
+      video.pause();
+      return;
+    }
+    void video.play().catch(() => undefined);
+  }, [paused]);
+
   return (
     <section className="grid h-full min-h-[540px] grid-cols-[1.34fr_0.66fr] gap-4" data-testid="page-VIEW-PATIENT-TRAINING">
-      <article className="relative overflow-hidden rounded-3xl bg-[#102f3b] shadow-xl">
-        <video src="/media/phase1-bike-demo.mp4" autoPlay loop muted playsInline className={`absolute inset-0 h-full w-full object-cover ${paused ? "opacity-35" : "opacity-75"}`} />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#092c36] via-transparent to-[#092c36]/50" />
-        <div className="relative flex h-full flex-col p-5 text-white">
-          <div className="grid grid-cols-3 gap-3">
-            {([["warmup", "热身", warmup], ["training", "主要训练", mainMinutes], ["cooldown", "放松", cooldown]] as [Phase, string, number][]).map(([key, label, minutes]) => <div key={key} className={`rounded-2xl p-3 ring-1 ${phase === key ? "bg-white text-slate-900 ring-white" : "bg-black/25 text-white ring-white/25"}`}><div className="flex items-center justify-between"><p className="text-xs font-bold">{label}</p>{phase === key && <span className="rounded-full bg-medical-100 px-2 py-1 text-[10px] font-bold text-medical-800">当前阶段</span>}</div><p className="mt-2 text-2xl font-bold">{minutes}:00</p></div>)}
-          </div>
-          <div className="flex flex-1 items-center justify-center">
-            <div className="rounded-[32px] bg-black/30 px-12 py-6 text-center backdrop-blur-sm ring-1 ring-white/20">
-              <p className="text-sm font-bold text-teal-100">{phaseLabels[phase]} · 已进行</p><p className="mt-1 text-6xl font-bold tabular-nums">{formatTime(elapsed)}</p><p className="mt-3 text-sm text-white/70">请保持均匀踏频，跟随视频场景骑行</p>
+      <article className="relative overflow-hidden rounded-3xl bg-[#102f3b] shadow-xl ring-1 ring-slate-900/10">
+        <video
+          ref={videoRef}
+          src="/media/phase1-bike-demo-h264.mp4"
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          className={`absolute inset-0 h-full w-full object-cover transition duration-300 ${paused ? "scale-[1.01] brightness-[0.45]" : "brightness-[0.92]"}`}
+        />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-slate-950/80 via-slate-950/35 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-slate-950/90 via-slate-950/45 to-transparent" />
+        <div className="relative flex h-full flex-col p-4 text-white">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-[11px] font-bold backdrop-blur-md ring-1 ring-white/20">
+                <span className={`h-2 w-2 rounded-full ${paused ? "bg-amber-400" : "metric-live-dot bg-emerald-400"}`} />
+                {paused ? "视频已暂停" : "康复骑行视频正在播放"}
+              </div>
+              <p className="mt-2 pl-1 text-[11px] text-white/70">跟随画面保持均匀踏频，训练时请目视前方</p>
+            </div>
+            <div className="rounded-2xl bg-black/35 px-4 py-2.5 text-right backdrop-blur-md ring-1 ring-white/20">
+              <p className="text-[10px] font-bold text-white/65">{phaseLabels[phase]} · 已进行</p>
+              <p className="mt-0.5 text-3xl font-bold tabular-nums">{formatTime(elapsed)}</p>
             </div>
           </div>
-          <div className={`mb-4 flex items-center justify-center gap-2 rounded-2xl border p-3 text-sm font-bold ${anomaly ? "border-red-300 bg-red-600/90" : "border-white/20 bg-black/25"}`}>
-            <Volume2 className={`h-5 w-5 ${anomaly ? "animate-pulse" : ""}`} />
-            {anomaly ? "声音警报已触发：心率高于目标区间，请减速并等待医护确认" : `语音播报：${phaseAnnouncements[phase]}`}
+
+          <div className="mt-3 grid max-w-[560px] grid-cols-3 gap-2">
+            {([["warmup", "热身", warmup], ["training", "主要训练", mainMinutes], ["cooldown", "放松", cooldown]] as [Phase, string, number][]).map(([key, label, minutes]) => (
+              <div key={key} className={`flex items-center justify-between rounded-xl px-3 py-2 backdrop-blur-md ring-1 ${phase === key ? "bg-white text-slate-900 ring-white" : "bg-black/30 text-white/75 ring-white/15"}`}>
+                <span className="text-[11px] font-bold">{label}</span>
+                <span className="text-[10px] font-semibold">{minutes} 分钟{phase === key ? " · 当前" : ""}</span>
+              </div>
+            ))}
           </div>
+
+          <div className="flex flex-1 items-center justify-center">
+            {paused && (
+              <div className="flex flex-col items-center rounded-3xl bg-black/45 px-10 py-7 text-center backdrop-blur-md ring-1 ring-white/25">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-900"><Pause className="h-7 w-7" /></span>
+                <p className="mt-4 text-xl font-bold">训练与视频已暂停</p>
+                <p className="mt-1 text-xs text-white/70">点击下方“继续训练”恢复视频播放</p>
+              </div>
+            )}
+            {anomaly && !paused && (
+              <div className="rounded-3xl border border-red-300/60 bg-red-600/90 px-8 py-5 text-center shadow-2xl backdrop-blur-md">
+                <AlertTriangle className="mx-auto h-8 w-8 animate-pulse" />
+                <p className="mt-2 text-lg font-bold">请降低踏频并等待医护确认</p>
+                <p className="mt-1 text-xs text-red-50">心率已高于目标控制区间</p>
+              </div>
+            )}
+          </div>
+
+          <div className={`mb-3 flex items-center gap-2 self-center rounded-full border px-4 py-2 text-[11px] font-bold backdrop-blur-md ${anomaly ? "border-red-300 bg-red-600/90" : "border-white/20 bg-black/35"}`}>
+            <Volume2 className={`h-4 w-4 ${anomaly ? "animate-pulse" : ""}`} />
+            {anomaly ? "声音警报：心率高于目标区间" : `语音提示：${phaseAnnouncements[phase]}`}
+          </div>
+
           <div className="grid grid-cols-3 gap-3">
-            <button type="button" onClick={() => setPaused(!paused)} className="patient-touch flex items-center justify-center gap-2 rounded-2xl bg-white/15 font-bold ring-1 ring-white/30 backdrop-blur">{paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}{paused ? "继续训练" : "暂停训练"}</button>
-            <button type="button" onClick={nextPhase} className="patient-touch flex items-center justify-center gap-2 rounded-2xl bg-white font-bold text-slate-900">{phase === "cooldown" ? <CircleStop className="h-5 w-5" /> : <ArrowRight className="h-5 w-5" />}{phase === "cooldown" ? "结束训练" : "演示下一阶段"}</button>
-            <button type="button" onClick={() => setAnomaly(!anomaly)} className={`patient-touch rounded-2xl font-bold ${anomaly ? "bg-white text-red-700" : "bg-amber-400 text-amber-950"}`}>{anomaly ? "恢复正常指标" : "演示心率异常"}</button>
+            <button type="button" onClick={() => setPaused(!paused)} className="patient-touch flex items-center justify-center gap-2 rounded-2xl bg-black/35 font-bold ring-1 ring-white/30 backdrop-blur-md hover:bg-black/50">{paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}{paused ? "继续训练与视频" : "暂停训练"}</button>
+            <button type="button" onClick={nextPhase} className="patient-touch flex items-center justify-center gap-2 rounded-2xl bg-white font-bold text-slate-900 shadow-lg">{phase === "cooldown" ? <CircleStop className="h-5 w-5" /> : <ArrowRight className="h-5 w-5" />}{phase === "cooldown" ? "结束训练" : "演示下一阶段"}</button>
+            <button type="button" onClick={() => setAnomaly(!anomaly)} className={`patient-touch rounded-2xl font-bold shadow-lg ${anomaly ? "bg-white text-red-700" : "bg-amber-400 text-amber-950"}`}>{anomaly ? "恢复正常指标" : "演示心率异常"}</button>
           </div>
         </div>
       </article>
