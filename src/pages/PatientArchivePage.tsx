@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Activity, ArrowRight, FileText, LockKeyhole, Pencil, Save, Search, UserRound, X } from "lucide-react";
+import { Activity, ArrowRight, FileText, LockKeyhole, Pencil, Plus, Save, Search, UserRound, X } from "lucide-react";
 import { demoPatients } from "../mockData";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { Role } from "../types";
@@ -47,6 +47,7 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
   const [selectedId, setSelectedId] = useState(initialPatients[0].patient_demo_id);
   const [keyword, setKeyword] = useState("");
   const [editDraft, setEditDraft] = useState<ManagedPatient | null>(null);
+  const [editingMode, setEditingMode] = useState<"create" | "edit">("edit");
   const canEditClinical = role === "ADMIN" || role === "DOCTOR";
   const selected = patients.find((patient) => patient.patient_demo_id === selectedId) ?? patients[0];
   const filteredPatients = useMemo(() => {
@@ -57,14 +58,41 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
 
   function savePatient() {
     if (!editDraft) return;
-    setPatients((items) => items.map((patient) => patient.patient_demo_id === editDraft.patient_demo_id ? editDraft : patient));
+    setPatients((items) => editingMode === "create" ? [editDraft, ...items] : items.map((patient) => patient.patient_demo_id === editDraft.patient_demo_id ? editDraft : patient));
     setSelectedId(editDraft.patient_demo_id);
     setEditDraft(null);
   }
 
+  function openEdit(patient: ManagedPatient) {
+    setEditingMode("edit");
+    setEditDraft({ ...patient, assessment: { ...patient.assessment } });
+  }
+
+  function openCreate() {
+    const nextNumber = patients.length + 1;
+    setEditingMode("create");
+    setEditDraft({
+      patient_demo_id: `P-DEMO-${String(nextNumber).padStart(3, "0")}`,
+      name: "",
+      id_number: "",
+      phone: "",
+      age: 60,
+      gender: "男",
+      diagnosis_summary: canEditClinical ? "冠心病Ⅱ期院内康复待完善" : "待医生完善",
+      risk_level: "中危",
+      rehab_group: "运动康复 A 组",
+      assessment: { cpet: "待补充", six_mwt: "待补充", resting_hr: 72 },
+      prescription_version: "待开具",
+      training_status: "待建档",
+      latest_abnormal: "无",
+      report_status: "未生成",
+      last_followup: new Date().toISOString().slice(0, 10)
+    });
+  }
+
   return (
     <section data-testid="page-VIEW-PATIENT-ARCHIVES">
-      <PageHeader eyebrow={role === "REHAB_EXECUTION" ? "当前康复中心 · 基础与执行字段可编辑" : role === "DOCTOR" ? "医疗团队共享 · 临床任务指定负责人" : "全部患者与字段权限"} title="患者信息与康复档案" description={role === "REHAB_EXECUTION" ? "可维护联系方式、接诊、生命体征、训练和随访记录；诊断、危险分组及处方字段只能提交更正申请。" : "团队医生共享查看患者，处方、异常和签署任务仍分派到具体责任人。"} />
+      <PageHeader eyebrow={role === "REHAB_EXECUTION" ? "当前康复中心 · 基础与执行字段可编辑" : role === "DOCTOR" ? "医疗团队共享 · 临床任务指定负责人" : "全部患者与字段权限"} title="患者信息与康复档案" description={role === "REHAB_EXECUTION" ? "可维护联系方式、接诊、生命体征、训练和随访记录；诊断、危险分组及处方字段只能提交更正申请。" : "团队医生可在工作台新增患者建档信息，处方、异常和签署任务仍分派到具体责任人。"} action={<button type="button" onClick={openCreate} className="btn-primary"><Plus className="h-4 w-4" />新增患者</button>} />
 
       <section className="card overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-4">
@@ -72,10 +100,13 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
             <h2 className="font-bold text-slate-900">患者档案列表</h2>
             <p className="mt-1 text-[11px] text-slate-400">共 {patients.length} 位患者 · 修改仅用于当前Demo会话</p>
           </div>
-          <label className="relative block w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input value={keyword} onChange={(event) => setKeyword(event.target.value)} className="h-9 w-full rounded-lg border border-slate-200 pl-9 pr-3 text-xs outline-none focus:border-blue-400" placeholder="搜索姓名、编号、证件号或诊断" />
-          </label>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={openCreate} className="btn-secondary"><Plus className="h-4 w-4" />新增患者</button>
+            <label className="relative block w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input value={keyword} onChange={(event) => setKeyword(event.target.value)} className="h-9 w-full rounded-lg border border-slate-200 pl-9 pr-3 text-xs outline-none focus:border-blue-400" placeholder="搜索姓名、编号、证件号或诊断" />
+            </label>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1040px] text-left text-xs">
@@ -101,7 +132,7 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
                   <td className="px-4 py-3 text-slate-600">{patient.training_status}</td>
                   <td className="px-4 py-3 text-slate-500">{patient.last_followup}</td>
                   <td className="px-4 py-3">
-                    <button type="button" onClick={(event) => { event.stopPropagation(); setEditDraft({ ...patient, assessment: { ...patient.assessment } }); }} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 font-bold text-blue-700 hover:bg-blue-50"><Pencil className="h-3.5 w-3.5" />编辑</button>
+                    <button type="button" onClick={(event) => { event.stopPropagation(); openEdit(patient); }} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 font-bold text-blue-700 hover:bg-blue-50"><Pencil className="h-3.5 w-3.5" />编辑</button>
                   </td>
                 </tr>
               ))}
@@ -113,7 +144,7 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
 
       <div className="mt-5 space-y-5">
         <section className="card p-5">
-          <SectionHeader title={`${selected.name} · 康复档案`} action={<div className="flex items-center gap-2"><StatusBadge tone={riskTone(selected.risk_level)}>{selected.risk_level}</StatusBadge><button type="button" onClick={() => setEditDraft({ ...selected, assessment: { ...selected.assessment } })} className="btn-secondary"><Pencil className="h-4 w-4" />编辑基本信息</button></div>} />
+          <SectionHeader title={`${selected.name} · 康复档案`} action={<div className="flex items-center gap-2"><StatusBadge tone={riskTone(selected.risk_level)}>{selected.risk_level}</StatusBadge><button type="button" onClick={() => openEdit(selected)} className="btn-secondary"><Pencil className="h-4 w-4" />编辑基本信息</button></div>} />
           <div className="grid grid-cols-6 gap-3">
             {[
               ["患者编号", selected.patient_demo_id],
@@ -139,7 +170,7 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="patient-edit-title">
           <form onSubmit={(event) => { event.preventDefault(); savePatient(); }} className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <div><p className="text-[10px] font-bold text-blue-600">患者档案</p><h2 id="patient-edit-title" className="mt-1 text-lg font-bold text-slate-900">编辑基本信息 · {editDraft.patient_demo_id}</h2></div>
+              <div><p className="text-[10px] font-bold text-blue-600">患者档案</p><h2 id="patient-edit-title" className="mt-1 text-lg font-bold text-slate-900">{editingMode === "create" ? "新增患者信息" : "编辑基本信息"} · {editDraft.patient_demo_id}</h2></div>
               <button type="button" onClick={() => setEditDraft(null)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100" aria-label="关闭"><X className="h-4 w-4" /></button>
             </div>
             <div className="grid grid-cols-3 gap-4 p-6">
@@ -156,7 +187,7 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
             </div>
             <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
               <button type="button" onClick={() => setEditDraft(null)} className="btn-secondary">取消</button>
-              <button type="submit" className="btn-primary"><Save className="h-4 w-4" />保存患者信息</button>
+              <button type="submit" className="btn-primary"><Save className="h-4 w-4" />{editingMode === "create" ? "新增并保存" : "保存患者信息"}</button>
             </div>
           </form>
         </div>
