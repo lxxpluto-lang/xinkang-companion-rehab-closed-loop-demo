@@ -28,6 +28,20 @@ export type PrescriptionTask = {
   missingFields?: string[];
 };
 
+export type DoctorAppointment = {
+  id: string;
+  patientId: string;
+  patientName: string;
+  time: string;
+  purpose: string;
+  stage: string;
+  risk: "低危" | "中危" | "高危";
+  singleReportIds: string[];
+  stageReportIds: string[];
+  reportReviewStatus: "待复核" | "异常优先" | "已复核";
+  linkedTaskId: string;
+};
+
 export const initialPrescriptionTasks: PrescriptionTask[] = [
   {
     id: "RX-TASK-001",
@@ -149,6 +163,48 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
     status: "pending_review",
     updatedAt: "2026-07-29 08:24",
     missingFields: ["CPET未完成", "6分钟步行未采集"]
+  }
+];
+
+export const doctorAppointments: DoctorAppointment[] = [
+  {
+    id: "APT-20260729-001",
+    patientId: "P-DEMO-001",
+    patientName: "陈女士",
+    time: "09:30",
+    purpose: "阶段复查后调整功率车处方",
+    stage: "Ⅱ期 · 第4周",
+    risk: "中危",
+    singleReportIds: ["TR-20260725-012", "TR-20260723-011"],
+    stageReportIds: ["STAGE-202607"],
+    reportReviewStatus: "异常优先",
+    linkedTaskId: "RX-TASK-001"
+  },
+  {
+    id: "APT-20260729-002",
+    patientId: "P-DEMO-002",
+    patientName: "李先生",
+    time: "10:10",
+    purpose: "单次训练后复核靶心率",
+    stage: "Ⅱ期 · 第2周",
+    risk: "低危",
+    singleReportIds: ["TR-20260723-011"],
+    stageReportIds: [],
+    reportReviewStatus: "待复核",
+    linkedTaskId: "RX-TASK-002"
+  },
+  {
+    id: "APT-20260729-003",
+    patientId: "P-DEMO-003",
+    patientName: "王先生",
+    time: "11:00",
+    purpose: "阶段报告确认与数字签名",
+    stage: "Ⅱ期 · 第3周",
+    risk: "中危",
+    singleReportIds: ["TR-20260725-012"],
+    stageReportIds: ["STAGE-202607-003"],
+    reportReviewStatus: "待复核",
+    linkedTaskId: "RX-TASK-003"
   }
 ];
 

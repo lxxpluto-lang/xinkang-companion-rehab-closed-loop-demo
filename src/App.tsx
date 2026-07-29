@@ -81,7 +81,7 @@ export default function App() {
   }
 
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
-    dashboard: <DashboardPage role={role} tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
+    dashboard: <DashboardPage role={role} tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} onConfirm={confirmTask} onSign={signTask} />,
     prescriptions: selectedTask
       ? <PrescriptionReviewPage task={selectedTask} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onSign={signTask} />
       : <PrescriptionManagementPage tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
