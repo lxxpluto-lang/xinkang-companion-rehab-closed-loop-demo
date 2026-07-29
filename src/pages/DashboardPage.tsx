@@ -56,47 +56,50 @@ export function DashboardPage({
     stage: doctorAppointments.reduce((total, item) => total + item.stageReportIds.length, 0),
     abnormal: doctorAppointments.filter((item) => item.reportReviewStatus === "异常优先").length
   };
-  const urgentItems = doctorAppointments.slice(0, 3);
-  const latestSafetyEvent = minimalSafetyEvents[0];
+  const pendingPrescriptionTasks = tasks.filter((task) => task.status !== "completed");
   return (
     <section data-testid="page-VIEW-DASHBOARD">
-      <PageHeader eyebrow={role === "ADMIN" ? "管理员临床全权视图" : "医生预约工作台"} title={role === "ADMIN" ? "林管理员，上午好" : "王医生，上午好"} description={role === "ADMIN" ? "可查看和处理全部临床任务；签署时记录管理员本人身份并进行二次确认。" : "先处理今天约到诊的患者，基于单次或阶段报告完成处方复核、签名和打印。"} action={<StatusBadge tone="orange">待复核报告 {reviewCounts.single + reviewCounts.stage} 份</StatusBadge>} />
-      <div className="mb-5 grid grid-cols-3 gap-4">
-        <StatCard label="今日预约患者" value={String(doctorAppointments.length)} note="按预约时间排序" icon={<CalendarClock className="h-5 w-5" />} />
-        <StatCard label="待复核报告" value={String(reviewCounts.single + reviewCounts.stage)} note={`单次 ${reviewCounts.single} · 阶段 ${reviewCounts.stage}`} tone="orange" icon={<FileText className="h-5 w-5" />} />
-        <StatCard label="异常优先报告" value={String(reviewCounts.abnormal)} note="需先看安全事件和主诉" tone={reviewCounts.abnormal ? "red" : "green"} icon={<AlertTriangle className="h-5 w-5" />} />
+      <PageHeader eyebrow={role === "ADMIN" ? "管理员临床全权视图" : "医生工作台"} title={role === "ADMIN" ? "林管理员，上午好" : "王医生，上午好"} description={role === "ADMIN" ? "可查看和处理全部临床任务；签署时记录管理员本人身份并进行二次确认。" : "首页只保留今天需要医生决策的预约、报告与处方任务。"} />
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        <MiniMetric icon={<CalendarClock className="h-4 w-4" />} label="今日预约患者数" value={String(doctorAppointments.length)} note="已按预约时间排序" />
+        <MiniMetric icon={<PenTool className="h-4 w-4" />} label="待开具处方数" value={String(pendingPrescriptionTasks.length)} note={`待生成 ${count("pending_generation")} · 待复核 ${count("pending_review")} · 待签名 ${count("pending_signature")}`} tone="orange" />
+        <MiniMetric icon={<AlertTriangle className="h-4 w-4" />} label="异常报告" value={String(reviewCounts.abnormal)} note="影响调方时优先查看" tone={reviewCounts.abnormal ? "red" : "green"} />
       </div>
-      <section className="card mb-5 border-l-4 border-l-amber-500 p-4">
-        <SectionHeader title="最小异常闭环" description="不单独恢复异常中心，但医生工作台保留需要影响报告与下一版处方的安全事件。" action={<StatusBadge tone={latestSafetyEvent.doctorReviewStatus === "医生已复核" ? "green" : "orange"}>{latestSafetyEvent.doctorReviewStatus}</StatusBadge>} />
-        <div className="grid grid-cols-[0.9fr_1fr_1.1fr_1.1fr] gap-3 text-xs">
-          <InfoTile label="事件" value={`${latestSafetyEvent.patientName} · ${latestSafetyEvent.type}`} />
-          <InfoTile label="指标快照" value={latestSafetyEvent.metricSnapshot} />
-          <InfoTile label="现场处置" value={latestSafetyEvent.fieldAction} />
-          <InfoTile label="处方影响" value={latestSafetyEvent.prescriptionImpact} />
-        </div>
-      </section>
-      <div className="mb-5 grid grid-cols-[1.25fr_0.75fr] gap-5">
+
+      <div className="grid grid-cols-[0.95fr_1.05fr] gap-5">
         <section className="card overflow-hidden">
-          <div className="px-5 pt-5"><SectionHeader title="今日谁约了我" description="从预约患者进入报告和处方闭环。" /></div>
-          <div className="grid grid-cols-[0.55fr_0.9fr_0.9fr_0.6fr_1.35fr_0.75fr_0.7fr] border-y border-slate-100 bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>时间</span><span>患者</span><span>阶段</span><span>风险</span><span>预约目的</span><span>报告状态</span><span>操作</span></div>
-          {doctorAppointments.map((appointment) => (
-            <button type="button" key={appointment.id} onClick={() => setSelectedAppointmentId(appointment.id)} className="grid w-full grid-cols-[0.55fr_0.9fr_0.9fr_0.6fr_1.35fr_0.75fr_0.7fr] items-center border-b border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50">
-              <b className="font-mono text-slate-800">{appointment.time}</b><span className="font-bold text-slate-900">{appointment.patientName}<small className="mt-1 block font-normal text-slate-400">{appointment.patientId}</small></span><span>{appointment.stage}</span><StatusBadge tone={appointment.risk === "高危" ? "red" : appointment.risk === "中危" ? "orange" : "green"}>{appointment.risk}</StatusBadge><span className="text-slate-600">{appointment.purpose}</span><StatusBadge tone={appointment.reportReviewStatus === "异常优先" ? "red" : appointment.reportReviewStatus === "待复核" ? "orange" : "green"}>{appointment.reportReviewStatus}</StatusBadge><span className="font-bold text-blue-700">进入</span>
+          <div className="px-5 pt-5"><SectionHeader title="今日预约患者" description="显示预约患者及当前医疗任务状态。" /></div>
+          <div className="grid grid-cols-[0.55fr_1fr_0.9fr_0.72fr_1.05fr] border-y border-slate-100 bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>时间</span><span>患者</span><span>康复阶段</span><span>分组</span><span>状态</span></div>
+          {doctorAppointments.map((appointment) => {
+            const linkedTask = tasks.find((task) => task.id === appointment.linkedTaskId);
+            const status = appointmentStatus(linkedTask);
+            return (
+              <button type="button" key={appointment.id} onClick={() => linkedTask && onOpen(linkedTask.id)} className="grid w-full grid-cols-[0.55fr_1fr_0.9fr_0.72fr_1.05fr] items-center border-b border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50">
+                <b className="font-mono text-slate-800">{appointment.time}</b>
+                <span className="font-bold text-slate-900">{appointment.patientName}<small className="mt-1 block font-normal text-slate-400">{appointment.patientId}</small></span>
+                <span className="text-slate-600">{appointment.stage}</span>
+                <StatusBadge tone={appointment.risk === "高危" ? "red" : appointment.risk === "中危" ? "orange" : "green"}>{appointment.risk}</StatusBadge>
+                <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+              </button>
+            );
+          })}
+        </section>
+
+        <section className="card overflow-hidden">
+          <div className="px-5 pt-5"><SectionHeader title="未完成处方任务" description="判定逻辑：报告已就绪、初始评估完成、异常复核后需调整，且处方未签名完成。" /></div>
+          <div className="grid grid-cols-[0.45fr_0.9fr_0.85fr_0.68fr_0.72fr_0.92fr] border-y border-slate-100 bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>序号</span><span>患者</span><span>阶段</span><span>分组</span><span>所属医生</span><span>处方状态</span></div>
+          {pendingPrescriptionTasks.map((task, index) => (
+            <button type="button" key={task.id} onClick={() => task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id)} className="grid w-full grid-cols-[0.45fr_0.9fr_0.85fr_0.68fr_0.72fr_0.92fr] items-center border-b border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50">
+              <span className="font-mono text-slate-400">{String(index + 1).padStart(2, "0")}</span>
+              <span className="font-bold text-slate-900">{task.patientName}<small className="mt-1 block font-normal text-slate-400">{task.patientId}</small></span>
+              <span className="text-slate-600">{task.stage}</span>
+              <StatusBadge tone={task.risk === "高危" ? "red" : task.risk === "中危" ? "orange" : "green"}>{task.risk}</StatusBadge>
+              <span className="font-semibold text-slate-700">{task.confirmedBy ?? task.signedBy ?? "王医生"}</span>
+              <StatusBadge tone={task.status === "pending_generation" ? "blue" : "orange"}>{prescriptionStatusLabels[task.status]}</StatusBadge>
             </button>
           ))}
         </section>
-        <section className="card p-5">
-          <SectionHeader title="待复核报告数" description="优先处理有异常或即将签名的报告。" />
-          <div className="grid grid-cols-3 gap-3">
-            {[["单次", reviewCounts.single], ["阶段", reviewCounts.stage], ["异常", reviewCounts.abnormal]].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><p className="text-2xl font-bold text-slate-950">{value}</p><p className="mt-1 text-[10px] font-bold text-slate-400">{label}报告</p></div>)}
-          </div>
-          <div className="mt-4 space-y-3">
-            {urgentItems.map((item) => <button type="button" key={item.id} onClick={() => setSelectedAppointmentId(item.id)} className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left hover:bg-slate-50"><span className="font-mono text-[10px] text-slate-400">{item.time}</span><div className="flex-1"><b className="text-xs text-slate-800">{item.patientName}</b><p className="mt-1 text-[10px] text-slate-400">{item.purpose}</p></div><StatusBadge tone={item.reportReviewStatus === "异常优先" ? "red" : "orange"}>{item.reportReviewStatus}</StatusBadge></button>)}
-          </div>
-        </section>
       </div>
-      <div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-bold text-blue-600">处方任务入口</p><p className="mt-1 text-xs text-slate-500">预约详情之外，仍可直接进入全部处方任务。</p></div><div className="flex gap-2 text-[10px] text-slate-500"><span>待生成 {count("pending_generation")}</span><span>待复核 {count("pending_review")}</span><span>待签名 {count("pending_signature")}</span></div></div>
-      <PrescriptionWorklist tasks={tasks} onOpen={onOpen} onGenerate={onGenerate} compact />
     </section>
   );
 }
@@ -209,6 +212,35 @@ function AppointmentDetail({
 
 function InfoTile({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold text-slate-400">{label}</p><p className="mt-2 text-xs font-bold leading-5 text-slate-800">{value}</p></div>;
+}
+
+function MiniMetric({ icon, label, value, note, tone = "blue" }: { icon: React.ReactNode; label: string; value: string; note: string; tone?: "blue" | "orange" | "red" | "green" }) {
+  const classes = {
+    blue: "bg-blue-50 text-blue-700",
+    orange: "bg-amber-50 text-amber-700",
+    red: "bg-red-50 text-red-700",
+    green: "bg-emerald-50 text-emerald-700"
+  };
+  return (
+    <article className="rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+      <div className="flex items-center gap-3">
+        <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${classes[tone]}`}>{icon}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold text-slate-400">{label}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{note}</p>
+        </div>
+        <b className="text-2xl text-slate-950">{value}</b>
+      </div>
+    </article>
+  );
+}
+
+function appointmentStatus(task?: PrescriptionTask): { label: string; tone: "blue" | "orange" | "green" } {
+  if (!task) return { label: "待建处方任务", tone: "blue" };
+  if (task.status === "pending_generation") return { label: "报告已就绪，待生成处方", tone: "blue" };
+  if (task.status === "pending_review") return { label: "AI草稿已生成，待医生复核", tone: "orange" };
+  if (task.status === "pending_signature") return { label: "参数已确认，待数字签名", tone: "orange" };
+  return { label: "处方已签署", tone: "green" };
 }
 
 function EditLine({ label, value, setValue, disabled }: { label: string; value: string; setValue: (value: string) => void; disabled: boolean }) {
