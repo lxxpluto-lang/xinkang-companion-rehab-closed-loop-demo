@@ -28,9 +28,12 @@ export const defaultBaduanjinVideo: PublishedTrainingVideo = {
   url: "https://player.bilibili.com/player.html?bvid=BV1gT4y1m7ec&page=1&high_quality=1&danmaku=0"
 };
 
+const breathTrainingVideoUrl = "https://player.bilibili.com/player.html?bvid=BV1Av4y1p7SL&page=1&high_quality=1&danmaku=0";
+
 export const initialTrainingVideos: TrainingVideo[] = [
   { ...defaultBaduanjinVideo, status: "PUBLISHED", updatedBy: "林管理员" },
-  { id: "VIDEO-BREATH-001", title: "腹式呼吸基础练习", category: "呼吸训练", subtype: "腹式呼吸", source: "upload", url: "", status: "DRAFT", updatedBy: "王医生" },
+  { id: "VIDEO-BREATH-001", title: "腹式呼吸与正念呼吸跟练", category: "呼吸训练", subtype: "腹式呼吸", source: "bilibili", url: breathTrainingVideoUrl, status: "PUBLISHED", updatedBy: "林管理员" },
+  { id: "VIDEO-BREATH-002", title: "腹式呼吸与正念呼吸跟练", category: "呼吸训练", subtype: "正念呼吸", source: "bilibili", url: breathTrainingVideoUrl, status: "PUBLISHED", updatedBy: "林管理员" },
   { id: "VIDEO-RESIST-001", title: "弹力带上肢训练", category: "抗阻运动", subtype: "弹力带", source: "upload", url: "", status: "PENDING", updatedBy: "周康复师" },
   { id: "VIDEO-BIKE-OLD", title: "功率车旧版热身", category: "有氧运动", subtype: "功率车", source: "upload", url: "", status: "OFFLINE", updatedBy: "林管理员" }
 ];
