@@ -889,9 +889,9 @@ function TrainingScreen(props: {
                 </div>
                 <span className={`h-2.5 w-2.5 rounded-full ${anomaly ? "animate-pulse bg-red-500" : "metric-live-dot bg-emerald-500"}`} />
               </div>
-              <div className="mt-3 flex items-end gap-2">
-                <span className={`text-4xl font-bold tabular-nums ${anomaly ? "text-red-600" : "text-slate-950"}`}>{hr}</span>
-                <span className="pb-1 text-xs font-bold text-slate-500">bpm</span>
+              <div className={`mt-3 flex items-end gap-2 rounded-2xl px-3 py-2 ${anomaly ? "bg-red-600" : "bg-slate-900"}`}>
+                <span className="text-4xl font-bold tabular-nums text-white">{hr}</span>
+                <span className="pb-1 text-xs font-bold text-white/75">bpm</span>
               </div>
               <div className="relative mt-3">
                 <div className="grid h-2.5 grid-cols-4 overflow-hidden rounded-full">
