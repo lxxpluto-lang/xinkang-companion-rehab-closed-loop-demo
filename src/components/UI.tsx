@@ -27,11 +27,11 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex items-end justify-between gap-6">
+    <div className="mb-4 flex items-end justify-between gap-5">
       <div>
-        <p className="eyebrow mb-2">{eyebrow}</p>
+        <p className="eyebrow mb-1.5">{eyebrow}</p>
         <h1 className="text-[28px] font-bold tracking-tight text-slate-950">{title}</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{description}</p>
+        <p className="mt-1.5 max-w-3xl text-sm leading-5 text-slate-500">{description}</p>
       </div>
       {action}
     </div>
@@ -48,7 +48,7 @@ export function SectionHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-4 flex items-start justify-between gap-4">
+    <div className="mb-3 flex items-start justify-between gap-4">
       <div>
         <h2 className="card-title">{title}</h2>
         {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}

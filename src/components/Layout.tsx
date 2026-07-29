@@ -29,7 +29,7 @@ export function DoctorLayout({
 
   return (
     <div className="doctor-shell min-h-screen text-[13px]">
-      <aside className="fixed inset-y-0 left-0 z-20 flex w-[196px] flex-col border-r border-[#e7ebf2] bg-white text-slate-700 shadow-[8px_0_30px_rgba(59,87,130,0.04)]">
+      <aside className="fixed inset-y-0 left-0 z-20 flex w-[180px] flex-col border-r border-[#e7ebf2] bg-white text-slate-700 shadow-[8px_0_30px_rgba(59,87,130,0.04)]">
         <div className="border-b border-slate-100 px-3 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#3f7cff] text-white shadow-[0_7px_18px_rgba(63,124,255,0.25)]">
@@ -73,7 +73,7 @@ export function DoctorLayout({
         </div>
       </aside>
 
-      <div className="ml-[196px] min-h-screen">
+      <div className="ml-[180px] min-h-screen">
         <header className="sticky top-0 z-10 border-b border-[#e8edf4] bg-white/92 backdrop-blur-xl">
           <div className="flex h-[58px] items-center justify-between px-6">
             <div className="flex items-center gap-3">

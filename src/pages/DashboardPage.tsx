@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Activity, AlertTriangle, ArrowLeft, BadgeCheck, CalendarClock, CheckCircle2, FileText, MonitorUp, PenTool, PhoneCall, Printer, Signature, Sparkles, UserCheck } from "lucide-react";
 import { doctorAppointments, prescriptionStatusLabels, type DoctorAppointment, type PrescriptionStatus, type PrescriptionTask } from "../prescriptionData";
-import { PrescriptionWorklist } from "../components/PrescriptionWorklist";
 import { PageHeader, SectionHeader, StatCard, StatusBadge } from "../components/UI";
 import type { Role } from "../types";
 import { clinicalSnapshotChen, getPrescriptionVersionDetail, getSingleTrainingReportDetail, minimalSafetyEvents } from "../clinicalSharedData";
@@ -23,8 +22,21 @@ export function DashboardPage({
   onSign: (taskId: string) => void;
 }) {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const [taskBucket, setTaskBucket] = useState<"all" | "not_generated" | "review">("all");
+  const [riskFilter, setRiskFilter] = useState<"all" | PrescriptionTask["risk"]>("all");
+  const [taskQuery, setTaskQuery] = useState("");
   const count = (status: PrescriptionStatus) => tasks.filter((task) => task.status === status).length;
   const selectedAppointment = doctorAppointments.find((item) => item.id === selectedAppointmentId);
+  const pendingPrescriptionTasks = tasks.filter((task) => task.status !== "completed");
+  const ungeneratedCount = pendingPrescriptionTasks.filter((task) => task.status === "pending_generation").length;
+  const reviewCount = pendingPrescriptionTasks.filter((task) => task.status === "pending_review" || task.status === "pending_signature").length;
+  const filteredPrescriptionTasks = useMemo(() => pendingPrescriptionTasks.filter((task) => {
+    const matchesBucket = taskBucket === "all" || (taskBucket === "not_generated" ? task.status === "pending_generation" : task.status === "pending_review" || task.status === "pending_signature");
+    const matchesRisk = riskFilter === "all" || task.risk === riskFilter;
+    const query = taskQuery.trim();
+    const matchesQuery = !query || `${task.patientName}${task.patientId}${task.stage}${task.sourceLabel}`.includes(query);
+    return matchesBucket && matchesRisk && matchesQuery;
+  }), [pendingPrescriptionTasks, riskFilter, taskBucket, taskQuery]);
   if (role === "REHAB_EXECUTION") {
     return (
       <section data-testid="page-VIEW-DASHBOARD">
@@ -56,9 +68,6 @@ export function DashboardPage({
     stage: doctorAppointments.reduce((total, item) => total + item.stageReportIds.length, 0),
     abnormal: doctorAppointments.filter((item) => item.reportReviewStatus === "异常优先").length
   };
-  const pendingPrescriptionTasks = tasks.filter((task) => task.status !== "completed");
-  const ungeneratedTasks = pendingPrescriptionTasks.filter((task) => task.status === "pending_generation");
-  const reviewTasks = pendingPrescriptionTasks.filter((task) => task.status === "pending_review" || task.status === "pending_signature");
   return (
     <section data-testid="page-VIEW-DASHBOARD">
       <PageHeader eyebrow={role === "ADMIN" ? "管理员临床全权视图" : "医生工作台"} title={role === "ADMIN" ? "林管理员，上午好" : "王医生，上午好"} description={role === "ADMIN" ? "可查看和处理全部临床任务；签署时记录管理员本人身份并进行二次确认。" : "首页只保留今天需要医生决策的预约、报告与处方任务。"} />
@@ -73,9 +82,8 @@ export function DashboardPage({
           <div className="px-4 pt-4"><SectionHeader title="今日预约患者" description="只显示医生需要先扫一眼的信息。" /></div>
           <div className="grid grid-cols-[1fr_0.72fr_0.62fr] border-y border-slate-100 bg-slate-50 px-4 py-2.5 text-[10px] font-bold text-slate-400"><span>姓名</span><span>分组</span><span>时间</span></div>
           {doctorAppointments.map((appointment) => {
-            const linkedTask = tasks.find((task) => task.id === appointment.linkedTaskId);
             return (
-              <button type="button" key={appointment.id} onClick={() => linkedTask && onOpen(linkedTask.id)} className="grid w-full grid-cols-[1fr_0.72fr_0.62fr] items-center border-b border-slate-100 px-4 py-3 text-left text-xs hover:bg-blue-50">
+              <button type="button" key={appointment.id} onClick={() => setSelectedAppointmentId(appointment.id)} className="grid w-full grid-cols-[1fr_0.72fr_0.62fr] items-center border-b border-slate-100 px-4 py-3 text-left text-xs hover:bg-blue-50">
                 <span className="font-bold text-slate-900">{appointment.patientName}</span>
                 <StatusBadge tone={appointment.risk === "高危" ? "red" : appointment.risk === "中危" ? "orange" : "green"}>{appointment.risk}</StatusBadge>
                 <b className="font-mono text-slate-700">{appointment.time}</b>
@@ -85,10 +93,41 @@ export function DashboardPage({
         </section>
 
         <section className="card overflow-hidden">
-          <div className="px-5 pt-5"><SectionHeader title="未完成处方任务" description="判定逻辑：报告已就绪、初始评估完成、异常复核后需调整，且处方未签名完成。点击任一行直接进入处方界面。" /></div>
-          <div className="grid gap-4 p-5 pt-1 lg:grid-cols-2">
-            <PrescriptionTaskGroup title="未生成" description="报告/评估已就绪，需先生成 AI 处方草稿。" tasks={ungeneratedTasks} onOpen={onOpen} onGenerate={onGenerate} />
-            <PrescriptionTaskGroup title="待审核" description="AI草稿或参数已确认，需医生复核/签名。" tasks={reviewTasks} onOpen={onOpen} onGenerate={onGenerate} />
+          <div className="px-5 pt-5">
+            <SectionHeader title="未完成处方任务" description="判定逻辑：报告已就绪、初始评估完成或异常复核后需调整，且处方未签名归档。点击行直接进入处方界面。" />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-y border-slate-100 bg-slate-50 px-5 py-3">
+            {[
+              ["all", `全部 ${pendingPrescriptionTasks.length}`],
+              ["not_generated", `未生成 ${ungeneratedCount}`],
+              ["review", `待审核 ${reviewCount}`]
+            ].map(([value, label]) => (
+              <button key={value} type="button" onClick={() => setTaskBucket(value as "all" | "not_generated" | "review")} className={`rounded-lg px-3 py-1.5 text-[10px] font-bold ${taskBucket === value ? "bg-blue-600 text-white shadow-sm" : "bg-white text-slate-500 ring-1 ring-slate-200"}`}>{label}</button>
+            ))}
+            <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value as "all" | PrescriptionTask["risk"])} className="ml-auto rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-600">
+              <option value="all">全部分组</option>
+              <option value="低危">低危</option>
+              <option value="中危">中危</option>
+              <option value="高危">高危</option>
+            </select>
+            <input value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} placeholder="搜索患者/编号/依据" className="w-40 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-medium text-slate-700 outline-none focus:border-blue-300" />
+          </div>
+          <div className="grid grid-cols-[0.36fr_0.9fr_0.86fr_0.52fr_0.72fr_0.86fr_0.78fr] bg-white px-5 py-2.5 text-[10px] font-bold text-slate-400">
+            <span>序号</span><span>患者</span><span>阶段</span><span>分组</span><span>所属医生</span><span>依据来源</span><span>状态</span>
+          </div>
+          <div className="max-h-[430px] overflow-y-auto">
+            {filteredPrescriptionTasks.map((task, index) => (
+              <button key={task.id} type="button" onClick={() => task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id)} className="grid w-full grid-cols-[0.36fr_0.9fr_0.86fr_0.52fr_0.72fr_0.86fr_0.78fr] items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50">
+                <span className="font-mono text-slate-400">{String(index + 1).padStart(2, "0")}</span>
+                <span className="font-bold text-slate-900">{task.patientName}<small className="mt-0.5 block font-normal text-slate-400">{task.patientId}</small></span>
+                <span className="text-slate-600">{task.stage}</span>
+                <StatusBadge tone={task.risk === "高危" ? "red" : task.risk === "中危" ? "orange" : "green"}>{task.risk}</StatusBadge>
+                <span className="font-semibold text-slate-700">{task.confirmedBy ?? task.signedBy ?? "王医生"}</span>
+                <span className="text-slate-500">{task.sourceLabel}</span>
+                <span className="flex items-center gap-2"><StatusBadge tone={task.status === "pending_generation" ? "blue" : "orange"}>{task.status === "pending_generation" ? "未生成" : "待审核"}</StatusBadge><span className="font-bold text-blue-700">{task.status === "pending_generation" ? "生成草稿" : "打开审核"}</span></span>
+              </button>
+            ))}
+            {filteredPrescriptionTasks.length === 0 && <div className="px-5 py-10 text-center text-xs text-slate-400">当前筛选条件下暂无未完成处方。</div>}
           </div>
         </section>
       </div>
@@ -229,33 +268,4 @@ function MiniMetric({ icon, label, value, note, tone = "blue" }: { icon: React.R
 
 function EditLine({ label, value, setValue, disabled }: { label: string; value: string; setValue: (value: string) => void; disabled: boolean }) {
   return <label><span className="field-label">{label}</span><input value={value} onChange={(event) => setValue(event.target.value)} disabled={disabled} className="text-field disabled:bg-slate-50" /></label>;
-}
-
-function PrescriptionTaskGroup({ title, description, tasks, onOpen, onGenerate }: { title: string; description: string; tasks: PrescriptionTask[]; onOpen: (taskId: string) => void; onGenerate: (taskId: string) => void }) {
-  return (
-    <section className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div><p className="text-sm font-bold text-slate-900">{title}</p><p className="mt-1 text-[10px] leading-4 text-slate-500">{description}</p></div>
-        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600">{tasks.length}项</span>
-      </div>
-      <div className="space-y-2">
-        {tasks.map((task, index) => (
-          <button type="button" key={task.id} onClick={() => task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id)} className="w-full rounded-xl border border-white bg-white p-3 text-left shadow-sm hover:border-blue-200 hover:bg-blue-50">
-            <div className="grid grid-cols-[0.34fr_0.9fr_0.72fr_0.52fr_0.68fr] items-center gap-2 text-xs">
-              <span className="font-mono text-slate-400">{String(index + 1).padStart(2, "0")}</span>
-              <span className="font-bold text-slate-900">{task.patientName}</span>
-              <span className="text-slate-500">{task.stage}</span>
-              <StatusBadge tone={task.risk === "高危" ? "red" : task.risk === "中危" ? "orange" : "green"}>{task.risk}</StatusBadge>
-              <span className="font-semibold text-slate-700">{task.confirmedBy ?? task.signedBy ?? "王医生"}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
-              <span>{task.sourceLabel}</span>
-              <StatusBadge tone={task.status === "pending_generation" ? "blue" : "orange"}>{prescriptionStatusLabels[task.status]}</StatusBadge>
-            </div>
-          </button>
-        ))}
-        {tasks.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-8 text-center text-xs text-slate-400">暂无{title}任务</div>}
-      </div>
-    </section>
-  );
 }

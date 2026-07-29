@@ -94,10 +94,10 @@ export function PrescriptionReviewPage({
     <section data-testid="page-VIEW-PRESCRIPTION-REVIEW">
       <PageHeader eyebrow={task.kind === "initial" ? "初始处方录入" : "报告驱动调整处方"} title={`${task.patientName} · ${task.version}`} description={task.kind === "initial" ? "基于首次基线评估由康复医生人工录入，不强制使用AI。" : "先核对报告、上一版处方与安全事件，再复核AI处方草稿。"} action={<button type="button" className="btn-secondary" onClick={onBack}><ArrowLeft className="h-4 w-4" />返回处方列表</button>} />
 
-      <div className="grid grid-cols-[0.72fr_0.72fr_0.8fr_1.35fr] gap-4">
+      <div className="space-y-4">
         <section className="card p-4">
-          <SectionHeader title="病人基础信息" />
-          <div className="space-y-3">
+          <SectionHeader title="病人基础信息" description="先核对病史、诊断和特殊用药；这些信息只作为处方复核依据，不混入处方模板字段。" />
+          <div className="grid gap-3 md:grid-cols-5">
             <Evidence label="姓名 / 性别 / 年龄" value={`${task.patientName} · ${task.sex} · ${task.age}岁`} />
             <Evidence label="分组情况" value={task.risk} warning={task.risk === "高危"} />
             <Evidence label="病史" value={clinicalSnapshotChen.medicalHistory} />
@@ -109,23 +109,23 @@ export function PrescriptionReviewPage({
 
         <section className="card p-4">
           <SectionHeader title="AI生成建议" action={<Sparkles className="h-4 w-4 text-blue-600" />} />
-          <div className="space-y-3 text-xs leading-5 text-slate-600">
+          <div className="grid gap-3 text-xs leading-5 text-slate-600 md:grid-cols-[1.15fr_0.9fr_0.95fr]">
             <div className="rounded-xl bg-blue-50 p-3"><p className="font-bold text-blue-900">建议</p><p className="mt-1">基于报告建议维持功率车为主，靶心率维持100-116次/分钟，训练总时间30分钟/次。</p></div>
             <Evidence label="为什么需要开方" value={task.kind === "initial" ? "首次基线评估后需形成初始处方" : "阶段/单次报告已就绪，上一版本需复核或调整"} />
             <Evidence label="上一版参考" value={`${previousVersion.version} · ${previousVersion.targetHr.join("-")}次/分钟 · ${previousVersion.targetPower.join("-")}W`} />
             {linkedSafetyEvents.map((event) => <div key={event.id} className="rounded-xl border border-red-100 bg-red-50 p-3 text-red-800"><b>{event.type}</b><p className="mt-1">{event.metricSnapshot}；{event.doctorReview}；{event.prescriptionImpact}</p></div>)}
-            <p className="rounded-xl bg-amber-50 p-3 text-amber-800">AI只生成建议和提示，不写入正式处方；右侧处方内容以医生保存和确认为准。</p>
+            <p className="rounded-xl bg-amber-50 p-3 text-amber-800 md:col-span-3">AI只生成建议和提示，不写入正式处方；下方处方内容以医生保存和确认为准。</p>
           </div>
         </section>
 
         <section className="card p-4">
           <SectionHeader title="报告列表" description="点击后在下方查看报告内容和数据项。" />
-          <div className="space-y-2">
-            <button type="button" onClick={() => setSelectedReport("stage")} className={`w-full rounded-xl border p-3 text-left ${selectedReport === "stage" ? "border-blue-200 bg-blue-50" : "border-slate-100 bg-white hover:bg-slate-50"}`}><CalendarRange className="h-4 w-4 text-blue-600" /><p className="mt-2 text-xs font-bold text-slate-900">阶段性报告</p><p className="mt-1 text-[10px] text-slate-500">{task.sourceType === "stage_report" ? task.sourceLabel : "历史阶段报告"}</p></button>
-            <button type="button" onClick={() => setSelectedReport("single")} className={`w-full rounded-xl border p-3 text-left ${selectedReport === "single" ? "border-emerald-200 bg-emerald-50" : "border-slate-100 bg-white hover:bg-slate-50"}`}><FileText className="h-4 w-4 text-emerald-600" /><p className="mt-2 text-xs font-bold text-slate-900">单次报告</p><p className="mt-1 text-[10px] text-slate-500">{task.sourceType === "single_report" ? task.sourceLabel : "功率车单次报告"}</p></button>
-            <button type="button" onClick={onOpenReport} className="w-full rounded-xl border border-slate-100 bg-white p-3 text-left text-xs font-bold text-blue-700 hover:bg-blue-50">进入报告中心</button>
+          <div className="grid gap-3 md:grid-cols-[0.72fr_0.72fr_0.56fr_1.4fr]">
+            <button type="button" onClick={() => setSelectedReport("stage")} className={`rounded-xl border p-3 text-left ${selectedReport === "stage" ? "border-blue-200 bg-blue-50" : "border-slate-100 bg-white hover:bg-slate-50"}`}><CalendarRange className="h-4 w-4 text-blue-600" /><p className="mt-2 text-xs font-bold text-slate-900">阶段性报告</p><p className="mt-1 text-[10px] text-slate-500">{task.sourceType === "stage_report" ? task.sourceLabel : "历史阶段报告"}</p></button>
+            <button type="button" onClick={() => setSelectedReport("single")} className={`rounded-xl border p-3 text-left ${selectedReport === "single" ? "border-emerald-200 bg-emerald-50" : "border-slate-100 bg-white hover:bg-slate-50"}`}><FileText className="h-4 w-4 text-emerald-600" /><p className="mt-2 text-xs font-bold text-slate-900">单次报告</p><p className="mt-1 text-[10px] text-slate-500">{task.sourceType === "single_report" ? task.sourceLabel : "功率车单次报告"}</p></button>
+            <button type="button" onClick={onOpenReport} className="rounded-xl border border-slate-100 bg-white p-3 text-left text-xs font-bold text-blue-700 hover:bg-blue-50">进入报告中心</button>
+            <ReportPreviewCard selected={selectedReport} />
           </div>
-          <ReportPreviewCard selected={selectedReport} />
         </section>
 
         <section id="printable-prescription" className="card p-5">
