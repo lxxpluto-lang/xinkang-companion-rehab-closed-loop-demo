@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Activity, AlertTriangle, Bike, CheckCircle2, ClipboardCheck, Gauge, HeartPulse, Radio, Signal, Timer, UserCheck, Wifi } from "lucide-react";
 import { PageHeader, SectionHeader, StatCard, StatusBadge } from "../components/UI";
 import type { Role } from "../types";
+import { minimalSafetyEvents } from "../clinicalSharedData";
 
 const stationTasks = [
   { id: "NS-01", station: "功率车 01", patient: "陈女士", exercise: "功率车", phase: "主训练", elapsed: "12:18", remaining: "09:42", hr: 108, target: "100–116", power: 64, cadence: 61, resistance: 5, progress: 68, connection: "双设备已连接", quality: "数据完整", status: "在训" },
@@ -16,6 +17,7 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
   const [note, setNote] = useState("");
   const selected = useMemo(() => stationTasks.find((item) => item.id === selectedId) ?? stationTasks[0], [selectedId]);
   const canExecute = role === "ADMIN" || role === "REHAB_EXECUTION";
+  const linkedSafetyEvent = minimalSafetyEvents.find((event) => event.patientName === selected.patient);
   const displayPatient = (task: typeof stationTasks[number]) => role !== "DOCTOR" || task.id === "NS-01" ? task.patient : `患者 ${task.patient.slice(0, 1)}**`;
   const toggleArrival = (id: string) => setArrived((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
 
@@ -67,6 +69,15 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
             </div>
             <div className={`mx-4 mb-4 rounded-lg border px-3 py-2.5 text-xs ${selected.quality === "数据完整" ? "border-emerald-100 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}><b>{selected.connection}</b> · {selected.quality} · 靶心率 {selected.target} bpm</div>
           </section>
+          {linkedSafetyEvent && <section className="card border-l-4 border-l-amber-500 p-4">
+            <SectionHeader title="异常上报闭环" description="训练工作台只保留最小闭环：现场事实、医生复核状态和对下一处方的影响。" action={<StatusBadge tone={linkedSafetyEvent.doctorReviewStatus === "医生已复核" ? "green" : "orange"}>{linkedSafetyEvent.doctorReviewStatus}</StatusBadge>} />
+            <div className="space-y-2 text-xs leading-5 text-slate-600">
+              <p><b className="text-slate-900">事件：</b>{linkedSafetyEvent.occurredAt} · {linkedSafetyEvent.type}</p>
+              <p><b className="text-slate-900">指标：</b>{linkedSafetyEvent.metricSnapshot}</p>
+              <p><b className="text-slate-900">现场处置：</b>{linkedSafetyEvent.fieldAction}</p>
+              <p><b className="text-slate-900">医生复核：</b>{linkedSafetyEvent.doctorReview}</p>
+            </div>
+          </section>}
           {canExecute ? <section className="card p-4">
             <SectionHeader title="现场处置记录" description="护士仅记录现场事实，不形成处方或医学结论。" />
             <textarea value={note} onChange={(event) => setNote(event.target.value)} className="text-field min-h-20 resize-none" placeholder="例如：已协助患者坐位休息，复测血压并通知康复医生……" />

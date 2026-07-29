@@ -1,4 +1,4 @@
-import type { PrescriptionVersion } from "./patient/stageReportData";
+export type PrescriptionVersionId = "V1" | "V2" | "V3" | "V4";
 
 export type ClinicalSnapshot = {
   patientId: string;
@@ -25,7 +25,7 @@ export type PrescriptionClinicalAdvice = {
 };
 
 export type PrescriptionVersionDetail = {
-  id: PrescriptionVersion["id"];
+  id: PrescriptionVersionId;
   version: string;
   issuedAt: string;
   physician: string;
@@ -76,7 +76,7 @@ export type SingleTrainingReportDetail = {
   id: string;
   taskId: string;
   patientId: string;
-  prescriptionVersionId: PrescriptionVersion["id"];
+  prescriptionVersionId: PrescriptionVersionId;
   dataMode: ReportDataMode;
   dataSourceNote: string;
   sampleSeries?: TrainingSamplePoint[];
@@ -120,6 +120,60 @@ export const clinicalSnapshotChen: ClinicalSnapshot = {
   specialMedications: ["阿司匹林", "氯吡格雷", "美托洛尔", "阿托伐他汀"],
   patientFriendlySummary: "您目前处于支架术后院内康复阶段，整体恢复稳定，但运动时仍需要控制心率并注意胸闷、头晕等信号。"
 };
+
+export const patientMasterChen = {
+  patientId: clinicalSnapshotChen.patientId,
+  name: clinicalSnapshotChen.name,
+  idNumber: "3702********1531",
+  phone: "138****6021",
+  sex: clinicalSnapshotChen.sex,
+  age: clinicalSnapshotChen.age,
+  weightKg: clinicalSnapshotChen.weightKg,
+  bmi: clinicalSnapshotChen.bmi,
+  rehabGroup: "运动康复 A 组",
+  rehabStage: "Ⅱ期院内康复",
+  planSessions: 36,
+  completedSessions: 11,
+  restingHr: 72,
+  latestFollowUp: "2026-08-06",
+  clinicalSnapshot: clinicalSnapshotChen
+};
+
+export type MinimalSafetyEvent = {
+  id: string;
+  patientId: string;
+  patientName: string;
+  prescriptionVersionId: PrescriptionVersionId;
+  sessionId: string;
+  occurredAt: string;
+  source: string;
+  type: string;
+  metricSnapshot: string;
+  patientComplaint: string;
+  fieldAction: string;
+  doctorReviewStatus: "待医生复核" | "医生已复核";
+  doctorReview: string;
+  prescriptionImpact: string;
+};
+
+export const minimalSafetyEvents: MinimalSafetyEvent[] = [
+  {
+    id: "SAFE-20260725-01",
+    patientId: clinicalSnapshotChen.patientId,
+    patientName: clinicalSnapshotChen.name,
+    prescriptionVersionId: "V4",
+    sessionId: "TR-20260725-012",
+    occurredAt: "2026-07-25 09:48",
+    source: "患者主诉 + 背包心率提醒",
+    type: "训练中胸闷主诉",
+    metricSnapshot: "HR 113 bpm，SpO₂ 97%，功率 58W，RPE 13",
+    patientComplaint: "短暂胸闷，无胸痛，暂停观察后缓解",
+    fieldAction: "康复执行岗暂停训练2分钟，坐位观察并复测血压，症状缓解后低阻力继续",
+    doctorReviewStatus: "医生已复核",
+    doctorReview: "未见持续性心律失常，V4维持强度，下一次训练继续补齐训练后血压记录。",
+    prescriptionImpact: "下一版处方暂不继续上调，作为阶段报告和V5草稿依据。"
+  }
+];
 
 export const prescriptionVersionDetails: PrescriptionVersionDetail[] = [
   {

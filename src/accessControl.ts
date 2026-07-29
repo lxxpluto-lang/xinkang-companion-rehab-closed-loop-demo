@@ -36,8 +36,8 @@ export const navItems: NavItem[] = [
 export const roleMeta: Record<Role, { label: string; account: string; scope: DataScope; note: string }> = {
   ADMIN: { label: "系统管理员", account: "林管理员", scope: "ALL", note: "系统与临床全部权限" },
   DOCTOR: { label: "康复医生", account: "王医生", scope: "TEAM", note: "团队共享查看 · 本人任务负责" },
-  REHAB_EXECUTION: { label: "康复执行岗", account: "周康复师", scope: "CENTER", note: "当前康复中心执行与随访" },
-  PATIENT: { label: "患者", account: "陈建国", scope: "SELF_TASK", note: "仅本人数据" }
+  REHAB_EXECUTION: { label: "康复执行岗", account: "周康复师", scope: "CENTER", note: "当前康复中心执行与异常上报" },
+  PATIENT: { label: "患者", account: "陈女士", scope: "SELF_TASK", note: "仅本人数据" }
 };
 
 const allActions: PermissionAction[] = ["VIEW", "CREATE", "EDIT", "REVIEW", "SIGN", "PUBLISH", "UNPUBLISH", "DELETE", "RESTORE", "PERMANENT_DELETE", "PRINT", "EXPORT", "GRANT"];

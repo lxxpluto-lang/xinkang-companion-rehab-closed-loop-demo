@@ -47,7 +47,7 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
     id: "RX-TASK-001",
     patientId: "P-DEMO-001",
     patientName: "陈女士",
-    age: 62,
+    age: 59,
     sex: "女",
     stage: "Ⅱ期 · 第4周",
     risk: "中危",

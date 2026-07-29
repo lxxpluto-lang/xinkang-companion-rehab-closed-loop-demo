@@ -17,6 +17,7 @@ import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import {
   getPrescriptionVersionDetail,
   getSingleTrainingReportDetail,
+  minimalSafetyEvents,
   prescriptionVersionDetails,
   singleTrainingReportDetails,
   type PrescriptionVersionDetail
@@ -94,6 +95,7 @@ function DoctorSingleReportList({ onSelect }: { onSelect: (reportId: string) => 
 function DoctorSingleReportDetail({ reportId, onBack, onCreatePrescription }: { reportId: string; onBack: () => void; onCreatePrescription: (taskId: string) => void }) {
   const report = getSingleTrainingReportDetail(reportId);
   const prescription = getPrescriptionVersionDetail(report.prescriptionVersionId);
+  const linkedSafetyEvent = minimalSafetyEvents.find((event) => event.sessionId === report.id);
   const isDemoData = report.dataMode === "demo" || !report.sampleSeries?.length;
   return (
     <div className="space-y-5">
@@ -153,6 +155,11 @@ function DoctorSingleReportDetail({ reportId, onBack, onCreatePrescription }: { 
             <div className="grid grid-cols-[1fr_1fr_1fr_1fr] bg-slate-50 px-4 py-3 text-[10px] font-bold text-slate-400"><span>分期指标</span><span>热身期</span><span>训练期</span><span>放松期</span></div>
             {report.phaseVitals.map((row) => <div key={row.metric} className="grid grid-cols-[1fr_1fr_1fr_1fr] border-t border-slate-100 px-4 py-3 text-xs text-slate-600"><b className="text-slate-800">{row.metric}</b><span>{row.warmup}</span><span>{row.training}</span><span>{row.cooldown}</span></div>)}
           </div>
+          {linkedSafetyEvent && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-xs leading-5 text-red-800">
+            <b>异常闭环：</b>{linkedSafetyEvent.type} · {linkedSafetyEvent.metricSnapshot}<br />
+            <b>现场处置：</b>{linkedSafetyEvent.fieldAction}<br />
+            <b>医生复核：</b>{linkedSafetyEvent.doctorReview}
+          </div>}
         </section>
       </div>
 
@@ -192,6 +199,7 @@ function DoctorSingleReportDetail({ reportId, onBack, onCreatePrescription }: { 
 }
 
 function StageReportPanel({ selected, onCreatePrescription, onOpenVersion }: { selected: typeof stageReports[number]; onCreatePrescription: (taskId: string) => void; onOpenVersion: (version: PrescriptionVersionDetail) => void }) {
+  const stageSafetyEvents = minimalSafetyEvents.filter((event) => event.patientName === selected.patient);
   return (
     <section className="card p-5">
       <SectionHeader title={`${selected.patient} · 阶段结论`} action={<StatusBadge tone={selected.risk.includes("无") ? "green" : "orange"}>{selected.risk}</StatusBadge>} />
@@ -212,6 +220,9 @@ function StageReportPanel({ selected, onCreatePrescription, onOpenVersion }: { s
         </div>
       </div>
       <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-800"><ShieldAlert className="mr-1.5 inline h-4 w-4" />AI会引用该报告、上一处方、病史、特殊用药和安全事件生成草稿，医生仍需复核。</div>
+      {stageSafetyEvents.length > 0 && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-xs leading-5 text-red-800">
+        <b>本阶段异常事件已纳入调方依据：</b>{stageSafetyEvents.map((event) => `${event.type}（${event.doctorReviewStatus}，${event.prescriptionImpact}）`).join("；")}
+      </div>}
       <button type="button" onClick={() => onCreatePrescription(selected.taskId)} className="btn-primary mt-5 w-full"><Sparkles className="h-4 w-4" />基于此报告开具处方<ArrowRight className="h-4 w-4" /></button>
       <p className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-slate-400"><CheckCircle2 className="h-3.5 w-3.5" />处方必须经医生复核和数字签名后生效</p>
     </section>

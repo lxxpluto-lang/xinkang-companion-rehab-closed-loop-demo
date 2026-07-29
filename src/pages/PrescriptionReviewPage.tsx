@@ -3,7 +3,7 @@ import { ArrowLeft, BadgeCheck, Check, FileText, PenTool, Printer, ShieldAlert, 
 import type { PrescriptionTask } from "../prescriptionData";
 import { prescriptionStatusLabels } from "../prescriptionData";
 import { AiBadge, Notice, PageHeader, SectionHeader, StatusBadge } from "../components/UI";
-import { clinicalSnapshotChen, getPrescriptionVersionDetail } from "../clinicalSharedData";
+import { clinicalSnapshotChen, getPrescriptionVersionDetail, minimalSafetyEvents } from "../clinicalSharedData";
 
 export function PrescriptionReviewPage({
   task,
@@ -29,6 +29,7 @@ export function PrescriptionReviewPage({
   const [notes, setNotes] = useState("训练期间如出现持续胸闷、胸痛、明显气促、头晕或心悸，应立即停止并通知现场医护。");
   const previousVersionKey = task.previousVersionId?.match(/V[1-4]/)?.[0] ?? (task.kind === "initial" ? "V1" : "V4");
   const previousVersion = getPrescriptionVersionDetail(previousVersionKey);
+  const linkedSafetyEvents = minimalSafetyEvents.filter((event) => event.patientId === task.patientId);
   const [rehabContraindications, setRehabContraindications] = useState(previousVersion.advice.rehabContraindications);
   const [dietCautions, setDietCautions] = useState(previousVersion.advice.dietCautions);
   const [exerciseCautions, setExerciseCautions] = useState(previousVersion.advice.exerciseCautions);
@@ -88,6 +89,10 @@ export function PrescriptionReviewPage({
                   <Evidence label="上次用药建议" value={previousVersion.advice.medicationAdvice} />
                   <Evidence label="上次注意事项" value={previousVersion.advice.patientInstruction} />
                 </div>
+                {linkedSafetyEvents.length > 0 && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-xs leading-5 text-red-800">
+                  <p className="font-bold">安全事件与处方影响</p>
+                  {linkedSafetyEvents.map((event) => <p key={event.id} className="mt-2">{event.type} · {event.metricSnapshot}；现场处置：{event.fieldAction}；医生复核：{event.doctorReview}；{event.prescriptionImpact}</p>)}
+                </div>}
               </>
             ) : (
               <div className="space-y-3">
@@ -132,14 +137,14 @@ export function PrescriptionReviewPage({
             <label className="flex items-start gap-3"><input type="checkbox" checked={confirmChecked || locked} onChange={(event) => setConfirmChecked(event.target.checked)} disabled={locked} className="mt-0.5 accent-blue-600" /><span className="text-xs leading-5 text-slate-600">我已核对报告/评估依据、危险分组、运动强度、时长、频次及安全注意事项，确认当前内容由医生作出临床判断。</span></label>
           </div>
           <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-5">
-            <div className="text-xs text-slate-500">{task.status === "completed" ? <span className="flex items-center gap-2 font-bold text-emerald-700"><BadgeCheck className="h-4 w-4" />王医生 · CA签名有效</span> : task.status === "pending_signature" ? "处方参数已锁定，等待数字签名" : "确认后生成下一正式版本"}</div>
+            <div className="text-xs text-slate-500">{task.status === "completed" ? <span className="flex items-center gap-2 font-bold text-emerald-700"><BadgeCheck className="h-4 w-4" />{task.signedBy ?? task.confirmedBy ?? "签署医生"} · CA签名有效</span> : task.status === "pending_signature" ? `处方参数已锁定，等待数字签名${task.confirmedBy ? ` · 复核人：${task.confirmedBy}` : ""}` : "确认后生成下一正式版本"}</div>
             <div className="flex gap-2">
               {task.status === "pending_review" && <button type="button" className="btn-primary" disabled={!confirmChecked || hasBlockingMissing} onClick={() => onConfirm(task.id)}><PenTool className="h-4 w-4" />确认处方参数</button>}
               {task.status === "pending_signature" && <button type="button" className="btn-primary" onClick={() => onSign(task.id)}><Signature className="h-4 w-4" />完成数字签名</button>}
               {task.status === "completed" && <button type="button" className="btn-primary" onClick={printPrescription}><Printer className="h-4 w-4" />打印正式处方</button>}
             </div>
           </div>
-          <div className="print-only prescription-sign-line"><span>处方医生：王医生</span><span>数字签名：{task.signatureStatus === "signed" ? "已签名（CA验证有效）" : "未签名"}</span><span>报告依据：{task.sourceLabel}</span></div>
+          <div className="print-only prescription-sign-line"><span>处方医生：{task.signedBy ?? task.confirmedBy ?? "待签署"}</span><span>数字签名：{task.signatureStatus === "signed" ? "已签名（CA验证有效）" : "未签名"}</span><span>报告依据：{task.sourceLabel}</span></div>
           <div className="print-only"><h2>患者注意事项</h2><p>康复忌讳：{rehabContraindications}</p><p>饮食注意：{dietCautions}</p><p>运动注意：{exerciseCautions}</p><p>停止条件：{stopConditions}</p><p>用药提醒：{medicationAdvice}</p><p>患者说明：{patientInstruction}</p></div>
         </section>
       </div>

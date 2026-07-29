@@ -1,7 +1,9 @@
+import { clinicalSnapshotChen, prescriptionVersionDetails, type PrescriptionVersionId } from "../clinicalSharedData";
+
 export type PrescriptionDirection = "起始" | "上调" | "维持" | "下调";
 
 export type PrescriptionVersion = {
-  id: "V1" | "V2" | "V3" | "V4";
+  id: PrescriptionVersionId;
   effectiveDate: string;
   physician: string;
   direction: PrescriptionDirection;
@@ -123,6 +125,32 @@ export type StageReportData = {
   };
 };
 
+const prescriptionStageMeta: Record<PrescriptionVersionId, { direction: PrescriptionDirection; adjustmentReason: string; plannedSessions: number }> = {
+  V1: { direction: "起始", adjustmentReason: "建立基线，观察低强度运动耐受", plannedSessions: 3 },
+  V2: { direction: "上调", adjustmentReason: "V1完成稳定，延长主训练并提高功率", plannedSessions: 3 },
+  V3: { direction: "上调", adjustmentReason: "靶区达标改善，增加主训练剂量", plannedSessions: 3 },
+  V4: { direction: "维持", adjustmentReason: "V3出现一次血压关注事件，暂维持强度", plannedSessions: 3 }
+};
+
+const stagePrescriptionVersions: PrescriptionVersion[] = prescriptionVersionDetails.map((version) => ({
+  id: version.id,
+  effectiveDate: version.issuedAt.slice(5, 10),
+  physician: version.physician,
+  direction: prescriptionStageMeta[version.id].direction,
+  adjustmentReason: prescriptionStageMeta[version.id].adjustmentReason,
+  exerciseProject: version.exerciseProject,
+  trainingType: version.trainingType,
+  weeklyFrequency: version.weeklyFrequency,
+  warmupMinutes: version.warmupMinutes,
+  trainingMinutes: version.trainingMinutes,
+  cooldownMinutes: version.cooldownMinutes,
+  targetHr: version.targetHr,
+  targetPower: version.targetPower,
+  resistance: version.resistance,
+  rpeTarget: version.rpeTarget,
+  plannedSessions: prescriptionStageMeta[version.id].plannedSessions
+}));
+
 const session = (
   id: string,
   prescriptionVersionId: TrainingSession["prescriptionVersionId"],
@@ -164,87 +192,14 @@ export const stageReportData: StageReportData = {
     generatedAt: "2026-07-26 10:30"
   },
   patientSnapshot: {
-    name: "陈女士",
-    age: 59,
-    weightKg: 63,
-    bmi: 24,
-    riskAtStart: "中危",
-    currentRisk: "中危（状态稳定）"
+    name: clinicalSnapshotChen.name,
+    age: clinicalSnapshotChen.age,
+    weightKg: clinicalSnapshotChen.weightKg,
+    bmi: clinicalSnapshotChen.bmi,
+    riskAtStart: clinicalSnapshotChen.riskLevel,
+    currentRisk: `${clinicalSnapshotChen.riskLevel}（状态稳定）`
   },
-  prescriptionVersions: [
-    {
-      id: "V1",
-      effectiveDate: "06-16",
-      physician: "王医生",
-      direction: "起始",
-      adjustmentReason: "建立基线，观察低强度运动耐受",
-      exerciseProject: "功率车",
-      trainingType: "连续训练",
-      weeklyFrequency: 3,
-      warmupMinutes: 5,
-      trainingMinutes: 15,
-      cooldownMinutes: 5,
-      targetHr: [92, 104],
-      targetPower: [35, 45],
-      resistance: [2, 3],
-      rpeTarget: [9, 11],
-      plannedSessions: 3
-    },
-    {
-      id: "V2",
-      effectiveDate: "06-27",
-      physician: "王医生",
-      direction: "上调",
-      adjustmentReason: "V1完成稳定，延长主训练并提高功率",
-      exerciseProject: "功率车",
-      trainingType: "连续训练",
-      weeklyFrequency: 3,
-      warmupMinutes: 5,
-      trainingMinutes: 18,
-      cooldownMinutes: 5,
-      targetHr: [96, 108],
-      targetPower: [40, 52],
-      resistance: [3, 4],
-      rpeTarget: [10, 12],
-      plannedSessions: 3
-    },
-    {
-      id: "V3",
-      effectiveDate: "07-08",
-      physician: "王医生",
-      direction: "上调",
-      adjustmentReason: "靶区达标改善，增加主训练剂量",
-      exerciseProject: "功率车",
-      trainingType: "连续训练",
-      weeklyFrequency: 3,
-      warmupMinutes: 5,
-      trainingMinutes: 20,
-      cooldownMinutes: 5,
-      targetHr: [100, 116],
-      targetPower: [48, 62],
-      resistance: [4, 5],
-      rpeTarget: [11, 13],
-      plannedSessions: 3
-    },
-    {
-      id: "V4",
-      effectiveDate: "07-19",
-      physician: "王医生",
-      direction: "维持",
-      adjustmentReason: "V3出现一次血压关注事件，暂维持强度",
-      exerciseProject: "功率车",
-      trainingType: "连续训练",
-      weeklyFrequency: 3,
-      warmupMinutes: 5,
-      trainingMinutes: 20,
-      cooldownMinutes: 5,
-      targetHr: [100, 116],
-      targetPower: [48, 62],
-      resistance: [4, 5],
-      rpeTarget: [11, 13],
-      plannedSessions: 3
-    }
-  ],
+  prescriptionVersions: stagePrescriptionVersions,
   sessions: [
     session("S-V1-01", "V1", "06-16", { totalMinutes: 25, activeMinutes: 18, targetZoneMinutes: 10, avgHr: 98, peakHr: 106, avgPower: 39, peakPower: 47, distanceKm: 5.4, caloriesKcal: 78, rpe: 11 }),
     session("S-V1-02", "V1", "06-19", { totalMinutes: 25, activeMinutes: 19, targetZoneMinutes: 12, avgHr: 97, peakHr: 105, avgPower: 40, peakPower: 48, distanceKm: 5.8, caloriesKcal: 82, rpe: 10 }),

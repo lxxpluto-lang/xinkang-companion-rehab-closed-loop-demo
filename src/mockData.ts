@@ -1,16 +1,17 @@
 import type { QualityStatus } from "./types";
+import { patientMasterChen } from "./clinicalSharedData";
 
 export const demoPatients = [
   {
-    patient_demo_id: "P-DEMO-001",
-    age: 62,
-    gender: "男",
-    diagnosis_summary: "冠心病 PCI 术后，Ⅱ期院内康复",
-    risk_level: "中危",
+    patient_demo_id: patientMasterChen.patientId,
+    age: patientMasterChen.age,
+    gender: patientMasterChen.sex,
+    diagnosis_summary: patientMasterChen.clinicalSnapshot.diagnosis,
+    risk_level: patientMasterChen.clinicalSnapshot.riskLevel,
     assessment: {
       cpet: "峰值 VO₂ 18.6 mL/kg/min（模拟）",
       six_mwt: "6MWT 428 m（模拟）",
-      resting_hr: 72
+      resting_hr: patientMasterChen.restingHr
     },
     prescription_version: "V1.0",
     training_status: "主训练中",

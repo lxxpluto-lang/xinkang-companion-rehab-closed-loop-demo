@@ -3,6 +3,7 @@ import { Activity, ArrowRight, FileText, LockKeyhole, Pencil, Plus, Save, Search
 import { demoPatients } from "../mockData";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { Role } from "../types";
+import { patientMasterChen } from "../clinicalSharedData";
 
 type ManagedPatient = {
   patient_demo_id: string;
@@ -27,7 +28,7 @@ type ManagedPatient = {
 };
 
 const patientProfiles = [
-  { name: "陈建国", id_number: "3702********1531", phone: "138****6021", rehab_group: "运动康复 A 组", last_followup: "2026-07-28" },
+  { name: patientMasterChen.name, id_number: patientMasterChen.idNumber, phone: patientMasterChen.phone, rehab_group: patientMasterChen.rehabGroup, last_followup: patientMasterChen.latestFollowUp },
   { name: "李秀兰", id_number: "3702********4826", phone: "136****1938", rehab_group: "运动康复 A 组", last_followup: "2026-07-26" },
   { name: "周海明", id_number: "3702********7714", phone: "159****2850", rehab_group: "运动康复 B 组", last_followup: "2026-07-25" },
   { name: "王淑芬", id_number: "3702********3409", phone: "137****8246", rehab_group: "重点监护组", last_followup: "2026-07-24" }
@@ -86,13 +87,13 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
       training_status: "待建档",
       latest_abnormal: "无",
       report_status: "未生成",
-      last_followup: new Date().toISOString().slice(0, 10)
+      last_followup: patientMasterChen.latestFollowUp
     });
   }
 
   return (
     <section data-testid="page-VIEW-PATIENT-ARCHIVES">
-      <PageHeader eyebrow={role === "REHAB_EXECUTION" ? "当前康复中心 · 基础与执行字段可编辑" : role === "DOCTOR" ? "医疗团队共享 · 临床任务指定负责人" : "全部患者与字段权限"} title="患者信息与康复档案" description={role === "REHAB_EXECUTION" ? "可维护联系方式、接诊、生命体征、训练和随访记录；诊断、危险分组及处方字段只能提交更正申请。" : "团队医生可在工作台新增患者建档信息，处方、异常和签署任务仍分派到具体责任人。"} action={<button type="button" onClick={openCreate} className="btn-primary"><Plus className="h-4 w-4" />新增患者</button>} />
+      <PageHeader eyebrow={role === "REHAB_EXECUTION" ? "当前康复中心 · 基础与执行字段可编辑" : role === "DOCTOR" ? "医疗团队共享 · 临床任务指定负责人" : "全部患者与字段权限"} title="患者信息与康复档案" description={role === "REHAB_EXECUTION" ? "可维护联系方式、接诊、生命体征、训练后确认和异常上报；诊断、危险分组及处方字段只能提交更正申请。" : "团队医生可在工作台新增患者建档信息，处方、异常和签署任务仍分派到具体责任人。"} action={<button type="button" onClick={openCreate} className="btn-primary"><Plus className="h-4 w-4" />新增患者</button>} />
 
       <section className="card overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-4">
@@ -112,7 +113,7 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
           <table className="w-full min-w-[1040px] text-left text-xs">
             <thead className="bg-slate-50 text-[10px] font-bold text-slate-400">
               <tr>
-                {["患者信息", "性别/年龄", "诊断摘要", "危险分组", "康复分组", "当前处方", "训练状态", "最近随访", "操作"].map((item) => <th key={item} className="px-4 py-3">{item}</th>)}
+                {["患者信息", "性别/年龄", "诊断摘要", "危险分组", "康复分组", "当前处方", "训练状态", "下次确认", "操作"].map((item) => <th key={item} className="px-4 py-3">{item}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -182,7 +183,7 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
               <label><span className="field-label">危险分组 {!canEditClinical && <LockKeyhole className="ml-1 inline h-3.5 w-3.5 text-amber-500" />}</span><select disabled={!canEditClinical} value={editDraft.risk_level} onChange={(event) => setEditDraft({ ...editDraft, risk_level: event.target.value })} className="text-field disabled:bg-slate-100 disabled:text-slate-400"><option>低危</option><option>中危</option><option>高危</option></select></label>
               <label><span className="field-label">康复分组</span><select value={editDraft.rehab_group} onChange={(event) => setEditDraft({ ...editDraft, rehab_group: event.target.value })} className="text-field"><option>运动康复 A 组</option><option>运动康复 B 组</option><option>重点监护组</option></select></label>
               <label><span className="field-label">静息心率（bpm）</span><input type="number" min={30} max={180} value={editDraft.assessment.resting_hr} onChange={(event) => setEditDraft({ ...editDraft, assessment: { ...editDraft.assessment, resting_hr: Number(event.target.value) } })} className="text-field" /></label>
-              <label><span className="field-label">最近随访</span><input type="date" value={editDraft.last_followup} onChange={(event) => setEditDraft({ ...editDraft, last_followup: event.target.value })} className="text-field" /></label>
+              <label><span className="field-label">训练后确认日期</span><input type="date" value={editDraft.last_followup} onChange={(event) => setEditDraft({ ...editDraft, last_followup: event.target.value })} className="text-field" /></label>
               <label className="col-span-3"><span className="field-label">诊断摘要 {!canEditClinical && <><LockKeyhole className="ml-1 inline h-3.5 w-3.5 text-amber-500" /><small className="ml-2 font-normal text-amber-600">临床核心字段只读，如有错误请提交资料更正申请</small></>}</span><textarea disabled={!canEditClinical} required rows={3} value={editDraft.diagnosis_summary} onChange={(event) => setEditDraft({ ...editDraft, diagnosis_summary: event.target.value })} className="text-field min-h-20 py-2 disabled:bg-slate-100 disabled:text-slate-400" /></label>
             </div>
             <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">

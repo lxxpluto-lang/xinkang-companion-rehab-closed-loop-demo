@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { canAccessPage, firstPageForRole } from "./accessControl";
+import { canAccessPage, firstPageForRole, roleMeta } from "./accessControl";
 import { DoctorLayout } from "./components/Layout";
 import { StaffLogin } from "./components/StaffLogin";
 import { SystemChooser } from "./components/SystemChooser";
@@ -56,11 +56,13 @@ export default function App() {
   }
 
   function confirmTask(taskId: string) {
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, reviewStatus: "confirmed", status: "pending_signature", confirmedBy: "王医生", confirmedAt: "2026-07-29 10:51", updatedAt: "2026-07-29 10:51" } : task));
+    const actor = roleMeta[role].account;
+    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, reviewStatus: "confirmed", status: "pending_signature", confirmedBy: actor, confirmedAt: "2026-07-29 10:51", updatedAt: "2026-07-29 10:51" } : task));
   }
 
   function signTask(taskId: string) {
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, signatureStatus: "signed", status: "completed", signedBy: "王医生", signedAt: "2026-07-29 10:54", updatedAt: "2026-07-29 10:54", version: task.version.replace(" 草稿", "") } : task));
+    const actor = roleMeta[role].account;
+    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, signatureStatus: "signed", status: "completed", signedBy: actor, signedAt: "2026-07-29 10:54", updatedAt: "2026-07-29 10:54", version: task.version.replace(" 草稿", "") } : task));
   }
 
   function resetDemo() {

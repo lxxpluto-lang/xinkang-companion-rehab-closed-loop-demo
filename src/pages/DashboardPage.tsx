@@ -4,7 +4,7 @@ import { doctorAppointments, prescriptionStatusLabels, type DoctorAppointment, t
 import { PrescriptionWorklist } from "../components/PrescriptionWorklist";
 import { PageHeader, SectionHeader, StatCard, StatusBadge } from "../components/UI";
 import type { Role } from "../types";
-import { clinicalSnapshotChen, getPrescriptionVersionDetail, getSingleTrainingReportDetail } from "../clinicalSharedData";
+import { clinicalSnapshotChen, getPrescriptionVersionDetail, getSingleTrainingReportDetail, minimalSafetyEvents } from "../clinicalSharedData";
 import { stageReportData } from "../patient/stageReportData";
 
 export function DashboardPage({
@@ -28,21 +28,21 @@ export function DashboardPage({
   if (role === "REHAB_EXECUTION") {
     return (
       <section data-testid="page-VIEW-DASHBOARD">
-        <PageHeader eyebrow="康复执行岗 · 当前康复中心" title="周康复师，上午好" description="聚合今天需要执行的训练、随访与异常任务；临床复核和处方签署由医生负责。" action={<StatusBadge tone="green"><MonitorUp className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />
+        <PageHeader eyebrow="康复执行岗 · 当前康复中心" title="周康复师，上午好" description="聚合今天需要执行的训练、训练后确认与异常上报任务；临床复核和处方签署由医生负责。" action={<StatusBadge tone="green"><MonitorUp className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />
         <div className="mb-5 grid grid-cols-5 gap-4">
           <StatCard label="今日训练计划" value="15" note="上午 9 人 · 下午 6 人" icon={<Activity className="h-5 w-5" />} />
           <StatCard label="待接诊" value="3" note="2 人已签到" tone="orange" icon={<UserCheck className="h-5 w-5" />} />
           <StatCard label="在训患者" value="2" note="功率车 01、02" tone="green" icon={<MonitorUp className="h-5 w-5" />} />
-          <StatCard label="今日待随访" value="3" note="共享队列 1 项" icon={<PhoneCall className="h-5 w-5" />} />
-          <StatCard label="异常待上报" value="1" note="随访胸闷主诉" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
+          <StatCard label="训练后确认" value="3" note="复测与离场确认" icon={<PhoneCall className="h-5 w-5" />} />
+          <StatCard label="异常待上报" value="1" note="训练中胸闷主诉" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
         </div>
         <div className="grid grid-cols-[1.15fr_0.85fr] gap-5">
           <section className="card p-5"><SectionHeader title="下一步执行任务" description="按到期时间和风险等级排序。" /><div className="space-y-3">{[
-            ["10:20", "陈建国", "功率车训练前准备", "待连接设备", "orange"],
-            ["10:30", "李秀兰", "处方完成后随访", "待认领", "blue"],
-            ["11:00", "周海明", "训练中断后随访", "重点关注", "red"]
+            ["10:20", "陈女士", "功率车训练前准备", "待连接设备", "orange"],
+            ["10:30", "李秀兰", "训练后生命体征确认", "待记录", "blue"],
+            ["11:00", "周海明", "训练中断后异常上报", "重点关注", "red"]
           ].map(([time, patient, task, status, tone]) => <div className="flex items-center gap-3 rounded-xl border border-slate-100 p-3" key={String(time) + patient}><span className="w-12 font-mono text-[10px] text-slate-400">{time}</span><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><CalendarClock className="h-4 w-4" /></span><div className="flex-1"><b className="text-slate-800">{patient}</b><p className="mt-1 text-[10px] text-slate-400">{task}</p></div><StatusBadge tone={tone as "orange" | "blue" | "red"}>{status}</StatusBadge></div>)}</div></section>
-          <section className="card p-5"><SectionHeader title="执行权限边界" /><div className="space-y-3">{["可修改基础资料、生命体征和训练记录", "可认领随访并上报异常", "诊断、危险分组和处方字段只读", "不能复核或签署临床处方"].map((item, index) => <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3" key={item}>{index < 2 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span className="text-xs font-medium text-slate-700">{item}</span></div>)}</div></section>
+          <section className="card p-5"><SectionHeader title="执行权限边界" /><div className="space-y-3">{["可修改基础资料、生命体征和训练记录", "可完成训练后确认并上报异常", "诊断、危险分组和处方字段只读", "不能复核或签署临床处方"].map((item, index) => <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3" key={item}>{index < 2 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span className="text-xs font-medium text-slate-700">{item}</span></div>)}</div></section>
         </div>
       </section>
     );
@@ -57,6 +57,7 @@ export function DashboardPage({
     abnormal: doctorAppointments.filter((item) => item.reportReviewStatus === "异常优先").length
   };
   const urgentItems = doctorAppointments.slice(0, 3);
+  const latestSafetyEvent = minimalSafetyEvents[0];
   return (
     <section data-testid="page-VIEW-DASHBOARD">
       <PageHeader eyebrow={role === "ADMIN" ? "管理员临床全权视图" : "医生预约工作台"} title={role === "ADMIN" ? "林管理员，上午好" : "王医生，上午好"} description={role === "ADMIN" ? "可查看和处理全部临床任务；签署时记录管理员本人身份并进行二次确认。" : "先处理今天约到诊的患者，基于单次或阶段报告完成处方复核、签名和打印。"} action={<StatusBadge tone="orange">待复核报告 {reviewCounts.single + reviewCounts.stage} 份</StatusBadge>} />
@@ -65,6 +66,15 @@ export function DashboardPage({
         <StatCard label="待复核报告" value={String(reviewCounts.single + reviewCounts.stage)} note={`单次 ${reviewCounts.single} · 阶段 ${reviewCounts.stage}`} tone="orange" icon={<FileText className="h-5 w-5" />} />
         <StatCard label="异常优先报告" value={String(reviewCounts.abnormal)} note="需先看安全事件和主诉" tone={reviewCounts.abnormal ? "red" : "green"} icon={<AlertTriangle className="h-5 w-5" />} />
       </div>
+      <section className="card mb-5 border-l-4 border-l-amber-500 p-4">
+        <SectionHeader title="最小异常闭环" description="不单独恢复异常中心，但医生工作台保留需要影响报告与下一版处方的安全事件。" action={<StatusBadge tone={latestSafetyEvent.doctorReviewStatus === "医生已复核" ? "green" : "orange"}>{latestSafetyEvent.doctorReviewStatus}</StatusBadge>} />
+        <div className="grid grid-cols-[0.9fr_1fr_1.1fr_1.1fr] gap-3 text-xs">
+          <InfoTile label="事件" value={`${latestSafetyEvent.patientName} · ${latestSafetyEvent.type}`} />
+          <InfoTile label="指标快照" value={latestSafetyEvent.metricSnapshot} />
+          <InfoTile label="现场处置" value={latestSafetyEvent.fieldAction} />
+          <InfoTile label="处方影响" value={latestSafetyEvent.prescriptionImpact} />
+        </div>
+      </section>
       <div className="mb-5 grid grid-cols-[1.25fr_0.75fr] gap-5">
         <section className="card overflow-hidden">
           <div className="px-5 pt-5"><SectionHeader title="今日谁约了我" description="从预约患者进入报告和处方闭环。" /></div>
@@ -119,6 +129,7 @@ function AppointmentDetail({
   const singleReport = getSingleTrainingReportDetail(appointment.singleReportIds[0]);
   const latestBp = singleReport.bpMeasurements[singleReport.bpMeasurements.length - 1]?.value ?? "未采集";
   const previousVersion = getPrescriptionVersionDetail(task.previousVersionId?.match(/V[1-4]/)?.[0] ?? "V4");
+  const linkedSafetyEvent = minimalSafetyEvents.find((event) => event.patientId === appointment.patientId);
   const canConfirm = task.status === "pending_review" && !task.missingFields?.length;
 
   function printFinalReport() {
@@ -155,6 +166,7 @@ function AppointmentDetail({
                 {[["完成", "11 / 12次"], ["靶区", "84%"], ["异常", "1项已复核"]].map(([label, value]) => <InfoTile key={label} label={label} value={value} />)}
               </div>
               <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-800">患者版会说明：运动耐量提升、血压/血氧总体稳定、下一阶段建议维持强度，并附饮食和停止运动提醒。</div>
+              {linkedSafetyEvent && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-xs leading-5 text-red-800"><b>关联异常：</b>{linkedSafetyEvent.type} · {linkedSafetyEvent.metricSnapshot}<br /><b>现场处置：</b>{linkedSafetyEvent.fieldAction}<br /><b>医生复核：</b>{linkedSafetyEvent.doctorReview}</div>}
             </>
           ) : (
             <>
@@ -163,6 +175,7 @@ function AppointmentDetail({
                 {[["运动", singleReport.exercise], ["平均心率", `${singleReport.hrStats.average} bpm`], ["靶区时间", `${singleReport.targetZoneMinutes}分钟`], ["血压", latestBp], ["血氧", singleReport.spo2Summary], ["安全", singleReport.safetySummary]].map(([label, value]) => <InfoTile key={label} label={label} value={value} />)}
               </div>
               <div className="mt-4 rounded-xl border border-slate-100 p-3 text-xs leading-5 text-slate-600">心电：{singleReport.ecgSummary}</div>
+              {linkedSafetyEvent && <div className="mt-3 rounded-xl border border-red-100 bg-red-50 p-3 text-xs leading-5 text-red-800"><b>异常闭环：</b>{linkedSafetyEvent.patientComplaint}；{linkedSafetyEvent.fieldAction}；{linkedSafetyEvent.doctorReviewStatus}。</div>}
             </>
           )}
         </section>
@@ -187,7 +200,7 @@ function AppointmentDetail({
             {task.status === "completed" && <button type="button" className="btn-primary" onClick={printFinalReport}><Printer className="h-4 w-4" />打印最终报告</button>}
             <button type="button" className="btn-secondary" onClick={() => onOpen(task.id)}><BadgeCheck className="h-4 w-4" />进入完整复核页</button>
           </div>
-          {task.status === "completed" && <div className="print-only"><h1>心脏康复最终处方报告</h1><p>患者：{appointment.patientName}　处方编号：{task.id}　版本：{task.version}</p><p>报告依据：{task.sourceLabel}　医生：{task.signedBy ?? "王医生"}　签名时间：{task.signedAt}</p><p>处方参数：{exercise}，{frequency}，{times}，靶心率 {targetHr}，功率 {power}，RPE {rpe}</p><p>注意事项：{diet}</p></div>}
+          {task.status === "completed" && <div className="print-only"><h1>心脏康复最终处方报告</h1><p>患者：{appointment.patientName}　处方编号：{task.id}　版本：{task.version}</p><p>报告依据：{task.sourceLabel}　签署人：{task.signedBy ?? task.confirmedBy ?? "待签署"}　签名时间：{task.signedAt}</p><p>处方参数：{exercise}，{frequency}，{times}，靶心率 {targetHr}，功率 {power}，RPE {rpe}</p><p>注意事项：{diet}</p></div>}
         </section>
       </div>
     </section>
