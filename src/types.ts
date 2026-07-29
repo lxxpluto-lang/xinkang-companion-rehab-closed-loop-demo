@@ -4,16 +4,9 @@ export type DoctorPageKey =
   | "report"
   | "prescriptions"
   | "training"
-  | "adminOverview"
-  | "organization"
-  | "permissions"
+  | "orgPermissions"
   | "videoConfig"
-  | "businessConfig"
-  | "trainingConfig"
-  | "documentConfig"
-  | "notifications"
-  | "audit"
-  | "integrations";
+  | "documentConfig";
 
 export type NursePageKey = "overview" | "tasks" | "stations" | "events";
 

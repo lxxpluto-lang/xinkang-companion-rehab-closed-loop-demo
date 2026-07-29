@@ -18,7 +18,7 @@ import type { DoctorPageKey, Role, TrainingState } from "./types";
 type SystemKey = "chooser" | "staffLogin" | "doctor" | "patient";
 type StaffRole = Exclude<Role, "PATIENT">;
 
-const adminConsolePages: DoctorPageKey[] = ["adminOverview", "organization", "permissions", "businessConfig", "trainingConfig", "documentConfig", "notifications", "audit", "integrations"];
+const adminConsolePages: DoctorPageKey[] = ["orgPermissions", "documentConfig"];
 
 export default function App() {
   const [system, setSystem] = useState<SystemKey>("chooser");
@@ -92,7 +92,7 @@ export default function App() {
   };
 
   for (const page of adminConsolePages) {
-    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "report" | "prescriptions" | "training" | "videoConfig">} videos={trainingVideos} />;
+    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "report" | "prescriptions" | "training" | "videoConfig">} />;
   }
 
   return (

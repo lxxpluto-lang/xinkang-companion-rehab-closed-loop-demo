@@ -1,17 +1,10 @@
 import {
-  Activity,
-  BellRing,
   Building2,
   ClipboardList,
   FileCheck2,
   FileSignature,
-  Gauge,
   LayoutDashboard,
   MonitorUp,
-  Settings2,
-  ShieldCheck,
-  Stethoscope,
-  UserCog,
   UsersRound,
   Video,
   type LucideIcon
@@ -35,16 +28,9 @@ export const navItems: NavItem[] = [
   { key: "prescriptions", label: "处方管理", icon: ClipboardList, group: "business", roles: ["ADMIN", "DOCTOR"] },
   { key: "training", label: "训练工作台", icon: MonitorUp, group: "business", roles: clinicalRoles },
   { key: "patients", label: "患者档案", icon: UsersRound, group: "admin", roles: clinicalRoles },
-  { key: "adminOverview", label: "管理概览", icon: Gauge, group: "admin", roles: ["ADMIN"] },
-  { key: "organization", label: "组织与账号", icon: Building2, group: "admin", roles: ["ADMIN"] },
-  { key: "permissions", label: "权限中心", icon: UserCog, group: "admin", roles: ["ADMIN"] },
   { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: clinicalRoles },
-  { key: "businessConfig", label: "业务配置", icon: Settings2, group: "admin", roles: ["ADMIN"] },
-  { key: "trainingConfig", label: "训练与设备", icon: Activity, group: "admin", roles: ["ADMIN"] },
-  { key: "documentConfig", label: "报告打印签名", icon: FileSignature, group: "admin", roles: ["ADMIN"] },
-  { key: "notifications", label: "消息与通知", icon: BellRing, group: "admin", roles: ["ADMIN"] },
-  { key: "audit", label: "数据与审计", icon: ShieldCheck, group: "admin", roles: ["ADMIN"] },
-  { key: "integrations", label: "系统与接口", icon: Stethoscope, group: "admin", roles: ["ADMIN"] }
+  { key: "orgPermissions", label: "组织权限", icon: Building2, group: "admin", roles: ["ADMIN"] },
+  { key: "documentConfig", label: "报告打印签名", icon: FileSignature, group: "admin", roles: ["ADMIN"] }
 ];
 
 export const roleMeta: Record<Role, { label: string; account: string; scope: DataScope; note: string }> = {
