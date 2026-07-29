@@ -76,6 +76,25 @@ export type PatientReportedOutcome = {
   adherence: number;
 };
 
+export type PatientStageConclusion = {
+  headline: string;
+  plainSummary: string;
+  toleranceChange: {
+    label: string;
+    value: string;
+    basis: string;
+  };
+  vitalsStability: {
+    bp: "稳定" | "需关注" | "需医生复核" | "未采集";
+    spo2: "稳定" | "需关注" | "需医生复核" | "未采集";
+    summary: string;
+  };
+  beforeAfterComparison: { metric: string; before: string; after: string; meaning: string }[];
+  dietAdvice: string[];
+  dailyCautions: string[];
+  stopAndContactRules: string[];
+};
+
 export type StageReportData = {
   reportPeriod: { start: string; end: string; generatedAt: string };
   patientSnapshot: {
@@ -91,6 +110,7 @@ export type StageReportData = {
   safetyEvents: SafetyEvent[];
   functionalAssessments: FunctionalAssessment[];
   patientReportedOutcomes: PatientReportedOutcome[];
+  patientStageConclusion: PatientStageConclusion;
   clinicalConclusion: {
     summary: string;
     achievedGoals: string[];
@@ -290,6 +310,41 @@ export const stageReportData: StageReportData = {
     { prescriptionVersionId: "V3", avgRpe: 12.7, confidence: 81, readiness: 82, adherence: 100 },
     { prescriptionVersionId: "V4", avgRpe: 11, confidence: 88, readiness: 90, adherence: 67 }
   ],
+  patientStageConclusion: {
+    headline: "这段时间您的运动能力在变好，下一阶段先稳住当前强度。",
+    plainSummary: "这 4 次处方周期里，您大多数训练能按计划完成。和刚开始相比，现在能在相近心率和主观疲劳感下完成更高功率，说明身体对运动的耐受在提高。血氧总体稳定，血压有过一次运动后偏高，医生已复核，所以暂时不急着继续加量。",
+    toleranceChange: {
+      label: "运动耐量约提升 18%",
+      value: "约 +18%",
+      basis: "按 V1 到 V4 的平均功率变化估算；同时参考平均心率接近、RPE未升高。若后续接入真实采样，会用设备时序重新计算。"
+    },
+    vitalsStability: {
+      bp: "需关注",
+      spo2: "稳定",
+      summary: "血氧多数时间在 96%–98%；血压曾出现一次训练后升高，最近一次训练后血压未采集，因此下一阶段要补齐训练后血压记录。"
+    },
+    beforeAfterComparison: [
+      { metric: "平均功率", before: "约40 W", after: "约59 W", meaning: "同样能承受的运动量变大了" },
+      { metric: "6分钟步行", before: "420 m", after: "475 m", meaning: "日常步行耐力有改善" },
+      { metric: "静息心率", before: "72 bpm", after: "68 bpm", meaning: "安静状态下心脏负担略有下降" },
+      { metric: "血氧", before: "最低约96%", after: "最低约96%", meaning: "训练中供氧总体稳定" }
+    ],
+    dietAdvice: [
+      "继续低盐低脂饮食，少吃腌制、高油和重口味食物。",
+      "训练前1小时避免吃太饱，也不要空腹训练。",
+      "训练后先坐位休息，少量多次饮水，避免立刻洗热水澡。"
+    ],
+    dailyCautions: [
+      "按医生给的靶心率训练，不为了完成目标硬撑。",
+      "热身和放松都要做完整，尤其不要跳过放松阶段。",
+      "训练日记录胸闷、心悸、气促、头晕等感受，复诊时告诉医生。"
+    ],
+    stopAndContactRules: [
+      "出现胸痛、持续胸闷、明显气促、头晕或冷汗时立即停止。",
+      "心率报警、血氧持续偏低或医护提示异常时不要继续加量。",
+      "离院后不适持续不缓解，应及时联系康复中心或就医。"
+    ]
+  },
   clinicalConclusion: {
     summary: "运动耐量提高，较高工作量下平均心率与RPE下降；生命体征总体平稳，建议维持V4强度并补齐训练后血压。",
     achievedGoals: ["完成11/12次计划训练", "靶区达标率持续提高", "6分钟步行距离增加55米"],

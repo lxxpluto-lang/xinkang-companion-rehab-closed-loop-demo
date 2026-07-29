@@ -1238,6 +1238,8 @@ function StageTrainingReport({ onStart }: { onStart: () => void }) {
         </article>
       </div>
 
+      <PatientFriendlyStageTemplate />
+
       <article className="rounded-3xl border border-white bg-white p-5 shadow-card">
         <div><p className="text-xs font-bold text-medical-600">我的临床信息</p><h2 className="mt-1 text-xl font-bold text-slate-950">医生同步的病史、诊断与特殊用药</h2></div>
         <div className="mt-4 grid grid-cols-3 gap-3">
@@ -1291,6 +1293,69 @@ function StageTrainingReport({ onStart }: { onStart: () => void }) {
         <p className="mt-4 text-[10px] text-slate-400">演示报告：指标来自模拟设备与人工记录。间歇血压保留测量时间；缺失数据不按0计入均值。</p>
       </article>
       {selectedPrescriptionDetail && <PatientPrescriptionDetailModal version={selectedPrescriptionDetail} onClose={() => setSelectedPrescriptionVersion(null)} />}
+    </section>
+  );
+}
+
+function PatientFriendlyStageTemplate() {
+  const conclusion = stageReportData.patientStageConclusion;
+  const stabilityTone = (value: string) => value === "稳定" ? "bg-emerald-50 text-emerald-700" : value === "未采集" ? "bg-slate-100 text-slate-600" : "bg-amber-50 text-amber-700";
+  return (
+    <article className="rounded-3xl border border-white bg-white p-6 shadow-card" data-testid="patient-stage-readable-template">
+      <div className="flex items-start justify-between gap-5">
+        <div>
+          <p className="text-xs font-bold text-medical-600">患者可读版 · 阶段性报告模板</p>
+          <h2 className="mt-1 text-2xl font-bold text-slate-950">{conclusion.headline}</h2>
+          <p className="mt-3 max-w-4xl text-sm font-medium leading-7 text-slate-600">{conclusion.plainSummary}</p>
+        </div>
+        <div className="w-40 shrink-0 rounded-2xl bg-medical-50 p-4 text-center">
+          <p className="text-[10px] font-bold text-medical-600">耐量变化</p>
+          <p className="mt-2 text-3xl font-bold text-medical-900">{conclusion.toleranceChange.value}</p>
+          <p className="mt-2 text-[10px] leading-4 text-medical-700">{conclusion.toleranceChange.label}</p>
+        </div>
+      </div>
+      <div className="mt-5 grid grid-cols-[0.85fr_1.15fr] gap-4">
+        <section className="rounded-2xl bg-slate-50 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-slate-900">生命体征稳不稳</p>
+            <div className="flex gap-2">
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${stabilityTone(conclusion.vitalsStability.bp)}`}>血压：{conclusion.vitalsStability.bp}</span>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${stabilityTone(conclusion.vitalsStability.spo2)}`}>血氧：{conclusion.vitalsStability.spo2}</span>
+            </div>
+          </div>
+          <p className="mt-3 text-xs font-medium leading-6 text-slate-600">{conclusion.vitalsStability.summary}</p>
+          <p className="mt-3 rounded-xl bg-white p-3 text-[10px] leading-5 text-slate-500">{conclusion.toleranceChange.basis}</p>
+        </section>
+        <section className="overflow-hidden rounded-2xl border border-slate-100">
+          <div className="grid grid-cols-[0.9fr_0.8fr_0.8fr_1.2fr] bg-slate-50 px-4 py-3 text-[10px] font-bold text-slate-500"><span>对比项</span><span>之前</span><span>现在</span><span>说明</span></div>
+          {conclusion.beforeAfterComparison.map((item) => (
+            <div key={item.metric} className="grid grid-cols-[0.9fr_0.8fr_0.8fr_1.2fr] border-t border-slate-100 px-4 py-3 text-xs text-slate-600">
+              <b className="text-slate-800">{item.metric}</b><span>{item.before}</span><span className="font-bold text-medical-700">{item.after}</span><span>{item.meaning}</span>
+            </div>
+          ))}
+        </section>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-4">
+        <PatientStageAdvice title="吃饭怎么注意" items={conclusion.dietAdvice} tone="emerald" />
+        <PatientStageAdvice title="平时训练怎么做" items={conclusion.dailyCautions} tone="blue" />
+        <PatientStageAdvice title="什么时候要停下来" items={conclusion.stopAndContactRules} tone="amber" />
+      </div>
+    </article>
+  );
+}
+
+function PatientStageAdvice({ title, items, tone }: { title: string; items: string[]; tone: "emerald" | "blue" | "amber" }) {
+  const classes = {
+    emerald: "bg-emerald-50 text-emerald-900",
+    blue: "bg-medical-50 text-medical-950",
+    amber: "bg-amber-50 text-amber-900"
+  };
+  return (
+    <section className={`rounded-2xl p-4 ${classes[tone]}`}>
+      <p className="text-sm font-bold">{title}</p>
+      <ul className="mt-3 space-y-2 text-xs leading-5">
+        {items.map((item) => <li key={item} className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{item}</li>)}
+      </ul>
     </section>
   );
 }
