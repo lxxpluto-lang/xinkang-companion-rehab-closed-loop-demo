@@ -21,6 +21,8 @@ type StaffRole = Exclude<Role, "PATIENT">;
 const adminConsolePages: DoctorPageKey[] = ["orgPermissions", "documentConfig"];
 
 export default function App() {
+  const standaloneView = new URLSearchParams(window.location.search).get("view");
+  const standalonePatientId = new URLSearchParams(window.location.search).get("patientId") ?? "";
   const [system, setSystem] = useState<SystemKey>("chooser");
   const [role, setRole] = useState<StaffRole>("DOCTOR");
   const [doctorPage, setDoctorPage] = useState<DoctorPageKey>("dashboard");
@@ -70,6 +72,10 @@ export default function App() {
     setSelectedTaskId(null);
     setTrainingState("ready");
     setAnomaly(false);
+  }
+
+  if (standaloneView === "patient-reports") {
+    return <main className="doctor-shell min-h-screen p-6"><div className="doctor-main mx-auto max-w-[1440px]"><ReportPage initialPatientId={standalonePatientId} standalone onCreatePrescription={() => undefined} /></div></main>;
   }
 
   if (system === "chooser") return <SystemChooser onChoose={(target) => setSystem(target === "doctor" ? "staffLogin" : "patient")} />;
