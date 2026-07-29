@@ -57,7 +57,7 @@ export default function App() {
 
   function confirmTask(taskId: string) {
     const actor = roleMeta[role].account;
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, reviewStatus: "confirmed", status: "pending_signature", confirmedBy: actor, confirmedAt: "2026-07-29 10:51", updatedAt: "2026-07-29 10:51" } : task));
+    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, reviewStatus: "confirmed", signatureStatus: "signed", status: "completed", confirmedBy: actor, confirmedAt: "2026-07-29 10:51", signedBy: actor, signedAt: "2026-07-29 10:51", updatedAt: "2026-07-29 10:51", version: task.version.replace(" 草稿", "") } : task));
   }
 
   function signTask(taskId: string) {
@@ -85,7 +85,7 @@ export default function App() {
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
     dashboard: <DashboardPage role={role} tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} onConfirm={confirmTask} onSign={signTask} />,
     prescriptions: selectedTask
-      ? <PrescriptionReviewPage task={selectedTask} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onSign={signTask} onOpenReport={() => setDoctorPage("report")} />
+      ? <PrescriptionReviewPage task={selectedTask} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onOpenReport={() => setDoctorPage("report")} />
       : <PrescriptionManagementPage tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
     report: <ReportPage onCreatePrescription={(taskId) => prescriptionTasks.find((task) => task.id === taskId)?.status === "pending_generation" ? generateDraft(taskId) : openTask(taskId)} />,
     patients: <PatientArchivePage role={role} />,
