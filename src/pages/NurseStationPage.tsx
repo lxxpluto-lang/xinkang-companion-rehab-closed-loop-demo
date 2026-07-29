@@ -5,10 +5,10 @@ import type { Role } from "../types";
 import { minimalSafetyEvents } from "../clinicalSharedData";
 
 const stationTasks = [
-  { id: "NS-01", station: "功率车 01", patient: "陈女士", exercise: "功率车", phase: "主训练", elapsed: "12:18", remaining: "09:42", hr: 108, target: "100–116", power: 64, cadence: 61, resistance: 5, progress: 68, connection: "双设备已连接", quality: "数据完整", status: "在训" },
-  { id: "NS-02", station: "功率车 02", patient: "李先生", exercise: "功率车", phase: "热身", elapsed: "03:42", remaining: "26:18", hr: 92, target: "96–112", power: 28, cadence: 54, resistance: 3, progress: 18, connection: "双设备已连接", quality: "数据完整", status: "在训" },
-  { id: "NS-03", station: "椭圆机 01", patient: "王先生", exercise: "椭圆机", phase: "等待核验", elapsed: "—", remaining: "30:00", hr: 78, target: "104–120", power: 0, cadence: 0, resistance: 4, progress: 0, connection: "背包已连接", quality: "设备待连接", status: "待开始" },
-  { id: "NS-04", station: "抗阻区 02", patient: "赵女士", exercise: "哑铃", phase: "已完成", elapsed: "24:00", remaining: "00:00", hr: 86, target: "≤110", power: 0, cadence: 0, resistance: 0, progress: 100, connection: "已归还设备", quality: "数据完整", status: "已完成" }
+  { id: "NS-01", patientId: "P-DEMO-001", station: "功率车 01", patient: "陈女士", exercise: "功率车", phase: "主训练", elapsed: "12:18", remaining: "09:42", hr: 108, target: "100–116", power: 64, cadence: 61, resistance: 5, progress: 68, connection: "双设备已连接", quality: "数据完整", status: "在训" },
+  { id: "NS-02", patientId: "P-DEMO-002", station: "功率车 02", patient: "李先生", exercise: "功率车", phase: "热身", elapsed: "03:42", remaining: "26:18", hr: 92, target: "96–112", power: 28, cadence: 54, resistance: 3, progress: 18, connection: "双设备已连接", quality: "数据完整", status: "在训" },
+  { id: "NS-03", patientId: "P-DEMO-003", station: "椭圆机 01", patient: "王先生", exercise: "椭圆机", phase: "等待核验", elapsed: "—", remaining: "30:00", hr: 78, target: "104–120", power: 0, cadence: 0, resistance: 4, progress: 0, connection: "背包已连接", quality: "设备待连接", status: "待开始" },
+  { id: "NS-04", patientId: "P-DEMO-004", station: "抗阻区 02", patient: "赵女士", exercise: "哑铃", phase: "已完成", elapsed: "24:00", remaining: "00:00", hr: 86, target: "≤110", power: 0, cadence: 0, resistance: 0, progress: 100, connection: "已归还设备", quality: "数据完整", status: "已完成" }
 ];
 
 export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
@@ -35,10 +35,11 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
       <div className="grid grid-cols-[1.12fr_0.88fr] gap-5">
         <section className="card overflow-hidden">
           <div className="px-5 pt-5"><SectionHeader title="今日训练任务" description="点击任务查看对应设备与患者动态数据。" /></div>
-          <div className="grid grid-cols-[1.1fr_0.9fr_0.85fr_0.75fr_0.75fr_0.9fr] border-y border-slate-100 bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>设备 / 患者</span><span>训练项目</span><span>当前阶段</span><span>心率</span><span>进度</span><span>到诊 / 状态</span></div>
+          <div className="grid grid-cols-[1fr_0.78fr_0.76fr_0.72fr_0.62fr_0.58fr_0.82fr] border-y border-slate-100 bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>设备 / 患者</span><span>患者编码</span><span>训练项目</span><span>当前阶段</span><span>心率</span><span>进度</span><span>到诊 / 状态</span></div>
           {stationTasks.map((task) => (
-            <button type="button" onClick={() => setSelectedId(task.id)} key={task.id} className={`grid w-full grid-cols-[1.1fr_0.9fr_0.85fr_0.75fr_0.75fr_0.9fr] items-center border-b border-slate-100 px-5 py-3 text-left text-xs ${selectedId === task.id ? "bg-blue-50 ring-1 ring-inset ring-blue-100" : "bg-white hover:bg-slate-50"}`}>
+            <button type="button" onClick={() => setSelectedId(task.id)} key={task.id} className={`grid w-full grid-cols-[1fr_0.78fr_0.76fr_0.72fr_0.62fr_0.58fr_0.82fr] items-center border-b border-slate-100 px-5 py-3 text-left text-xs ${selectedId === task.id ? "bg-blue-50 ring-1 ring-inset ring-blue-100" : "bg-white hover:bg-slate-50"}`}>
               <div><p className="font-bold text-slate-900">{task.station}</p><p className="mt-1 text-[10px] text-slate-400">{displayPatient(task)}</p></div>
+              <span className="font-mono text-[10px] text-slate-500">{role === "DOCTOR" && task.id !== "NS-01" ? "P-******" : task.patientId}</span>
               <span className="font-semibold text-slate-700">{task.exercise}</span>
               <div><p className="font-semibold text-slate-700">{task.phase}</p><p className="mt-1 text-[10px] text-slate-400">{task.elapsed}</p></div>
               <b className={task.hr > Number(task.target.split("–")[1]) ? "text-amber-700" : "text-blue-700"}>{task.hr} bpm</b>

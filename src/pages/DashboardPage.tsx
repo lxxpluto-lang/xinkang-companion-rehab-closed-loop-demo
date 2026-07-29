@@ -80,11 +80,12 @@ export function DashboardPage({
       <div className="grid grid-cols-[0.62fr_1.38fr] gap-5">
         <section className="card overflow-hidden">
           <div className="px-4 pt-4"><SectionHeader title="今日预约患者" description="只显示医生需要先扫一眼的信息。" /></div>
-          <div className="grid grid-cols-[1fr_0.72fr_0.62fr] border-y border-slate-100 bg-slate-50 px-4 py-2.5 text-[10px] font-bold text-slate-400"><span>姓名</span><span>分组</span><span>时间</span></div>
+          <div className="grid grid-cols-[0.78fr_0.88fr_0.58fr_0.48fr] border-y border-slate-100 bg-slate-50 px-4 py-2.5 text-[10px] font-bold text-slate-400"><span>姓名</span><span>患者编码</span><span>分组</span><span>时间</span></div>
           {doctorAppointments.map((appointment) => {
             return (
-              <button type="button" key={appointment.id} onClick={() => setSelectedAppointmentId(appointment.id)} className="grid w-full grid-cols-[1fr_0.72fr_0.62fr] items-center border-b border-slate-100 px-4 py-3 text-left text-xs hover:bg-blue-50">
+              <button type="button" key={appointment.id} onClick={() => setSelectedAppointmentId(appointment.id)} className="grid w-full grid-cols-[0.78fr_0.88fr_0.58fr_0.48fr] items-center border-b border-slate-100 px-4 py-3 text-left text-xs hover:bg-blue-50">
                 <span className="font-bold text-slate-900">{appointment.patientName}</span>
+                <span className="font-mono text-[10px] text-slate-500">{appointment.patientId}</span>
                 <StatusBadge tone={appointment.risk === "高危" ? "red" : appointment.risk === "中危" ? "orange" : "green"}>{appointment.risk}</StatusBadge>
                 <b className="font-mono text-slate-700">{appointment.time}</b>
               </button>
@@ -112,14 +113,15 @@ export function DashboardPage({
             </select>
             <input value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} placeholder="搜索患者/编号/依据" className="w-40 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-medium text-slate-700 outline-none focus:border-blue-300" />
           </div>
-          <div className="grid grid-cols-[0.36fr_0.9fr_0.86fr_0.52fr_0.72fr_0.86fr_0.78fr] bg-white px-5 py-2.5 text-[10px] font-bold text-slate-400">
-            <span>序号</span><span>患者</span><span>阶段</span><span>分组</span><span>所属医生</span><span>依据来源</span><span>状态</span>
+          <div className="grid grid-cols-[0.3fr_0.62fr_0.74fr_0.75fr_0.46fr_0.64fr_0.78fr_0.72fr] bg-white px-5 py-2.5 text-[10px] font-bold text-slate-400">
+            <span>序号</span><span>患者姓名</span><span>患者编码</span><span>阶段</span><span>分组</span><span>所属医生</span><span>依据来源</span><span>状态</span>
           </div>
           <div className="max-h-[430px] overflow-y-auto">
             {filteredPrescriptionTasks.map((task, index) => (
-              <button key={task.id} type="button" onClick={() => task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id)} className="grid w-full grid-cols-[0.36fr_0.9fr_0.86fr_0.52fr_0.72fr_0.86fr_0.78fr] items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50">
+              <button key={task.id} type="button" onClick={() => task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id)} className="grid w-full grid-cols-[0.3fr_0.62fr_0.74fr_0.75fr_0.46fr_0.64fr_0.78fr_0.72fr] items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50">
                 <span className="font-mono text-slate-400">{String(index + 1).padStart(2, "0")}</span>
-                <span className="font-bold text-slate-900">{task.patientName}<small className="mt-0.5 block font-normal text-slate-400">{task.patientId}</small></span>
+                <span className="font-bold text-slate-900">{task.patientName}</span>
+                <span className="font-mono text-[10px] text-slate-500">{task.patientId}</span>
                 <span className="text-slate-600">{task.stage}</span>
                 <StatusBadge tone={task.risk === "高危" ? "red" : task.risk === "中危" ? "orange" : "green"}>{task.risk}</StatusBadge>
                 <span className="font-semibold text-slate-700">{task.confirmedBy ?? task.signedBy ?? "王医生"}</span>

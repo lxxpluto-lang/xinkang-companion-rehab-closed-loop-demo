@@ -63,13 +63,14 @@ export function PrescriptionManagementPage({ tasks, onOpen, onGenerate }: { task
 function PrescriptionTable({ tasks, onOpen, onGenerate }: { tasks: PrescriptionTask[]; onOpen: (id: string) => void; onGenerate: (id: string) => void }) {
   return (
     <>
-      <div className="grid grid-cols-[0.34fr_0.9fr_0.82fr_0.5fr_0.56fr_0.72fr_0.68fr_0.72fr_0.9fr] bg-white px-5 py-2.5 text-[10px] font-bold text-slate-400">
-        <span>序号</span><span>患者</span><span>阶段</span><span>分组</span><span>类型</span><span>依据</span><span>所属医生</span><span>状态</span><span>操作</span>
+      <div className="grid grid-cols-[0.3fr_0.62fr_0.72fr_0.72fr_0.46fr_0.5fr_0.65fr_0.62fr_0.66fr_0.82fr] bg-white px-5 py-2.5 text-[10px] font-bold text-slate-400">
+        <span>序号</span><span>患者姓名</span><span>患者编码</span><span>阶段</span><span>分组</span><span>类型</span><span>依据</span><span>所属医生</span><span>状态</span><span>操作</span>
       </div>
       {tasks.map((task, index) => (
-        <button type="button" key={task.id} onClick={() => task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id)} className="grid w-full grid-cols-[0.34fr_0.9fr_0.82fr_0.5fr_0.56fr_0.72fr_0.68fr_0.72fr_0.9fr] items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50">
+        <button type="button" key={task.id} onClick={() => task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id)} className="grid w-full grid-cols-[0.3fr_0.62fr_0.72fr_0.72fr_0.46fr_0.5fr_0.65fr_0.62fr_0.66fr_0.82fr] items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50">
           <span className="font-mono text-slate-400">{String(index + 1).padStart(2, "0")}</span>
-          <span className="font-bold text-slate-900">{task.patientName}<small className="mt-1 block font-normal text-slate-400">{task.patientId}</small></span>
+          <span className="font-bold text-slate-900">{task.patientName}</span>
+          <span className="font-mono text-[10px] text-slate-500">{task.patientId}</span>
           <span className="text-slate-600">{task.stage}</span>
           <StatusBadge tone={task.risk === "高危" ? "red" : task.risk === "中危" ? "orange" : "green"}>{task.risk}</StatusBadge>
           <span className="text-slate-600">{task.kind === "initial" ? "初始" : "调整"}</span>

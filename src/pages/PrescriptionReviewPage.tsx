@@ -138,7 +138,7 @@ export function PrescriptionReviewPage({
         </section>
 
         <section id="printable-prescription" className="card p-5">
-          <div className="print-only"><h1>心脏康复中心运动处方</h1><p>处方编号：{task.id}　患者：{task.patientName}　性别：{task.sex}　年龄：{task.age}岁　BMI：{clinicalSnapshotChen.bmi}</p><p>处方依据：{task.sourceLabel}</p></div>
+          <div className="print-only"><h1>心脏康复中心运动处方</h1><p>处方编号：{task.id}　患者编码：{task.patientId}　患者：{task.patientName}　性别：{task.sex}　年龄：{task.age}岁　BMI：{clinicalSnapshotChen.bmi}</p><p>处方依据：{task.sourceLabel}</p></div>
           <SectionHeader title="心脏康复中心运动处方" description={readonly ? "已完成处方不可修改，只能查看和打印。" : "严格按PDF模板数据项编辑。"} action={<StatusBadge tone={task.status === "completed" ? "green" : "orange"}>{prescriptionStatusLabels[task.status]}</StatusBadge>} />
           <div className="grid grid-cols-2 gap-3">
             <PrescriptionField label="身高（cm）" value={height} setValue={setHeight} disabled={readonly} />
@@ -242,7 +242,7 @@ function FinalPrescriptionPrintContent({ task, document, signed }: { task: Presc
   return (
     <div className="print-only">
       <h2>处方内容</h2>
-      <p>姓名：{task.patientName}　性别：{task.sex}　年龄：{task.age}　身高：{document.height}cm　体重：{clinicalSnapshotChen.weightKg}kg　BMI：{clinicalSnapshotChen.bmi}　联系方式：{document.contact}　身份证号：{document.identityNo}</p>
+      <p>患者编码：{task.patientId}　姓名：{task.patientName}　性别：{task.sex}　年龄：{task.age}　身高：{document.height}cm　体重：{clinicalSnapshotChen.weightKg}kg　BMI：{clinicalSnapshotChen.bmi}　联系方式：{document.contact}　身份证号：{document.identityNo}</p>
       <p>康复目标：{document.rehabGoal}</p>
       <p>呼吸训练：{document.breathingMode}；{document.breathingIntensity}；{document.breathingFrequency}；{document.breathingTime}</p>
       <p>热身运动：{document.warmupMode}；{document.warmupFrequency}；{document.warmupTime}</p>
@@ -267,8 +267,8 @@ function FinalPrescriptionPage({ task, document, signed, onClose, onPrint }: { t
           <div id="formal-prescription-page" className="mx-auto min-h-[820px] max-w-3xl bg-white p-8 text-xs leading-6 text-slate-800 shadow-sm">
             <h1 className="text-center text-2xl font-bold text-slate-950">心脏康复中心运动处方</h1>
             <div className="mt-5 grid grid-cols-4 gap-x-4 gap-y-2 border-y border-slate-300 py-3">
-              <span>姓名：{task.patientName}</span><span>性别：{task.sex}</span><span>年龄：{task.age}</span><span>身高：{document.height}cm</span>
-              <span>体重：{clinicalSnapshotChen.weightKg}kg</span><span>BMI：{clinicalSnapshotChen.bmi}</span><span>联系方式：{document.contact}</span><span>身份证号：{document.identityNo}</span>
+              <span>患者编码：{task.patientId}</span><span>姓名：{task.patientName}</span><span>性别：{task.sex}</span><span>年龄：{task.age}</span>
+              <span>身高：{document.height}cm</span><span>体重：{clinicalSnapshotChen.weightKg}kg</span><span>BMI：{clinicalSnapshotChen.bmi}</span><span>联系方式：{document.contact}</span><span className="col-span-2">身份证号：{document.identityNo}</span>
             </div>
             <PrescriptionLine title="康复目标" value={document.rehabGoal} />
             <PrescriptionLine title="呼吸训练" value={`${document.breathingMode}；${document.breathingIntensity}；${document.breathingFrequency}；${document.breathingTime}`} />

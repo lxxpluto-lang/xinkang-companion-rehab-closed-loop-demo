@@ -113,7 +113,7 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
           <table className="w-full min-w-[1040px] text-left text-xs">
             <thead className="bg-slate-50 text-[10px] font-bold text-slate-400">
               <tr>
-                {["患者信息", "性别/年龄", "诊断摘要", "危险分组", "康复分组", "当前处方", "训练状态", "下次确认", "操作"].map((item) => <th key={item} className="px-4 py-3">{item}</th>)}
+                {["患者姓名", "患者编码", "性别/年龄", "诊断摘要", "危险分组", "康复分组", "当前处方", "训练状态", "下次确认", "操作"].map((item) => <th key={item} className="px-4 py-3">{item}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -122,9 +122,10 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-blue-600 ring-1 ring-slate-200"><UserRound className="h-4 w-4" /></span>
-                      <span><b className="block text-slate-900">{patient.name}</b><small className="mt-0.5 block text-[10px] text-slate-400">{patient.patient_demo_id}</small></span>
+                      <b className="block text-slate-900">{patient.name}</b>
                     </div>
                   </td>
+                  <td className="px-4 py-3 font-mono text-[10px] text-slate-500">{patient.patient_demo_id}</td>
                   <td className="px-4 py-3 text-slate-600">{patient.gender} / {patient.age}岁</td>
                   <td className="max-w-[220px] px-4 py-3 leading-5 text-slate-600">{patient.diagnosis_summary}</td>
                   <td className="px-4 py-3"><StatusBadge tone={riskTone(patient.risk_level)}>{patient.risk_level}</StatusBadge></td>
