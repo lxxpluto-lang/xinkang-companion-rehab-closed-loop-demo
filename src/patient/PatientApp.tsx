@@ -779,6 +779,14 @@ function TrainingScreen(props: {
   const trainingEnd = (warmup + trainingMinutes) * 60;
   const remainingSeconds = Math.max(totalSeconds - elapsed, 0);
   const overallProgress = Math.min((elapsed / totalSeconds) * 100, 100);
+  const hrZonePosition = Math.min(Math.max(((hr - (targetHr - 24)) / 48) * 100, 4), 96);
+  const hrStatus = anomaly
+    ? "心率高于目标区间，请降低踏频"
+    : hr < targetHr - 8
+      ? "正在进入目标心率区间"
+      : hr > targetHr + 8
+        ? "请适当降低踏频"
+        : "心率处于目标区间，保持节奏";
   const phasePlan: { key: Phase; label: string; minutes: number }[] = [
     { key: "warmup", label: "热身", minutes: warmup },
     { key: "training", label: "训练", minutes: trainingMinutes },
@@ -867,7 +875,40 @@ function TrainingScreen(props: {
             </div>
           </div>
 
-          <div className="flex flex-1 items-center justify-center">
+          <div className="relative flex flex-1 items-center justify-center">
+            <aside className={`absolute left-0 top-1/2 w-[250px] -translate-y-1/2 rounded-3xl border bg-white/88 p-4 shadow-xl backdrop-blur-xl ${anomaly ? "border-red-200" : "border-white/90"}`} aria-label="实时心率监测">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${anomaly ? "bg-red-50 text-red-600" : "bg-rose-50 text-rose-600"}`}>
+                    <HeartPulse className={`h-6 w-6 ${anomaly ? "animate-pulse" : ""}`} />
+                  </span>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-500">实时心率</p>
+                    <p className="mt-0.5 text-[9px] text-slate-400">背包设备实时采集</p>
+                  </div>
+                </div>
+                <span className={`h-2.5 w-2.5 rounded-full ${anomaly ? "animate-pulse bg-red-500" : "metric-live-dot bg-emerald-500"}`} />
+              </div>
+              <div className="mt-3 flex items-end gap-2">
+                <span className={`text-4xl font-bold tabular-nums ${anomaly ? "text-red-600" : "text-slate-950"}`}>{hr}</span>
+                <span className="pb-1 text-xs font-bold text-slate-500">bpm</span>
+              </div>
+              <div className="relative mt-3">
+                <div className="grid h-2.5 grid-cols-4 overflow-hidden rounded-full">
+                  <span className="bg-sky-400" />
+                  <span className="bg-emerald-400" />
+                  <span className="bg-amber-400" />
+                  <span className="bg-red-500" />
+                </div>
+                <span className="absolute top-1/2 h-4 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-slate-900 shadow" style={{ left: `${hrZonePosition}%` }} />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[9px] font-bold">
+                <span className="text-slate-400">目标心率</span>
+                <span className="text-medical-700">{targetHr - 8}–{targetHr + 8} bpm</span>
+              </div>
+              <p className={`mt-3 rounded-xl px-3 py-2 text-[10px] font-bold leading-4 ${anomaly ? "bg-red-50 text-red-700" : hr < targetHr - 8 ? "bg-sky-50 text-sky-700" : "bg-emerald-50 text-emerald-700"}`}>{hrStatus}</p>
+            </aside>
+
             {paused && (
               <div className="flex flex-col items-center rounded-3xl border border-white bg-white/92 px-10 py-7 text-center text-slate-900 shadow-xl backdrop-blur-md">
                 <span className="flex h-14 w-14 items-center justify-center rounded-full bg-medical-50 text-medical-700"><Pause className="h-7 w-7" /></span>
@@ -890,8 +931,7 @@ function TrainingScreen(props: {
             <button type="button" onClick={() => setAnomaly(!anomaly)} className={`patient-touch rounded-xl font-bold shadow-lg backdrop-blur-xl ${anomaly ? "border border-red-200 bg-red-50/95 text-red-700" : "border border-amber-200 bg-amber-50/95 text-amber-800"}`}>{anomaly ? "恢复正常指标" : "演示心率异常"}</button>
           </div>
 
-          <div className="grid grid-cols-9 gap-2 rounded-2xl border border-white/80 bg-white/75 p-2.5 shadow-xl backdrop-blur-xl">
-            <TrainingMetric icon={HeartPulse} label="实时心率" value={String(hr)} unit="bpm" tone={anomaly ? "red" : "rose"} note={anomaly ? "高于目标" : `${targetHr - 8}–${targetHr + 8}`} />
+          <div className="grid grid-cols-8 gap-2 rounded-2xl border border-white/80 bg-white/75 p-2.5 shadow-xl backdrop-blur-xl">
             <TrainingMetric icon={Gauge} label="速度" value={speed.toFixed(1)} unit="km/h" />
             <TrainingMetric icon={Activity} label="距离" value={(elapsed * speed / 3600).toFixed(2)} unit="km" />
             <TrainingMetric icon={Bike} label="功率" value={phase === "training" ? "68" : "42"} unit="W" />
