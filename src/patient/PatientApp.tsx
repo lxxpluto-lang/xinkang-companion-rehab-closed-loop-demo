@@ -817,6 +817,7 @@ function TrainingScreen(props: {
     { key: "training", label: "训练", minutes: trainingMinutes },
     { key: "cooldown", label: "放松", minutes: cooldown }
   ];
+  const trainingVideoPanelRef = useRef<HTMLDivElement>(null);
   const phaseIndex = phasePlan.findIndex((item) => item.key === phase);
   const nextPhase = () => {
     if (phase === "warmup") {
@@ -865,8 +866,8 @@ function TrainingScreen(props: {
             </div>
           </header>
 
-          <div className="mt-3 grid min-h-0 flex-1 grid-cols-[1.48fr_0.52fr] gap-3">
-            <div className="relative min-h-[270px] overflow-hidden rounded-2xl bg-slate-950 shadow-lg">
+          <div className="mt-3 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_190px] gap-3">
+            <div ref={trainingVideoPanelRef} className="relative min-h-[320px] overflow-hidden rounded-2xl bg-slate-950 shadow-xl ring-1 ring-slate-950/10">
               <iframe
                 title="功率车沉浸式训练视频"
                 src={bikeTrainingVideoUrl}
@@ -878,12 +879,13 @@ function TrainingScreen(props: {
               <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-slate-950/75 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur-md">
                 <span className={`h-2 w-2 rounded-full ${paused ? "bg-amber-400" : "metric-live-dot bg-emerald-400"}`} />{paused ? "训练视频已暂停" : `${phaseLabels[phase]}跟练中`}
               </div>
+              <button type="button" onClick={() => trainingVideoPanelRef.current?.requestFullscreen?.()} className="absolute right-3 top-3 flex h-9 items-center gap-2 rounded-xl bg-slate-950/75 px-3 text-[10px] font-bold text-white shadow-lg backdrop-blur-md hover:bg-slate-950/90"><Maximize2 className="h-4 w-4" />全屏跟练</button>
               {paused && <div className="absolute inset-0 flex items-center justify-center"><div className="rounded-2xl bg-white/95 px-8 py-5 text-center shadow-xl"><Pause className="mx-auto h-8 w-8 text-medical-700" /><p className="mt-2 font-bold text-slate-900">训练已暂停</p><p className="mt-1 text-[10px] text-slate-500">点击“继续训练”恢复</p></div></div>}
               {anomaly && !paused && <div className="absolute inset-0 flex items-center justify-center bg-red-950/20"><div className="rounded-2xl border border-red-200 bg-red-50/95 px-8 py-5 text-center text-red-800 shadow-xl"><AlertTriangle className="mx-auto h-8 w-8 animate-pulse text-red-600" /><p className="mt-2 text-base font-bold">请降低踏频并等待医护确认</p><p className="mt-1 text-xs text-red-600">心率已高于目标控制区间</p></div></div>}
             </div>
 
-            <aside className="flex min-h-[270px] flex-col gap-3" aria-label="实时心率监测">
-              <div className={`flex flex-1 flex-col rounded-2xl p-4 text-white shadow-lg ${anomaly ? "bg-gradient-to-br from-red-600 to-red-800" : "bg-gradient-to-br from-[#102c3b] to-[#18536a]"}`}>
+            <aside className="flex min-h-[320px] flex-col gap-3" aria-label="实时心率监测">
+              <div className={`flex flex-1 flex-col rounded-2xl p-3.5 text-white shadow-lg ${anomaly ? "bg-gradient-to-br from-red-600 to-red-800" : "bg-gradient-to-br from-[#102c3b] to-[#18536a]"}`}>
                 <div className="flex items-center justify-between"><div className="flex items-center gap-2"><HeartPulse className={`h-5 w-5 ${anomaly ? "animate-pulse" : "text-rose-300"}`} /><span className="text-xs font-bold text-white">实时心率</span></div><span className={`h-2.5 w-2.5 rounded-full ${anomaly ? "animate-pulse bg-white" : "metric-live-dot bg-emerald-400"}`} /></div>
                 <div className="mt-3 flex items-end gap-2"><span className="text-5xl font-bold tabular-nums text-white">{hr}</span><span className="pb-1.5 text-xs font-bold text-white/70">bpm</span></div>
                 <div className="relative mt-4">
