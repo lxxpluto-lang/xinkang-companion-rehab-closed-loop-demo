@@ -94,6 +94,7 @@ function DoctorSingleReportList({ onSelect }: { onSelect: (reportId: string) => 
 function DoctorSingleReportDetail({ reportId, onBack, onCreatePrescription }: { reportId: string; onBack: () => void; onCreatePrescription: (taskId: string) => void }) {
   const report = getSingleTrainingReportDetail(reportId);
   const prescription = getPrescriptionVersionDetail(report.prescriptionVersionId);
+  const isDemoData = report.dataMode === "demo" || !report.sampleSeries?.length;
   return (
     <div className="space-y-5">
       <section className="card p-5">
@@ -102,8 +103,12 @@ function DoctorSingleReportDetail({ reportId, onBack, onCreatePrescription }: { 
             <button type="button" onClick={onBack} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" aria-label="返回单次报告列表"><ArrowLeft className="h-4 w-4" /></button>
             <div><p className="text-[10px] font-bold text-blue-600">单次报告 · {report.id}</p><h2 className="mt-1 text-lg font-bold text-slate-900">{report.clinicalSnapshot.name} · {report.exercise}训练详情</h2></div>
           </div>
-          <StatusBadge tone={report.safetySummary.includes("无") ? "green" : "orange"}>{report.safetySummary}</StatusBadge>
+          <div className="flex items-center gap-2">
+            <StatusBadge tone={isDemoData ? "orange" : "blue"}>{isDemoData ? "Demo 数据" : "设备采样"}</StatusBadge>
+            <StatusBadge tone={report.safetySummary.includes("无") ? "green" : "orange"}>{report.safetySummary}</StatusBadge>
+          </div>
         </div>
+        <p className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-800">{report.dataSourceNote}</p>
         <div className="mt-5 grid grid-cols-4 gap-3">
           {[
             ["患者姓名", report.clinicalSnapshot.name],
@@ -165,10 +170,18 @@ function DoctorSingleReportDetail({ reportId, onBack, onCreatePrescription }: { 
           <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">{prescription.advice.exerciseCautions}</p>
         </section>
         <section className="card p-5">
-          <SectionHeader title="心电、血氧与处置摘要" />
+          <SectionHeader title="心电、血氧与处置摘要" description="心电展示事件与复核结果，不生成稳定度曲线。" />
           <div className="space-y-3">
             <ClinicalContextCard label="心电监测" value={report.ecgSummary} />
             <ClinicalContextCard label="血氧摘要" value={report.spo2Summary} />
+          </div>
+          <div className="mt-4 overflow-hidden rounded-xl border border-slate-100">
+            <div className="grid grid-cols-[0.7fr_1.2fr_1.35fr_0.65fr] bg-slate-50 px-3 py-2.5 text-[10px] font-bold text-slate-400"><span>时间</span><span>事件</span><span>处置</span><span>复核</span></div>
+            {(report.ecgEvents ?? []).map((event) => (
+              <div key={`${event.time}-${event.event}`} className="grid grid-cols-[0.7fr_1.2fr_1.35fr_0.65fr] border-t border-slate-100 px-3 py-2.5 text-[10px] text-slate-600">
+                <span className="font-bold text-slate-800">{event.time}</span><span>{event.event}</span><span>{event.action}</span><span className={event.reviewed ? "font-bold text-emerald-700" : "font-bold text-amber-700"}>{event.reviewed ? "已复核" : "待复核"}</span>
+              </div>
+            ))}
           </div>
         </section>
       </div>

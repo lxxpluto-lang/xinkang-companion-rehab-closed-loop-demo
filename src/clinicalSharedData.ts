@@ -56,11 +56,31 @@ export type PhaseVitalRow = {
   cooldown: string;
 };
 
+export type ReportDataMode = "demo" | "sampled";
+
+export type TrainingSamplePoint = {
+  minute: number;
+  hr?: number;
+  rr?: number;
+  spo2?: number;
+};
+
+export type EcgEvent = {
+  time: string;
+  event: string;
+  action: string;
+  reviewed: boolean;
+};
+
 export type SingleTrainingReportDetail = {
   id: string;
   taskId: string;
   patientId: string;
   prescriptionVersionId: PrescriptionVersion["id"];
+  dataMode: ReportDataMode;
+  dataSourceNote: string;
+  sampleSeries?: TrainingSamplePoint[];
+  ecgEvents?: EcgEvent[];
   dateTime: string;
   exercise: string;
   trainingType: string;
@@ -214,6 +234,8 @@ export const singleTrainingReportDetails: SingleTrainingReportDetail[] = [
     taskId: "RX-TASK-001",
     patientId: "P-DEMO-001",
     prescriptionVersionId: "V4",
+    dataMode: "demo",
+    dataSourceNote: "当前 Demo 尚未接入设备采样时序；趋势图使用演示数据，仅用于说明报告布局和指标口径。",
     dateTime: "2026-07-25 09:30",
     exercise: "功率车",
     trainingType: "连续训练",
@@ -237,6 +259,9 @@ export const singleTrainingReportDetails: SingleTrainingReportDetail[] = [
       { metric: "血氧饱和度", warmup: "98%", training: "97%", cooldown: "98%" },
       { metric: "血压", warmup: "126/78 09:18", training: "136/82 09:44", cooldown: "124/76 10:03" }
     ],
+    ecgEvents: [
+      { time: "09:48", event: "胸闷主诉，无持续性心律失常记录", action: "护士暂停观察2分钟，症状缓解后低阻力继续", reviewed: true }
+    ],
     ecgSummary: "全程窦性心律，未记录持续性心律失常；训练第18分钟有短暂胸闷主诉，休息后缓解。",
     spo2Summary: "平均血氧97%，最低96%，未见持续下降。",
     executionSummary: "按V4处方完成训练，实际心率主要位于目标区间，血压为间歇测量且训练后回落。"
@@ -246,6 +271,8 @@ export const singleTrainingReportDetails: SingleTrainingReportDetail[] = [
     taskId: "RX-TASK-001",
     patientId: "P-DEMO-001",
     prescriptionVersionId: "V4",
+    dataMode: "demo",
+    dataSourceNote: "当前 Demo 尚未接入设备采样时序；趋势图使用演示数据，仅用于说明报告布局和指标口径。",
     dateTime: "2026-07-23 09:20",
     exercise: "功率车",
     trainingType: "连续训练",
@@ -268,6 +295,9 @@ export const singleTrainingReportDetails: SingleTrainingReportDetail[] = [
       { metric: "呼吸率", warmup: "17 次/分", training: "21 次/分", cooldown: "18 次/分" },
       { metric: "血氧饱和度", warmup: "98%", training: "97%", cooldown: "98%" },
       { metric: "血压", warmup: "124/76 09:10", training: "132/80 09:38", cooldown: "122/74 09:55" }
+    ],
+    ecgEvents: [
+      { time: "全程", event: "窦性心律，未记录明显异常事件", action: "常规训练完成后观察离场", reviewed: true }
     ],
     ecgSummary: "窦性心律，未见明显异常事件。",
     spo2Summary: "平均血氧97%，最低96%。",

@@ -1066,6 +1066,7 @@ function SingleReportList({ onSelect }: { onSelect: (reportId: string) => void }
 function SingleTrainingReport({ reportId, onBack }: { reportId: string; onBack: () => void }) {
   const report = getSingleTrainingReportDetail(reportId);
   const prescriptionDetail = getPrescriptionVersionDetail(report.prescriptionVersionId);
+  const isDemoData = report.dataMode === "demo" || !report.sampleSeries?.length;
   const patientInfo = [
     ["患者姓名", report.clinicalSnapshot.name],
     ["年龄", `${report.clinicalSnapshot.age} 岁`],
@@ -1085,7 +1086,8 @@ function SingleTrainingReport({ reportId, onBack }: { reportId: string; onBack: 
   return (
     <div className="space-y-4">
       <article className="rounded-3xl border border-white bg-white p-6 shadow-card">
-        <div className="flex items-center justify-between"><div className="flex items-center gap-4"><button type="button" onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" aria-label="返回单次报告列表"><ArrowLeft className="h-5 w-5" /></button><div><p className="text-xs font-bold text-medical-600">训练编号 {reportId}</p><h2 className="mt-1 text-xl font-bold text-slate-950">单次功率车训练报告</h2></div></div><span className="rounded-full bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700"><CheckCircle2 className="mr-1 inline h-4 w-4" />训练已完成</span></div>
+        <div className="flex items-center justify-between"><div className="flex items-center gap-4"><button type="button" onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" aria-label="返回单次报告列表"><ArrowLeft className="h-5 w-5" /></button><div><p className="text-xs font-bold text-medical-600">训练编号 {reportId}</p><h2 className="mt-1 text-xl font-bold text-slate-950">单次功率车训练报告</h2></div></div><div className="flex items-center gap-2"><span className={`rounded-full px-4 py-2 text-xs font-bold ${isDemoData ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700"}`}>{isDemoData ? "Demo 数据" : "设备采样时序"}</span><span className="rounded-full bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700"><CheckCircle2 className="mr-1 inline h-4 w-4" />训练已完成</span></div></div>
+        <p className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-800">{report.dataSourceNote}</p>
         <div className="mt-5 grid grid-cols-4 gap-3">
           {patientInfo.map(([label, value]) => <div key={label} className="rounded-2xl bg-slate-50 p-3.5"><p className="text-[11px] font-bold text-slate-400">{label}</p><p className="mt-1.5 text-sm font-bold text-slate-900">{value}</p></div>)}
         </div>
@@ -1121,30 +1123,23 @@ function SingleTrainingReport({ reportId, onBack }: { reportId: string; onBack: 
 
       <div className="grid grid-cols-2 gap-4">
         <TrendChart
-          title="心率、呼吸率与血氧趋势"
-          subtitle="随运动持续时间变化"
+          title={isDemoData ? "心率、呼吸率与血氧演示趋势" : "心率、呼吸率与血氧采样时序"}
+          subtitle={isDemoData ? "Demo 数据 · 非设备真实采样" : "设备采样时序"}
+          dataMode={report.dataMode}
+          sourceNote={report.dataSourceNote}
           series={[
             { name: "心率 bpm", color: "#e84b68", values: [86, 92, 101, 108, 112, 109, 103, 96] },
             { name: "呼吸率 次/分", color: "#347faf", values: [17, 18, 20, 22, 23, 22, 20, 18] },
             { name: "血氧 %", color: "#1f7e79", values: [98, 98, 97, 97, 96, 97, 98, 98] }
           ]}
         />
-        <TrendChart
-          title="血压与心电监测趋势"
-          subtitle="收缩压、舒张压及心电监测"
-          series={[
-            { name: "收缩压 mmHg", color: "#8b5cf6", values: [126, 128, 132, 136, 134, 131, 127, 124] },
-            { name: "舒张压 mmHg", color: "#f59e0b", values: [76, 78, 80, 82, 81, 80, 78, 76] },
-            { name: "心电稳定度", color: "#1f7e79", values: [96, 97, 96, 95, 96, 97, 98, 98] }
-          ]}
-          footer="心电监测：全程窦性心律，未记录持续性心律失常（演示结论）"
-        />
+        <BpAndEcgPanel report={report} />
       </div>
     </div>
   );
 }
 
-function TrendChart({ title, subtitle, series, footer }: { title: string; subtitle: string; series: { name: string; color: string; values: number[] }[]; footer?: string }) {
+function TrendChart({ title, subtitle, series, dataMode, sourceNote }: { title: string; subtitle: string; series: { name: string; color: string; values: number[] }[]; dataMode: "demo" | "sampled"; sourceNote: string }) {
   const pointsFor = (values: number[]) => {
     const min = Math.min(...values);
     const max = Math.max(...values);
@@ -1153,15 +1148,46 @@ function TrendChart({ title, subtitle, series, footer }: { title: string; subtit
   };
   return (
     <article className="rounded-3xl border border-white bg-white p-5 shadow-card">
-      <div className="flex items-start justify-between"><div><p className="text-xs font-bold text-medical-600">{subtitle}</p><h3 className="mt-1 text-base font-bold text-slate-950">{title}</h3></div><span className="text-[10px] text-slate-400">0–30 分钟</span></div>
+      <div className="flex items-start justify-between"><div><p className={`text-xs font-bold ${dataMode === "demo" ? "text-amber-600" : "text-medical-600"}`}>{subtitle}</p><h3 className="mt-1 text-base font-bold text-slate-950">{title}</h3></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${dataMode === "demo" ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700"}`}>{dataMode === "demo" ? "Demo 数据" : "真实采样"}</span></div>
       <div className="mt-3 flex flex-wrap gap-3">{series.map((item) => <span key={item.name} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />{item.name}</span>)}</div>
       <svg viewBox="0 0 540 190" className="mt-2 h-[180px] w-full" role="img" aria-label={title}>
         {[58, 89, 120, 150].map((y) => <line key={y} x1="40" y1={y} x2="500" y2={y} stroke="#e8eef1" strokeWidth="1" />)}
         {[0, 5, 10, 15, 20, 25, 30].map((minute, index) => <g key={minute}><line x1={40 + index * (460 / 6)} y1="45" x2={40 + index * (460 / 6)} y2="155" stroke="#f2f5f7" strokeWidth="1" /><text x={40 + index * (460 / 6)} y="176" textAnchor="middle" fontSize="9" fill="#94a3b8">{minute}m</text></g>)}
         {series.map((item) => <polyline key={item.name} points={pointsFor(item.values)} fill="none" stroke={item.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />)}
       </svg>
-      {footer && <p className="rounded-xl bg-emerald-50 px-3 py-2 text-[10px] font-bold text-emerald-700">{footer}</p>}
-      {!footer && <p className="text-[10px] text-slate-400">不同单位趋势经归一化后同屏展示，具体数值以原始记录为准。</p>}
+      <p className={`rounded-xl px-3 py-2 text-[10px] font-bold ${dataMode === "demo" ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700"}`}>{sourceNote}</p>
+    </article>
+  );
+}
+
+function BpAndEcgPanel({ report }: { report: ReturnType<typeof getSingleTrainingReportDetail> }) {
+  return (
+    <article className="rounded-3xl border border-white bg-white p-5 shadow-card">
+      <div className="flex items-start justify-between">
+        <div><p className="text-xs font-bold text-medical-600">间歇测量与心电摘要</p><h3 className="mt-1 text-base font-bold text-slate-950">血压测量点、心电事件与复核</h3></div>
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">不绘制连续血压曲线</span>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {report.bpMeasurements.map((item) => (
+          <div key={item.phase} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+            <p className="text-[10px] font-bold text-slate-400">{item.phase} · {item.time}</p>
+            <p className="mt-2 text-lg font-bold text-slate-950">{item.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
+        <p className="text-[10px] font-bold text-emerald-700">心电监测摘要</p>
+        <p className="mt-2 text-xs font-bold leading-5 text-emerald-900">{report.ecgSummary}</p>
+      </div>
+      <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100">
+        <div className="grid grid-cols-[0.65fr_1.2fr_1.35fr_0.6fr] bg-slate-50 px-3 py-2.5 text-[10px] font-bold text-slate-500"><span>时间</span><span>事件</span><span>处置</span><span>复核</span></div>
+        {(report.ecgEvents ?? []).map((event) => (
+          <div key={`${event.time}-${event.event}`} className="grid grid-cols-[0.65fr_1.2fr_1.35fr_0.6fr] border-t border-slate-100 px-3 py-2.5 text-[10px] text-slate-600">
+            <span className="font-bold text-slate-800">{event.time}</span><span>{event.event}</span><span>{event.action}</span><span className={event.reviewed ? "font-bold text-emerald-700" : "font-bold text-amber-700"}>{event.reviewed ? "已复核" : "待复核"}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[10px] text-slate-400">血压为人工/设备间歇测量点；心电只展示事件和复核摘要，不生成“稳定度”曲线。</p>
     </article>
   );
 }
