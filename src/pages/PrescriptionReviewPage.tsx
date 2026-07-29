@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, BadgeCheck, CalendarRange, Check, FileText, PenTool, Printer, Sparkles, X } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CalendarRange, Check, ExternalLink, FileText, PenTool, Printer, Sparkles, X } from "lucide-react";
 import type { PrescriptionTask } from "../prescriptionData";
 import { prescriptionStatusLabels } from "../prescriptionData";
 import { Notice, PageHeader, SectionHeader, StatusBadge } from "../components/UI";
@@ -17,27 +17,26 @@ export function PrescriptionReviewPage({
   onOpenReport: () => void;
 }) {
   const readonly = task.status === "completed";
-  const [selectedReport, setSelectedReport] = useState<"stage" | "single">(task.sourceType === "single_report" ? "single" : "stage");
   const [height, setHeight] = useState("162");
   const [contact, setContact] = useState("138****2688");
   const [identityNo, setIdentityNo] = useState("3702************26");
-  const [rehabGoal, setRehabGoal] = useState("改善症状、提高体能、改善心功能、预防支架内再狭窄");
-  const [breathingMode, setBreathingMode] = useState("腹式呼吸练习");
+  const [rehabGoals, setRehabGoals] = useState(["改善症状", "提高体能", "改善心功能", "预防支架内再狭窄"]);
+  const [breathingModes, setBreathingModes] = useState(["腹式呼吸练习"]);
   const [breathingIntensity, setBreathingIntensity] = useState("吸气时鼓起肚子，呼气时缩紧肚子，呼气/吸气时间比≥3:1");
   const [breathingFrequency, setBreathingFrequency] = useState("每天2次");
   const [breathingTime, setBreathingTime] = useState("每次10分钟");
-  const [warmupMode, setWarmupMode] = useState("原地踏步、肩部热身运动、扩胸运动、四肢伸展运动、手腕踝关节");
+  const [warmupModes, setWarmupModes] = useState(["原地踏步", "肩部热身运动", "扩胸运动", "四肢伸展运动", "手腕踝关节"]);
   const [warmupFrequency, setWarmupFrequency] = useState("每次训练前");
   const [warmupTime, setWarmupTime] = useState("5分钟");
-  const [aerobicMode, setAerobicMode] = useState("骑自行车/健身器械（踏车）");
+  const [aerobicModes, setAerobicModes] = useState(["骑自行车", "健身器械（踏车、椭圆机）"]);
   const [aerobicIntensity, setAerobicIntensity] = useState("靶心率100-116次/分钟；功率起始50W，目标4周70W；运动时可正常语速交流但不能轻松唱歌");
   const [aerobicFrequency, setAerobicFrequency] = useState("每周3次");
   const [aerobicTime, setAerobicTime] = useState("30分钟/次");
-  const [resistanceMode, setResistanceMode] = useState("哑铃、弹力带");
+  const [resistanceModes, setResistanceModes] = useState(["哑铃", "弹力带"]);
   const [resistanceIntensity, setResistanceIntensity] = useState("每种动作2组，每组10个；配合呼吸：吸气放松，呼气发力");
   const [resistanceFrequency, setResistanceFrequency] = useState("每周2次");
   const [resistanceTime, setResistanceTime] = useState("每次4种动作");
-  const [flexibilityMode, setFlexibilityMode] = useState("颈部肌肉牵伸、躯干肌肉牵伸、上肢肌肉牵伸、下肢肌肉牵伸");
+  const [flexibilityModes, setFlexibilityModes] = useState(["颈部肌肉牵伸", "躯干肌肉牵伸", "上肢肌肉牵伸", "下肢肌肉牵伸"]);
   const [flexibilityIntensity, setFlexibilityIntensity] = useState("每组肌肉拉伸3次");
   const [flexibilityFrequency, setFlexibilityFrequency] = useState("每次有氧或者抗阻训练后");
   const [flexibilityTime, setFlexibilityTime] = useState("每次拉伸15-30秒");
@@ -52,23 +51,23 @@ export function PrescriptionReviewPage({
     height,
     contact,
     identityNo,
-    rehabGoal,
-    breathingMode,
+    rehabGoal: rehabGoals.join("、"),
+    breathingMode: breathingModes.join("、"),
     breathingIntensity,
     breathingFrequency,
     breathingTime,
-    warmupMode,
+    warmupMode: warmupModes.join("、"),
     warmupFrequency,
     warmupTime,
-    aerobicMode,
+    aerobicMode: aerobicModes.join("、"),
     aerobicIntensity,
     aerobicFrequency,
     aerobicTime,
-    resistanceMode,
+    resistanceMode: resistanceModes.join("、"),
     resistanceIntensity,
     resistanceFrequency,
     resistanceTime,
-    flexibilityMode,
+    flexibilityMode: flexibilityModes.join("、"),
     flexibilityIntensity,
     flexibilityFrequency,
     flexibilityTime,
@@ -90,6 +89,14 @@ export function PrescriptionReviewPage({
     setConfirmChecked(true);
   }
 
+  function openPatientReportPage() {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("view", "patient-reports");
+    url.searchParams.set("patientId", task.patientId);
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
+  }
+
   return (
     <section data-testid="page-VIEW-PRESCRIPTION-REVIEW">
       <PageHeader eyebrow={task.kind === "initial" ? "初始处方录入" : "报告驱动调整处方"} title={`${task.patientName} · ${task.version}`} description={task.kind === "initial" ? "基于首次基线评估由康复医生人工录入，不强制使用AI。" : "先核对报告、上一版处方与安全事件，再复核AI处方草稿。"} action={<button type="button" className="btn-secondary" onClick={onBack}><ArrowLeft className="h-4 w-4" />返回处方列表</button>} />
@@ -99,6 +106,7 @@ export function PrescriptionReviewPage({
           <SectionHeader title="病人基础信息" description="先核对病史、诊断和特殊用药；这些信息只作为处方复核依据，不混入处方模板字段。" />
           <div className="grid gap-3 md:grid-cols-5">
             <Evidence label="姓名 / 性别 / 年龄" value={`${task.patientName} · ${task.sex} · ${task.age}岁`} />
+            <Evidence label="患者编码" value={task.patientId} />
             <Evidence label="分组情况" value={task.risk} warning={task.risk === "高危"} />
             <Evidence label="病史" value={clinicalSnapshotChen.medicalHistory} />
             <Evidence label="诊断" value={clinicalSnapshotChen.diagnosis} />
@@ -109,22 +117,23 @@ export function PrescriptionReviewPage({
 
         <section className="card p-4">
           <SectionHeader title="AI生成建议" action={<Sparkles className="h-4 w-4 text-blue-600" />} />
-          <div className="grid gap-3 text-xs leading-5 text-slate-600 md:grid-cols-[1.15fr_0.9fr_0.95fr]">
-            <div className="rounded-xl bg-blue-50 p-3"><p className="font-bold text-blue-900">建议</p><p className="mt-1">基于报告建议维持功率车为主，靶心率维持100-116次/分钟，训练总时间30分钟/次。</p></div>
-            <Evidence label="为什么需要开方" value={task.kind === "initial" ? "首次基线评估后需形成初始处方" : "阶段/单次报告已就绪，上一版本需复核或调整"} />
+          <div className="grid gap-3 text-xs leading-5 text-slate-600 md:grid-cols-[1.35fr_0.9fr]">
+            <div className="rounded-xl bg-blue-50 p-3"><p className="font-bold text-blue-900">参数建议</p><p className="mt-1">维持功率车训练，靶心率100-116次/分钟，训练30分钟/次；请结合报告与患者当日状态复核。</p></div>
             <Evidence label="上一版参考" value={`${previousVersion.version} · ${previousVersion.targetHr.join("-")}次/分钟 · ${previousVersion.targetPower.join("-")}W`} />
             {linkedSafetyEvents.map((event) => <div key={event.id} className="rounded-xl border border-red-100 bg-red-50 p-3 text-red-800"><b>{event.type}</b><p className="mt-1">{event.metricSnapshot}；{event.doctorReview}；{event.prescriptionImpact}</p></div>)}
-            <p className="rounded-xl bg-amber-50 p-3 text-amber-800 md:col-span-3">AI只生成建议和提示，不写入正式处方；下方处方内容以医生保存和确认为准。</p>
+            <p className="rounded-xl bg-amber-50 p-3 text-amber-800">AI内容仅为草稿，正式处方以医生勾选、修改和签署内容为准。</p>
           </div>
         </section>
 
         <section className="card p-4">
-          <SectionHeader title="报告列表" description="点击后在下方查看报告内容和数据项。" />
-          <div className="grid gap-3 md:grid-cols-[0.72fr_0.72fr_0.56fr_1.4fr]">
-            <button type="button" onClick={() => setSelectedReport("stage")} className={`rounded-xl border p-3 text-left ${selectedReport === "stage" ? "border-blue-200 bg-blue-50" : "border-slate-100 bg-white hover:bg-slate-50"}`}><CalendarRange className="h-4 w-4 text-blue-600" /><p className="mt-2 text-xs font-bold text-slate-900">阶段性报告</p><p className="mt-1 text-[10px] text-slate-500">{task.sourceType === "stage_report" ? task.sourceLabel : "历史阶段报告"}</p></button>
-            <button type="button" onClick={() => setSelectedReport("single")} className={`rounded-xl border p-3 text-left ${selectedReport === "single" ? "border-emerald-200 bg-emerald-50" : "border-slate-100 bg-white hover:bg-slate-50"}`}><FileText className="h-4 w-4 text-emerald-600" /><p className="mt-2 text-xs font-bold text-slate-900">单次报告</p><p className="mt-1 text-[10px] text-slate-500">{task.sourceType === "single_report" ? task.sourceLabel : "功率车单次报告"}</p></button>
-            <button type="button" onClick={onOpenReport} className="rounded-xl border border-slate-100 bg-white p-3 text-left text-xs font-bold text-blue-700 hover:bg-blue-50">进入报告中心</button>
-            <ReportPreviewCard selected={selectedReport} />
+          <SectionHeader title="报告列表查询" description={`当前患者编码：${task.patientId}。阶段性报告将在新的 Web 页面中按患者编码查询。`} />
+          <div className="grid gap-3 md:grid-cols-2">
+            <button type="button" onClick={openPatientReportPage} className="flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50 p-4 text-left hover:border-blue-300">
+              <span><CalendarRange className="h-4 w-4 text-blue-600" /><b className="mt-2 block text-xs text-slate-900">新页面查询该患者报告</b><small className="mt-1 block text-[10px] text-slate-500">阶段性报告、单次报告 · {task.patientId}</small></span><ExternalLink className="h-4 w-4 text-blue-600" />
+            </button>
+            <button type="button" onClick={onOpenReport} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-4 text-left hover:bg-slate-50">
+              <span><FileText className="h-4 w-4 text-emerald-600" /><b className="mt-2 block text-xs text-slate-900">进入完整报告中心</b><small className="mt-1 block text-[10px] text-slate-500">查询其他患者及全部报告</small></span><ExternalLink className="h-4 w-4 text-slate-400" />
+            </button>
           </div>
         </section>
 
@@ -135,13 +144,13 @@ export function PrescriptionReviewPage({
             <PrescriptionField label="身高（cm）" value={height} setValue={setHeight} disabled={readonly} />
             <PrescriptionField label="联系方式" value={contact} setValue={setContact} disabled={readonly} />
             <PrescriptionField label="身份证号" value={identityNo} setValue={setIdentityNo} disabled={readonly} />
-            <PrescriptionField label="康复目标" value={rehabGoal} setValue={setRehabGoal} disabled={readonly} />
           </div>
-          <TemplateRow title="呼吸训练" mode={breathingMode} setMode={setBreathingMode} intensity={breathingIntensity} setIntensity={setBreathingIntensity} frequency={breathingFrequency} setFrequency={setBreathingFrequency} time={breathingTime} setTime={setBreathingTime} disabled={readonly} />
-          <TemplateRow title="热身运动" mode={warmupMode} setMode={setWarmupMode} intensity="养成良好的运动习惯，避免久坐" setIntensity={() => undefined} frequency={warmupFrequency} setFrequency={setWarmupFrequency} time={warmupTime} setTime={setWarmupTime} disabled={readonly} />
-          <TemplateRow title="有氧运动" mode={aerobicMode} setMode={setAerobicMode} intensity={aerobicIntensity} setIntensity={setAerobicIntensity} frequency={aerobicFrequency} setFrequency={setAerobicFrequency} time={aerobicTime} setTime={setAerobicTime} disabled={readonly} />
-          <TemplateRow title="抗阻训练" mode={resistanceMode} setMode={setResistanceMode} intensity={resistanceIntensity} setIntensity={setResistanceIntensity} frequency={resistanceFrequency} setFrequency={setResistanceFrequency} time={resistanceTime} setTime={setResistanceTime} disabled={readonly} />
-          <TemplateRow title="柔韧性训练" mode={flexibilityMode} setMode={setFlexibilityMode} intensity={flexibilityIntensity} setIntensity={setFlexibilityIntensity} frequency={flexibilityFrequency} setFrequency={setFlexibilityFrequency} time={flexibilityTime} setTime={setFlexibilityTime} disabled={readonly} />
+          <CheckboxOptions title="康复目标" options={["降低血压", "降低血脂", "降低血糖", "改善症状", "提高缺血阈", "预防支架内再狭窄", "减重", "改善心功能", "改善睡眠", "提高体能", "改善神经功能", "其他"]} selected={rehabGoals} setSelected={setRehabGoals} disabled={readonly} />
+          <TemplateRow title="呼吸训练" options={["吸气抬手", "吸气耸肩", "吸气跺脚", "腹式呼吸练习"]} selected={breathingModes} setSelected={setBreathingModes} intensity={breathingIntensity} setIntensity={setBreathingIntensity} frequency={breathingFrequency} setFrequency={setBreathingFrequency} time={breathingTime} setTime={setBreathingTime} disabled={readonly} />
+          <TemplateRow title="热身运动" options={["原地踏步", "肩部热身运动", "扩胸运动", "四肢伸展运动", "手腕踝关节"]} selected={warmupModes} setSelected={setWarmupModes} intensity="养成良好的运动习惯，避免久坐" setIntensity={() => undefined} frequency={warmupFrequency} setFrequency={setWarmupFrequency} time={warmupTime} setTime={setWarmupTime} disabled={readonly} />
+          <TemplateRow title="有氧运动" options={["步行", "慢跑", "游泳", "骑自行车", "健身操", "八段锦", "太极拳", "五禽戏", "健身器械（踏车、椭圆机）", "其他"]} selected={aerobicModes} setSelected={setAerobicModes} intensity={aerobicIntensity} setIntensity={setAerobicIntensity} frequency={aerobicFrequency} setFrequency={setAerobicFrequency} time={aerobicTime} setTime={setAerobicTime} disabled={readonly} />
+          <TemplateRow title="抗阻训练" options={["哑铃", "弹力带", "绑腿沙袋", "下肢静蹲"]} selected={resistanceModes} setSelected={setResistanceModes} intensity={resistanceIntensity} setIntensity={setResistanceIntensity} frequency={resistanceFrequency} setFrequency={setResistanceFrequency} time={resistanceTime} setTime={setResistanceTime} disabled={readonly} />
+          <TemplateRow title="柔韧性训练" options={["颈部肌肉牵伸", "躯干肌肉牵伸", "上肢肌肉牵伸", "下肢肌肉牵伸"]} selected={flexibilityModes} setSelected={setFlexibilityModes} intensity={flexibilityIntensity} setIntensity={setFlexibilityIntensity} frequency={flexibilityFrequency} setFrequency={setFlexibilityFrequency} time={flexibilityTime} setTime={setFlexibilityTime} disabled={readonly} />
           <AdviceField label="备注" value={remark} setValue={setRemark} disabled={readonly} />
           <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
             <label className="flex items-start gap-3"><input type="checkbox" checked={confirmChecked || readonly} onChange={(event) => setConfirmChecked(event.target.checked)} disabled={readonly} className="mt-0.5 accent-blue-600" /><span className="text-xs leading-5 text-slate-600">我已核对报告/评估依据和运动处方内容，确认当前内容由医生作出临床判断。</span></label>
@@ -201,25 +210,32 @@ type PrescriptionDocument = {
   remark: string;
 };
 
-function TemplateRow({ title, mode, setMode, intensity, setIntensity, frequency, setFrequency, time, setTime, disabled }: { title: string; mode: string; setMode: (value: string) => void; intensity: string; setIntensity: (value: string) => void; frequency: string; setFrequency: (value: string) => void; time: string; setTime: (value: string) => void; disabled: boolean }) {
+function CheckboxOptions({ title, options, selected, setSelected, disabled }: { title: string; options: string[]; selected: string[]; setSelected: (value: string[]) => void; disabled: boolean }) {
+  function toggle(option: string) {
+    setSelected(selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option]);
+  }
   return (
     <section className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3">
       <p className="mb-3 text-xs font-bold text-slate-800">{title}</p>
-      <div className="grid grid-cols-2 gap-3">
-        <PrescriptionField label="运动方式" value={mode} setValue={setMode} disabled={disabled} />
+      <div className="flex flex-wrap gap-x-5 gap-y-2">
+        {options.map((option) => <label key={option} className="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" checked={selected.includes(option)} onChange={() => toggle(option)} disabled={disabled} className="accent-blue-600" />{option}</label>)}
+      </div>
+    </section>
+  );
+}
+
+function TemplateRow({ title, options, selected, setSelected, intensity, setIntensity, frequency, setFrequency, time, setTime, disabled }: { title: string; options: string[]; selected: string[]; setSelected: (value: string[]) => void; intensity: string; setIntensity: (value: string) => void; frequency: string; setFrequency: (value: string) => void; time: string; setTime: (value: string) => void; disabled: boolean }) {
+  return (
+    <section className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3">
+      <p className="mb-3 text-xs font-bold text-slate-800">{title}</p>
+      <div className="grid grid-cols-[1.15fr_1fr_0.68fr_0.68fr] gap-3">
+        <div><span className="field-label">运动方式</span><div className="rounded-[10px] border border-[#d5e1e7] bg-white p-3"><div className="flex flex-wrap gap-x-4 gap-y-2">{options.map((option) => <label key={option} className="flex items-center gap-2 text-[10px] text-slate-700"><input type="checkbox" checked={selected.includes(option)} onChange={() => setSelected(selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option])} disabled={disabled} className="accent-blue-600" />{option}</label>)}</div></div></div>
         <PrescriptionField label="运动强度" value={intensity} setValue={setIntensity} disabled={disabled || title === "热身运动"} />
         <PrescriptionField label="运动频率" value={frequency} setValue={setFrequency} disabled={disabled} />
         <PrescriptionField label="运动时间" value={time} setValue={setTime} disabled={disabled} />
       </div>
     </section>
   );
-}
-
-function ReportPreviewCard({ selected }: { selected: "stage" | "single" }) {
-  if (selected === "stage") {
-    return <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600"><p className="font-bold text-slate-900">阶段性报告内容</p><p className="mt-1">完成11/12次；靶区达标84%；平均实际运动25.1分钟；异常事件1项已复核。</p><p className="mt-2 text-slate-400">数据项：完成率、靶区达标、平均功率、RPE、血压/血氧、心电事件。</p></div>;
-  }
-  return <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600"><p className="font-bold text-slate-900">单次报告内容</p><p className="mt-1">功率车30分钟；平均心率106 bpm；靶区时间22分钟；训练后血压124/76 mmHg。</p><p className="mt-2 text-slate-400">数据项：运动项目、总时长、心率、血压测量点、血氧、心电摘要。</p></div>;
 }
 
 function FinalPrescriptionPrintContent({ task, document, signed }: { task: PrescriptionTask; document: PrescriptionDocument; signed: boolean }) {
