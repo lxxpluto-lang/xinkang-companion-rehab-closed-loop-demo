@@ -23,14 +23,15 @@ import {
 } from "lucide-react";
 import { roleActions, roleMeta } from "../accessControl";
 import { PageHeader, SectionHeader, StatCard, StatusBadge } from "../components/UI";
-import { statusMeta, type TrainingVideo } from "./VideoLibraryPage";
+import type { TrainingVideo } from "./VideoLibraryPage";
 import type { DoctorPageKey, PermissionAction, Role } from "../types";
 
-const adminTitles: Record<Exclude<DoctorPageKey, "dashboard" | "patients" | "report" | "prescriptions" | "training" | "abnormal" | "followup" | "videos">, { title: string; eyebrow: string; description: string }> = {
+type AdminConsolePageKey = Exclude<DoctorPageKey, "dashboard" | "patients" | "report" | "prescriptions" | "training" | "videoConfig">;
+
+const adminTitles: Record<AdminConsolePageKey, { title: string; eyebrow: string; description: string }> = {
   adminOverview: { title: "管理概览", eyebrow: "后台管理", description: "聚合账号、权限、内容、设备和高风险操作，业务训练细节仍留在对应工作台。" },
   organization: { title: "组织与账号", eyebrow: "身份与组织", description: "维护机构、康复中心、科室、账号和医疗团队，决定数据范围的组织边界。" },
   permissions: { title: "权限中心", eyebrow: "RBAC + 数据与字段范围", description: "权限由菜单、操作、数据范围和字段范围共同决定，前端展示与服务端校验使用同一权限编码。" },
-  videoConfig: { title: "视频配置", eyebrow: "内容治理", description: "集中审核训练视频，配置发布、下架、删除、恢复及运动项目关联规则。" },
   businessConfig: { title: "业务配置", eyebrow: "临床规则字典", description: "维护运动项目、处方参数、危险分组、随访和异常分级等受控业务规则。" },
   trainingConfig: { title: "训练与设备", eyebrow: "设备与安全规则", description: "维护设备、工位、数据采集、告警阈值以及训练阶段语音和声音提醒。" },
   documentConfig: { title: "报告、打印与签名", eyebrow: "文书与签署", description: "统一管理报告模板、处方打印、数字签名授权和签署记录。" },
@@ -64,7 +65,7 @@ const configData: Partial<Record<DoctorPageKey, Array<{ name: string; detail: st
   notifications: [
     { name: "待复核处方提醒", detail: "生成后即时 + 2 小时催办", status: "已启用", owner: "处方管理" },
     { name: "训练异常提醒", detail: "站内通知 + 声音告警", status: "已启用", owner: "训练中心" },
-    { name: "随访任务提醒", detail: "到期前 24 小时", status: "已启用", owner: "随访管理" },
+    { name: "复诊与阶段提醒", detail: "处方完成后 24 小时内", status: "已启用", owner: "康复中心" },
     { name: "权限变更提醒", detail: "即时通知账号本人", status: "已启用", owner: "系统管理" }
   ],
   integrations: [
@@ -82,21 +83,18 @@ const actionLabels: Record<PermissionAction, string> = {
 
 export function AdminConsolePage({
   page,
-  videos,
-  onOpenVideos
+  videos
 }: {
-  page: Exclude<DoctorPageKey, "dashboard" | "patients" | "report" | "prescriptions" | "training" | "abnormal" | "followup" | "videos">;
+  page: AdminConsolePageKey;
   videos: TrainingVideo[];
-  onOpenVideos: () => void;
 }) {
   const title = adminTitles[page];
   return (
     <section data-testid={`page-VIEW-${page.toUpperCase()}`}>
-      <PageHeader eyebrow={title.eyebrow} title={title.title} description={title.description} action={<StatusBadge tone="blue"><LockKeyhole className="h-3.5 w-3.5" />仅管理员可见</StatusBadge>} />
+      <PageHeader eyebrow={title.eyebrow} title={title.title} description={title.description} action={<StatusBadge tone="blue"><LockKeyhole className="h-3.5 w-3.5" />管理员配置</StatusBadge>} />
       {page === "adminOverview" && <AdminOverview videos={videos} />}
       {page === "organization" && <OrganizationPage />}
       {page === "permissions" && <PermissionCenter />}
-      {page === "videoConfig" && <VideoConfig videos={videos} onOpenVideos={onOpenVideos} />}
       {page === "audit" && <AuditPage />}
       {configData[page] && <ConfigTable page={page} rows={configData[page] || []} />}
     </section>
@@ -174,13 +172,6 @@ function PermissionCenter() {
       ].map(([label, value]) => <div className="rounded-xl bg-slate-50 p-3" key={label}><p className="text-[9px] text-slate-400">{label}</p><p className="mt-1.5 font-bold text-slate-800">{value}</p></div>)}</div></section>
     </div>
   </>;
-}
-
-function VideoConfig({ videos, onOpenVideos }: { videos: TrainingVideo[]; onOpenVideos: () => void }) {
-  return <div className="grid grid-cols-[1.2fr_0.8fr] gap-5">
-    <section className="card overflow-hidden"><div className="flex items-center justify-between p-5"><SectionHeader title="视频审核与状态" description="内容状态与业务端视频库实时共享。" /><button type="button" onClick={onOpenVideos} className="btn-primary">进入视频操作台<ChevronRight className="h-4 w-4" /></button></div><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] text-slate-400"><tr>{["视频", "分类", "维护人", "来源", "状态"].map((item) => <th className="px-4 py-3" key={item}>{item}</th>)}</tr></thead><tbody>{videos.map((video) => <tr className="border-t border-slate-100" key={video.id}><td className="px-4 py-3 font-bold text-slate-800">{video.title}</td><td className="px-4 py-3">{video.category} / {video.subtype}</td><td className="px-4 py-3">{video.updatedBy}</td><td className="px-4 py-3">{video.source === "upload" ? "院内上传" : "白名单链接"}</td><td className="px-4 py-3"><StatusBadge tone={statusMeta[video.status].tone}>{statusMeta[video.status].label}</StatusBadge></td></tr>)}</tbody></table></section>
-    <section className="space-y-5"><div className="card p-5"><SectionHeader title="默认动作权限" /><div className="space-y-3">{[["医生", "草稿、编辑、提交发布"], ["康复执行岗", "草稿、编辑、提交发布"], ["管理员", "发布、下架、回收、恢复、永久删除"]].map(([role, detail]) => <div className="rounded-xl bg-slate-50 p-3" key={role}><p className="font-bold text-slate-800">{role}</p><p className="mt-1 text-[10px] text-slate-500">{detail}</p></div>)}</div></div><div className="card p-5"><SectionHeader title="链接白名单" /><div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3"><Network className="h-4 w-4 text-emerald-600" /><span className="flex-1 font-bold text-emerald-800">player.bilibili.com</span><StatusBadge tone="green">已启用</StatusBadge></div><button className="btn-secondary mt-3 w-full"><Plus className="h-4 w-4" />添加授权域名</button></div></section>
-  </div>;
 }
 
 function ConfigTable({ page, rows }: { page: DoctorPageKey; rows: Array<{ name: string; detail: string; status: string; owner: string }> }) {

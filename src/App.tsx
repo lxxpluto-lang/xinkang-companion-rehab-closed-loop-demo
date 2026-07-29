@@ -5,9 +5,7 @@ import { StaffLogin } from "./components/StaffLogin";
 import { SystemChooser } from "./components/SystemChooser";
 import { PatientApp } from "./patient/PatientApp";
 import { AdminConsolePage } from "./pages/AdminConsolePage";
-import { AbnormalPage } from "./pages/AbnormalPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { FollowupPage } from "./pages/FollowupPage";
 import { NurseStationPage } from "./pages/NurseStationPage";
 import { PatientArchivePage } from "./pages/PatientArchivePage";
 import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
@@ -20,7 +18,7 @@ import type { DoctorPageKey, Role, TrainingState } from "./types";
 type SystemKey = "chooser" | "staffLogin" | "doctor" | "patient";
 type StaffRole = Exclude<Role, "PATIENT">;
 
-const adminPages: DoctorPageKey[] = ["adminOverview", "organization", "permissions", "videoConfig", "businessConfig", "trainingConfig", "documentConfig", "notifications", "audit", "integrations"];
+const adminConsolePages: DoctorPageKey[] = ["adminOverview", "organization", "permissions", "businessConfig", "trainingConfig", "documentConfig", "notifications", "audit", "integrations"];
 
 export default function App() {
   const [system, setSystem] = useState<SystemKey>("chooser");
@@ -89,14 +87,12 @@ export default function App() {
       : <PrescriptionManagementPage tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
     report: <ReportPage onCreatePrescription={(taskId) => prescriptionTasks.find((task) => task.id === taskId)?.status === "pending_generation" ? generateDraft(taskId) : openTask(taskId)} />,
     patients: <PatientArchivePage role={role} />,
-    abnormal: <AbnormalPage trainingState={trainingState} setTrainingState={setTrainingState} />,
     training: <NurseStationPage role={role} />,
-    followup: <FollowupPage role={role} />,
-    videos: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />
+    videoConfig: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />
   };
 
-  for (const page of adminPages) {
-    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "report" | "prescriptions" | "training" | "abnormal" | "followup" | "videos">} videos={trainingVideos} onOpenVideos={() => setDoctorPage("videos")} />;
+  for (const page of adminConsolePages) {
+    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "report" | "prescriptions" | "training" | "videoConfig">} videos={trainingVideos} />;
   }
 
   return (

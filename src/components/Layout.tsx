@@ -19,7 +19,6 @@ export function DoctorLayout({
   children: React.ReactNode;
 }) {
   const [clock, setClock] = useState(new Date());
-  const [activeSubmenu, setActiveSubmenu] = useState("");
   const allowedItems = useMemo(() => navItems.filter((item) => item.roles.includes(role)), [role]);
   const currentItem = allowedItems.find((item) => item.key === page) ?? allowedItems[0];
 
@@ -27,10 +26,6 @@ export function DoctorLayout({
     const timer = window.setInterval(() => setClock(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    setActiveSubmenu(currentItem?.submenus[0] ?? "");
-  }, [currentItem?.key]);
 
   return (
     <div className="doctor-shell min-h-screen text-[13px]">
@@ -52,18 +47,14 @@ export function DoctorLayout({
             title="业务工作"
             items={allowedItems.filter((item) => item.group === "business")}
             page={page}
-            activeSubmenu={activeSubmenu}
             onNavigate={onNavigate}
-            onSubmenu={setActiveSubmenu}
           />
           {allowedItems.some((item) => item.group === "admin") && (
             <NavGroup
               title="后台管理"
               items={allowedItems.filter((item) => item.group === "admin")}
               page={page}
-              activeSubmenu={activeSubmenu}
               onNavigate={onNavigate}
-              onSubmenu={setActiveSubmenu}
             />
           )}
         </nav>
@@ -89,8 +80,6 @@ export function DoctorLayout({
               <Menu className="h-4 w-4 text-slate-400" />
               <span className="text-[10px] text-slate-400">心康伴侣　/　{currentItem?.group === "admin" ? "后台管理" : "业务工作"}　/　</span>
               <span className="text-[12px] font-semibold text-slate-700">{currentItem?.label}</span>
-              <span className="text-[10px] text-slate-300">/</span>
-              <span className="text-[10px] font-medium text-blue-600">{activeSubmenu}</span>
             </div>
             <div className="flex items-center gap-4 text-[11px]">
               <div className="text-right">
@@ -134,57 +123,36 @@ function NavGroup({
   title,
   items,
   page,
-  activeSubmenu,
-  onNavigate,
-  onSubmenu
+  onNavigate
 }: {
   title: string;
   items: typeof navItems;
   page: DoctorPageKey;
-  activeSubmenu: string;
   onNavigate: (page: DoctorPageKey) => void;
-  onSubmenu: (submenu: string) => void;
 }) {
   return (
     <div className="mb-4">
       <p className="mb-2 mt-1 flex items-center gap-2 px-2.5 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">
         {title}
-        {title === "后台管理" && <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[8px] text-violet-600">ADMIN</span>}
+        {title === "后台管理" && <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[8px] text-violet-600">管理</span>}
       </p>
       <div className="space-y-1">
         {items.map((item) => {
           const Icon = item.icon;
           const active = item.key === page;
           return (
-            <div key={item.key}>
-              <button
-                type="button"
-                onClick={() => onNavigate(item.key)}
-                className={`flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left text-[11px] font-medium ${
-                  active ? "bg-[#edf4ff] text-[#3476f6]" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <Icon className={`h-[15px] w-[15px] ${active ? "text-[#3476f6]" : "text-slate-400"}`} />
-                <span className="flex-1">{item.label}</span>
-                {item.badge && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">{item.badge}</span>}
-              </button>
-              {active && (
-                <div className="ml-[17px] mt-1 border-l border-blue-100 pl-3">
-                  {item.submenus.map((submenu) => (
-                    <button
-                      key={submenu}
-                      type="button"
-                      onClick={() => onSubmenu(submenu)}
-                      className={`block w-full rounded-md px-2 py-1.5 text-left text-[9px] ${
-                        activeSubmenu === submenu ? "bg-blue-50 font-bold text-blue-700" : "text-slate-400 hover:text-slate-700"
-                      }`}
-                    >
-                      {submenu}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onNavigate(item.key)}
+              className={`flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2.5 text-left text-[11px] font-medium ${
+                active ? "bg-[#edf4ff] text-[#3476f6]" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+              }`}
+            >
+              <Icon className={`h-[15px] w-[15px] ${active ? "text-[#3476f6]" : "text-slate-400"}`} />
+              <span className="flex-1">{item.label}</span>
+              {item.badge && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">{item.badge}</span>}
+            </button>
           );
         })}
       </div>

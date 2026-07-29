@@ -69,7 +69,7 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
       <section className="card overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-4">
           <div>
-            <h2 className="font-bold text-slate-900">患者管理列表</h2>
+            <h2 className="font-bold text-slate-900">患者档案列表</h2>
             <p className="mt-1 text-[11px] text-slate-400">共 {patients.length} 位患者 · 修改仅用于当前Demo会话</p>
           </div>
           <label className="relative block w-72">
@@ -139,7 +139,7 @@ export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> })
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="patient-edit-title">
           <form onSubmit={(event) => { event.preventDefault(); savePatient(); }} className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <div><p className="text-[10px] font-bold text-blue-600">患者管理</p><h2 id="patient-edit-title" className="mt-1 text-lg font-bold text-slate-900">编辑基本信息 · {editDraft.patient_demo_id}</h2></div>
+              <div><p className="text-[10px] font-bold text-blue-600">患者档案</p><h2 id="patient-edit-title" className="mt-1 text-lg font-bold text-slate-900">编辑基本信息 · {editDraft.patient_demo_id}</h2></div>
               <button type="button" onClick={() => setEditDraft(null)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100" aria-label="关闭"><X className="h-4 w-4" /></button>
             </div>
             <div className="grid grid-cols-3 gap-4 p-6">
