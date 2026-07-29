@@ -3,6 +3,7 @@ import { ArrowLeft, BadgeCheck, Check, FileText, PenTool, Printer, ShieldAlert, 
 import type { PrescriptionTask } from "../prescriptionData";
 import { prescriptionStatusLabels } from "../prescriptionData";
 import { AiBadge, Notice, PageHeader, SectionHeader, StatusBadge } from "../components/UI";
+import { clinicalSnapshotChen, getPrescriptionVersionDetail } from "../clinicalSharedData";
 
 export function PrescriptionReviewPage({
   task,
@@ -26,6 +27,14 @@ export function PrescriptionReviewPage({
   const [power, setPower] = useState(task.kind === "initial" ? "30–45 W" : "50–70 W");
   const [rpe, setRpe] = useState("11–13");
   const [notes, setNotes] = useState("训练期间如出现持续胸闷、胸痛、明显气促、头晕或心悸，应立即停止并通知现场医护。");
+  const previousVersionKey = task.previousVersionId?.match(/V[1-4]/)?.[0] ?? (task.kind === "initial" ? "V1" : "V4");
+  const previousVersion = getPrescriptionVersionDetail(previousVersionKey);
+  const [rehabContraindications, setRehabContraindications] = useState(previousVersion.advice.rehabContraindications);
+  const [dietCautions, setDietCautions] = useState(previousVersion.advice.dietCautions);
+  const [exerciseCautions, setExerciseCautions] = useState(previousVersion.advice.exerciseCautions);
+  const [stopConditions, setStopConditions] = useState(previousVersion.advice.stopConditions);
+  const [medicationAdvice, setMedicationAdvice] = useState(previousVersion.advice.medicationAdvice);
+  const [patientInstruction, setPatientInstruction] = useState(previousVersion.advice.patientInstruction);
   const [confirmChecked, setConfirmChecked] = useState(false);
   const hasBlockingMissing = Boolean(task.missingFields?.length);
 
@@ -51,6 +60,11 @@ export function PrescriptionReviewPage({
         <div className="space-y-4">
           <section className="card p-5">
             <SectionHeader title={task.kind === "initial" ? "首次基线评估" : "处方依据"} action={task.kind === "adjustment" ? <AiBadge /> : <StatusBadge tone="blue">医生录入</StatusBadge>} />
+            <div className="mb-4 grid grid-cols-1 gap-3">
+              <Evidence label="病史记录" value={clinicalSnapshotChen.medicalHistory} />
+              <Evidence label="诊断内容" value={clinicalSnapshotChen.diagnosis} />
+              <Evidence label="特殊用药" value={clinicalSnapshotChen.specialMedications.join("、")} />
+            </div>
             {task.kind === "adjustment" ? (
               <>
                 <div className="mb-4 flex rounded-lg bg-slate-100 p-1">
@@ -69,6 +83,11 @@ export function PrescriptionReviewPage({
                   <div className="space-y-3"><div className="rounded-xl bg-slate-50 p-4"><p className="font-bold text-slate-800">最近一次 · 07-28功率车</p><p className="mt-2 leading-6 text-slate-600">完成32分钟，靶区时间22分18秒，平均心率106 bpm，RPE 11，无提前终止。</p></div><Evidence label="训练后血压" value="128 / 76 mmHg" /><Evidence label="最低血氧" value="96%" /><Evidence label="数据完整度" value="96%" /></div>
                 )}
                 <div className="mt-4 border-t border-slate-100 pt-4"><p className="font-bold text-slate-700">上一版本 · {task.previousVersionId}</p><p className="mt-2 text-xs leading-5 text-slate-500">功率车连续训练 · 45–65W · 靶心率98–114 bpm · 每周3次 · 总时长30分钟</p></div>
+                <div className="mt-4 grid grid-cols-1 gap-3">
+                  <Evidence label="上次诊断建议" value={previousVersion.advice.diagnosisAdvice} />
+                  <Evidence label="上次用药建议" value={previousVersion.advice.medicationAdvice} />
+                  <Evidence label="上次注意事项" value={previousVersion.advice.patientInstruction} />
+                </div>
               </>
             ) : (
               <div className="space-y-3">
@@ -98,6 +117,17 @@ export function PrescriptionReviewPage({
             <PrescriptionField label="RPE目标" value={rpe} setValue={setRpe} disabled={locked} />
           </div>
           <label className="mt-4 block"><span className="field-label">注意事项与停止条件</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} disabled={locked} className="text-field min-h-24 resize-none disabled:bg-slate-50" /></label>
+          <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+            <SectionHeader title="患者可读建议" description="这些内容会同步到患者端处方确认与报告页，用通俗语言说明康复忌讳、饮食和运动注意。" />
+            <div className="grid grid-cols-2 gap-4">
+              <AdviceField label="康复期间忌讳" value={rehabContraindications} setValue={setRehabContraindications} disabled={locked} />
+              <AdviceField label="饮食注意" value={dietCautions} setValue={setDietCautions} disabled={locked} />
+              <AdviceField label="运动注意" value={exerciseCautions} setValue={setExerciseCautions} disabled={locked} />
+              <AdviceField label="停止运动/联系医护条件" value={stopConditions} setValue={setStopConditions} disabled={locked} />
+              <AdviceField label="用药相关提醒" value={medicationAdvice} setValue={setMedicationAdvice} disabled={locked} />
+              <AdviceField label="写给患者的话" value={patientInstruction} setValue={setPatientInstruction} disabled={locked} />
+            </div>
+          </div>
           <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
             <label className="flex items-start gap-3"><input type="checkbox" checked={confirmChecked || locked} onChange={(event) => setConfirmChecked(event.target.checked)} disabled={locked} className="mt-0.5 accent-blue-600" /><span className="text-xs leading-5 text-slate-600">我已核对报告/评估依据、危险分组、运动强度、时长、频次及安全注意事项，确认当前内容由医生作出临床判断。</span></label>
           </div>
@@ -110,6 +140,7 @@ export function PrescriptionReviewPage({
             </div>
           </div>
           <div className="print-only prescription-sign-line"><span>处方医生：王医生</span><span>数字签名：{task.signatureStatus === "signed" ? "已签名（CA验证有效）" : "未签名"}</span><span>报告依据：{task.sourceLabel}</span></div>
+          <div className="print-only"><h2>患者注意事项</h2><p>康复忌讳：{rehabContraindications}</p><p>饮食注意：{dietCautions}</p><p>运动注意：{exerciseCautions}</p><p>停止条件：{stopConditions}</p><p>用药提醒：{medicationAdvice}</p><p>患者说明：{patientInstruction}</p></div>
         </section>
       </div>
     </section>
@@ -122,4 +153,8 @@ function Evidence({ label, value, warning = false }: { label: string; value: str
 
 function PrescriptionField({ label, value, setValue, disabled }: { label: string; value: string; setValue: (value: string) => void; disabled: boolean }) {
   return <label><span className="field-label">{label}</span><input className="text-field disabled:bg-slate-50" value={value} onChange={(event) => setValue(event.target.value)} disabled={disabled} /></label>;
+}
+
+function AdviceField({ label, value, setValue, disabled }: { label: string; value: string; setValue: (value: string) => void; disabled: boolean }) {
+  return <label><span className="field-label">{label}</span><textarea className="text-field min-h-20 resize-none bg-white py-2 disabled:bg-slate-50" value={value} onChange={(event) => setValue(event.target.value)} disabled={disabled} /></label>;
 }

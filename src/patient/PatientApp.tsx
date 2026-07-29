@@ -35,7 +35,8 @@ import {
   UserRoundPlus,
   Volume2,
   Waves,
-  Wifi
+  Wifi,
+  X
 } from "lucide-react";
 import type { TrainingState } from "../types";
 import type { PublishedTrainingVideo } from "../pages/VideoLibraryPage";
@@ -48,6 +49,7 @@ import {
 } from "../utils/audioGuidance";
 import { stageReportData, summarizeVersion } from "./stageReportData";
 import type { PrescriptionVersion, VersionSummary } from "./stageReportData";
+import { clinicalSnapshotChen, getPrescriptionVersionDetail, getSingleTrainingReportDetail, singleTrainingReportDetails } from "../clinicalSharedData";
 
 type PatientAppProps = {
   onExit: () => void;
@@ -673,6 +675,7 @@ function PrescriptionScreen(props: {
   repeats: number; setRepeats: (value: number) => void; totalMinutes: number; onBack: () => void; onContinue: () => void;
 }) {
   const { trainingType, setTrainingType, targetHr, setTargetHr, warmup, setWarmup, mainMinutes, setMainMinutes, cooldown, setCooldown, repeats, setRepeats, totalMinutes, onBack, onContinue } = props;
+  const prescriptionAdvice = getPrescriptionVersionDetail("V4").advice;
   return (
     <section className="grid h-full min-h-[570px] grid-cols-[0.9fr_1.1fr] gap-4" data-testid="page-VIEW-PATIENT-PRESCRIPTION">
       <article className="rounded-3xl border border-white bg-white p-6 shadow-card">
@@ -683,6 +686,17 @@ function PrescriptionScreen(props: {
           <div className="mt-4 flex items-center justify-between border-t border-white/15 pt-4"><span className="text-sm text-teal-100">总计时间</span><span className="text-2xl font-bold">{totalMinutes} 分钟</span></div>
         </div>
         <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800"><ShieldCheck className="mr-2 inline h-5 w-5" />处方版本 RX-20260726-03 · 王医生已审核</div>
+        <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4">
+          <p className="text-sm font-bold text-amber-900">医生写给您的注意事项</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs leading-5 text-amber-900">
+            <PatientAdvice label="康复忌讳" value={prescriptionAdvice.rehabContraindications} />
+            <PatientAdvice label="吃饭注意" value={prescriptionAdvice.dietCautions} />
+            <PatientAdvice label="运动注意" value={prescriptionAdvice.exerciseCautions} />
+            <PatientAdvice label="何时停止" value={prescriptionAdvice.stopConditions} />
+            <PatientAdvice label="用药提醒" value={prescriptionAdvice.medicationAdvice} />
+            <PatientAdvice label="医生说明" value={prescriptionAdvice.patientInstruction} />
+          </div>
+        </div>
       </article>
       <article className="flex flex-col rounded-3xl border border-white bg-white p-6 shadow-card">
         <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-950">演示处方调整</h2><span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">医护操作</span></div>
@@ -701,6 +715,10 @@ function PrescriptionScreen(props: {
       </article>
     </section>
   );
+}
+
+function PatientAdvice({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl bg-white/70 p-3"><p className="font-bold text-amber-950">{label}</p><p className="mt-1">{value}</p></div>;
 }
 
 function NumberControl({ label, value, unit, onMinus, onPlus }: { label: string; value: number; unit: string; onMinus: () => void; onPlus: () => void }) {
@@ -1025,13 +1043,6 @@ function ReportScreen({
 }
 
 function SingleReportList({ onSelect }: { onSelect: (reportId: string) => void }) {
-  const records = [
-    ["TR-20260725-012", "2026-07-25 09:30", "功率车", "连续训练", "30 分钟", "106 bpm", "22 分钟", "已完成"],
-    ["TR-20260723-011", "2026-07-23 09:20", "功率车", "连续训练", "30 分钟", "104 bpm", "23 分钟", "已完成"],
-    ["TR-20260722-010", "2026-07-22 15:10", "抗阻运动", "哑铃训练", "24 分钟", "98 bpm", "18 分钟", "已完成"],
-    ["TR-20260718-009", "2026-07-18 09:35", "功率车", "连续训练", "28 分钟", "110 bpm", "19 分钟", "医护复核"],
-    ["TR-20260716-008", "2026-07-16 10:05", "呼吸训练", "腹式呼吸", "15 分钟", "82 bpm", "13 分钟", "已完成"]
-  ];
   return (
     <article className="overflow-hidden rounded-3xl border border-white bg-white shadow-card" data-testid="page-VIEW-SINGLE-REPORT-LIST">
       <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
@@ -1041,11 +1052,11 @@ function SingleReportList({ onSelect }: { onSelect: (reportId: string) => void }
       <div className="grid grid-cols-[1.1fr_1.3fr_0.9fr_0.9fr_0.75fr_0.85fr_0.85fr_0.7fr] bg-slate-50 px-5 py-3 text-[11px] font-bold text-slate-400">
         <span>报告编号</span><span>训练时间</span><span>运动项目</span><span>运动类型</span><span>总时长</span><span>平均心率</span><span>有效时间</span><span>状态 / 查看</span>
       </div>
-      {records.map((row) => (
-        <button type="button" key={row[0]} onClick={() => onSelect(row[0])} className="grid w-full grid-cols-[1.1fr_1.3fr_0.9fr_0.9fr_0.75fr_0.85fr_0.85fr_0.7fr] items-center border-t border-slate-100 px-5 py-4 text-left text-xs text-slate-600 hover:bg-medical-50/60">
-          <span className="font-bold text-slate-800">{row[0]}</span>
-          <span>{row[1]}</span><span className="font-bold text-slate-700">{row[2]}</span><span>{row[3]}</span><span>{row[4]}</span><span>{row[5]}</span><span>{row[6]}</span>
-          <span className="font-bold text-medical-700">{row[7]} <ChevronRight className="inline h-3.5 w-3.5" /></span>
+      {singleTrainingReportDetails.map((record) => (
+        <button type="button" key={record.id} onClick={() => onSelect(record.id)} className="grid w-full grid-cols-[1.1fr_1.3fr_0.9fr_0.9fr_0.75fr_0.85fr_0.85fr_0.7fr] items-center border-t border-slate-100 px-5 py-4 text-left text-xs text-slate-600 hover:bg-medical-50/60">
+          <span className="font-bold text-slate-800">{record.id}</span>
+          <span>{record.dateTime}</span><span className="font-bold text-slate-700">{record.exercise}</span><span>{record.trainingType}</span><span>{record.totalMinutes} 分钟</span><span>{record.hrStats.average} bpm</span><span>{record.activeMinutes} 分钟</span>
+          <span className="font-bold text-medical-700">{record.status} <ChevronRight className="inline h-3.5 w-3.5" /></span>
         </button>
       ))}
     </article>
@@ -1053,27 +1064,23 @@ function SingleReportList({ onSelect }: { onSelect: (reportId: string) => void }
 }
 
 function SingleTrainingReport({ reportId, onBack }: { reportId: string; onBack: () => void }) {
+  const report = getSingleTrainingReportDetail(reportId);
+  const prescriptionDetail = getPrescriptionVersionDetail(report.prescriptionVersionId);
   const patientInfo = [
-    ["患者姓名", patient.name],
-    ["年龄", `${patient.age} 岁`],
-    ["体重", "63 kg"],
-    ["BMI", "24.0 kg/m²"],
-    ["运动时间", "30 分钟"],
-    ["危险分组", patient.risk],
-    ["运动项目", "功率车"],
-    ["运动类型", "连续训练"]
+    ["患者姓名", report.clinicalSnapshot.name],
+    ["年龄", `${report.clinicalSnapshot.age} 岁`],
+    ["体重", `${report.clinicalSnapshot.weightKg} kg`],
+    ["BMI", `${report.clinicalSnapshot.bmi} kg/m²`],
+    ["运动时间", `${report.totalMinutes} 分钟`],
+    ["危险分组", report.clinicalSnapshot.riskLevel],
+    ["运动项目", report.exercise],
+    ["运动类型", report.trainingType]
   ];
   const prescription = [
-    ["热身时间", "5 分钟"],
-    ["训练时间", "20 分钟"],
-    ["放松时间", "5 分钟"],
-    ["靶心率", "100–116 bpm"]
-  ];
-  const phaseRows = [
-    ["心率", "88–96 bpm", "100–116 bpm", "92–104 bpm"],
-    ["呼吸率", "18 次/分", "22 次/分", "19 次/分"],
-    ["血氧饱和度", "98%", "97%", "98%"],
-    ["血压", "128/78 mmHg", "136/82 mmHg", "124/76 mmHg"]
+    ["热身时间", `${prescriptionDetail.warmupMinutes} 分钟`],
+    ["训练时间", `${prescriptionDetail.trainingMinutes} 分钟`],
+    ["放松时间", `${prescriptionDetail.cooldownMinutes} 分钟`],
+    ["靶心率", `${prescriptionDetail.targetHr[0]}–${prescriptionDetail.targetHr[1]} bpm`]
   ];
   return (
     <div className="space-y-4">
@@ -1082,6 +1089,9 @@ function SingleTrainingReport({ reportId, onBack }: { reportId: string; onBack: 
         <div className="mt-5 grid grid-cols-4 gap-3">
           {patientInfo.map(([label, value]) => <div key={label} className="rounded-2xl bg-slate-50 p-3.5"><p className="text-[11px] font-bold text-slate-400">{label}</p><p className="mt-1.5 text-sm font-bold text-slate-900">{value}</p></div>)}
         </div>
+        <div className="mt-5 grid grid-cols-3 gap-3">
+          {[["病史", report.clinicalSnapshot.patientFriendlySummary], ["诊断", report.clinicalSnapshot.diagnosis], ["特殊用药", report.clinicalSnapshot.specialMedications.join("、")]].map(([label, value]) => <div key={label} className="rounded-2xl border border-medical-100 bg-medical-50 p-3.5"><p className="text-[11px] font-bold text-medical-600">{label}</p><p className="mt-1.5 text-xs font-bold leading-5 text-medical-950">{value}</p></div>)}
+        </div>
         <div className="mt-5 border-t border-slate-100 pt-5"><p className="text-sm font-bold text-slate-900">运动处方参数</p><div className="mt-3 grid grid-cols-4 gap-3">{prescription.map(([label, value]) => <div key={label} className="rounded-2xl border border-medical-100 bg-medical-50 p-3.5"><p className="text-[11px] font-bold text-medical-600">{label}</p><p className="mt-1.5 text-base font-bold text-medical-900">{value}</p></div>)}</div></div>
       </article>
 
@@ -1089,15 +1099,23 @@ function SingleTrainingReport({ reportId, onBack }: { reportId: string; onBack: 
         <div><p className="text-xs font-bold text-medical-600">处方执行情况</p><h2 className="mt-1 text-xl font-bold text-slate-950">训练时间与分期生命体征</h2></div>
         <div className="mt-5 grid grid-cols-[260px_1fr] gap-6">
           <div className="flex items-center gap-5 rounded-2xl bg-slate-50 p-5">
-            <div className="relative flex h-36 w-36 shrink-0 items-center justify-center rounded-full" style={{ background: "conic-gradient(#1f7e79 0 73.3%, #dbe6ec 73.3% 100%)" }}>
-              <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white"><span className="text-2xl font-bold text-slate-950">30</span><span className="text-[10px] font-bold text-slate-400">总分钟</span></div>
+            <div className="relative flex h-36 w-36 shrink-0 items-center justify-center rounded-full" style={{ background: `conic-gradient(#1f7e79 0 ${report.activeMinutes / report.totalMinutes * 100}%, #dbe6ec ${report.activeMinutes / report.totalMinutes * 100}% 100%)` }}>
+              <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white"><span className="text-2xl font-bold text-slate-950">{report.totalMinutes}</span><span className="text-[10px] font-bold text-slate-400">总分钟</span></div>
             </div>
-            <div className="space-y-4"><div><p className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="h-2.5 w-2.5 rounded-full bg-medical-600" />有效运动时间</p><p className="mt-1 text-xl font-bold text-slate-950">22 分钟</p></div><div><p className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="h-2.5 w-2.5 rounded-full bg-slate-300" />无效运动时间</p><p className="mt-1 text-xl font-bold text-slate-950">8 分钟</p></div></div>
+            <div className="space-y-4"><div><p className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="h-2.5 w-2.5 rounded-full bg-medical-600" />有效运动时间</p><p className="mt-1 text-xl font-bold text-slate-950">{report.activeMinutes} 分钟</p></div><div><p className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="h-2.5 w-2.5 rounded-full bg-slate-300" />无效运动时间</p><p className="mt-1 text-xl font-bold text-slate-950">{report.invalidMinutes} 分钟</p></div></div>
           </div>
           <div className="overflow-hidden rounded-2xl border border-slate-100">
             <div className="grid grid-cols-[1.05fr_1fr_1fr_1fr] bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500"><span>监测指标</span><span>热身期</span><span>训练期</span><span>放松期</span></div>
-            {phaseRows.map((row) => <div key={row[0]} className="grid grid-cols-[1.05fr_1fr_1fr_1fr] border-t border-slate-100 px-4 py-3 text-xs text-slate-600">{row.map((item, index) => <span key={`${row[0]}-${index}`} className={index === 0 ? "font-bold text-slate-800" : ""}>{item}</span>)}</div>)}
+            {report.phaseVitals.map((row) => <div key={row.metric} className="grid grid-cols-[1.05fr_1fr_1fr_1fr] border-t border-slate-100 px-4 py-3 text-xs text-slate-600"><b className="text-slate-800">{row.metric}</b><span>{row.warmup}</span><span>{row.training}</span><span>{row.cooldown}</span></div>)}
           </div>
+        </div>
+      </article>
+      <article className="rounded-3xl border border-amber-100 bg-amber-50 p-5 shadow-card">
+        <p className="text-sm font-bold text-amber-900">医生同步给您的注意事项</p>
+        <div className="mt-3 grid grid-cols-3 gap-3 text-xs leading-5 text-amber-900">
+          <PatientAdvice label="吃饭注意" value={prescriptionDetail.advice.dietCautions} />
+          <PatientAdvice label="运动注意" value={prescriptionDetail.advice.exerciseCautions} />
+          <PatientAdvice label="何时停止" value={prescriptionDetail.advice.stopConditions} />
         </div>
       </article>
 
@@ -1150,6 +1168,7 @@ function TrendChart({ title, subtitle, series, footer }: { title: string; subtit
 
 function StageTrainingReport({ onStart }: { onStart: () => void }) {
   const data = stageReportData;
+  const [selectedPrescriptionVersion, setSelectedPrescriptionVersion] = useState<PrescriptionVersion["id"] | null>(null);
   const summaries = useMemo(
     () => data.prescriptionVersions.map((version) => summarizeVersion(data, version)),
     [data]
@@ -1161,6 +1180,7 @@ function StageTrainingReport({ onStart }: { onStart: () => void }) {
   const targetZoneRate = data.sessions.reduce((total, item) => total + item.targetZoneMinutes, 0) / data.sessions.reduce((total, item) => total + item.activeMinutes, 0) * 100;
   const abnormalSessionCount = new Set(data.safetyEvents.map((event) => event.sessionId)).size;
   const interruptedSessionCount = data.sessions.filter((item) => item.pauses > 0 || item.terminatedEarly).length;
+  const selectedPrescriptionDetail = selectedPrescriptionVersion ? getPrescriptionVersionDetail(selectedPrescriptionVersion) : null;
   return (
     <section className="space-y-4 pb-3" data-testid="page-VIEW-STAGE-REPORT">
       <div className="grid grid-cols-[1.25fr_0.75fr] gap-4">
@@ -1193,12 +1213,19 @@ function StageTrainingReport({ onStart }: { onStart: () => void }) {
       </div>
 
       <article className="rounded-3xl border border-white bg-white p-5 shadow-card">
+        <div><p className="text-xs font-bold text-medical-600">我的临床信息</p><h2 className="mt-1 text-xl font-bold text-slate-950">医生同步的病史、诊断与特殊用药</h2></div>
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          {[["病史", clinicalSnapshotChen.patientFriendlySummary], ["诊断", clinicalSnapshotChen.diagnosis], ["特殊用药", clinicalSnapshotChen.specialMedications.join("、")]].map(([label, value]) => <div key={label} className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold text-slate-400">{label}</p><p className="mt-2 text-sm font-bold leading-6 text-slate-900">{value}</p></div>)}
+        </div>
+      </article>
+
+      <article className="rounded-3xl border border-white bg-white p-5 shadow-card">
         <div className="flex items-center justify-between">
           <div><p className="text-xs font-bold text-medical-600">处方版本演变</p><h2 className="mt-1 text-xl font-bold text-slate-950">四次处方为什么调整、强度如何变化</h2></div>
           <div className="text-right text-[11px] text-slate-500"><p>{data.patientSnapshot.name} · {data.patientSnapshot.age}岁 · BMI {data.patientSnapshot.bmi}</p><p className="mt-1">报告生成：{data.reportPeriod.generatedAt}</p></div>
         </div>
         <div className="mt-4 grid grid-cols-4 gap-3">
-          {data.prescriptionVersions.map((version, index) => <PrescriptionVersionCard key={version.id} version={version} summary={summaries[index]} />)}
+          {data.prescriptionVersions.map((version, index) => <PrescriptionVersionCard key={version.id} version={version} summary={summaries[index]} onOpen={() => setSelectedPrescriptionVersion(version.id)} />)}
         </div>
       </article>
 
@@ -1237,14 +1264,15 @@ function StageTrainingReport({ onStart }: { onStart: () => void }) {
         </div>
         <p className="mt-4 text-[10px] text-slate-400">演示报告：指标来自模拟设备与人工记录。间歇血压保留测量时间；缺失数据不按0计入均值。</p>
       </article>
+      {selectedPrescriptionDetail && <PatientPrescriptionDetailModal version={selectedPrescriptionDetail} onClose={() => setSelectedPrescriptionVersion(null)} />}
     </section>
   );
 }
 
-function PrescriptionVersionCard({ version, summary }: { version: PrescriptionVersion; summary: VersionSummary }) {
+function PrescriptionVersionCard({ version, summary, onOpen }: { version: PrescriptionVersion; summary: VersionSummary; onOpen: () => void }) {
   const directionStyle = version.direction === "上调" ? "bg-sky-50 text-sky-700" : version.direction === "维持" ? "bg-amber-50 text-amber-700" : version.direction === "下调" ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600";
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+    <button type="button" onClick={onOpen} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left hover:border-medical-200 hover:bg-medical-50/50">
       <div className="flex items-center justify-between"><span className="text-xl font-bold text-slate-950">{version.id}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${directionStyle}`}>{version.direction === "上调" && "↑ "}{version.direction === "下调" && "↓ "}{version.direction === "维持" && "→ "}{version.direction}</span></div>
       <p className="mt-1 text-[10px] text-slate-400">{version.effectiveDate}生效 · {version.physician}</p>
       <p className="mt-3 min-h-10 text-xs font-bold leading-5 text-slate-700">{version.adjustmentReason}</p>
@@ -1253,6 +1281,29 @@ function PrescriptionVersionCard({ version, summary }: { version: PrescriptionVe
         <div className="rounded-xl bg-white p-2"><p className="text-slate-400">目标功率</p><p className="mt-1 font-bold text-slate-800">{version.targetPower.join("–")} W</p></div>
       </div>
       <div className="mt-3 flex items-center justify-between text-[10px]"><span className="text-slate-500">完成 {summary.completedSessions}/{version.plannedSessions}次</span><span className="font-bold text-medical-700">{summary.completionRate.toFixed(0)}%</span></div>
+      <p className="mt-2 text-[10px] font-bold text-medical-700">查看本版处方内容 <ChevronRight className="inline h-3.5 w-3.5" /></p>
+    </button>
+  );
+}
+
+function PatientPrescriptionDetailModal({ version, onClose }: { version: ReturnType<typeof getPrescriptionVersionDetail>; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-6 backdrop-blur-sm">
+      <section className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div><p className="text-xs font-bold text-medical-600">处方详情 · {version.version}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">这版医生给我的训练安排</h2><p className="mt-2 text-sm text-slate-500">{version.issuedAt} · {version.physician}开具</p></div>
+          <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500" aria-label="关闭处方详情"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="mt-5 grid grid-cols-4 gap-3">
+          {[["频次", `每周${version.weeklyFrequency}次`], ["时间", `${version.warmupMinutes}+${version.trainingMinutes}+${version.cooldownMinutes} 分`], ["心率", `${version.targetHr[0]}–${version.targetHr[1]} bpm`], ["功率", `${version.targetPower[0]}–${version.targetPower[1]} W`]].map(([label, value]) => <div key={label} className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold text-slate-400">{label}</p><p className="mt-2 text-sm font-bold text-slate-900">{value}</p></div>)}
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-3 text-sm leading-6">
+          <PatientAdvice label="医生说明" value={version.advice.patientInstruction} />
+          <PatientAdvice label="吃饭注意" value={version.advice.dietCautions} />
+          <PatientAdvice label="运动注意" value={version.advice.exerciseCautions} />
+          <PatientAdvice label="何时停止" value={version.advice.stopConditions} />
+        </div>
+      </section>
     </div>
   );
 }
