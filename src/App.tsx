@@ -1,23 +1,30 @@
 import { useState } from "react";
+import { canAccessPage, firstPageForRole } from "./accessControl";
 import { DoctorLayout } from "./components/Layout";
+import { StaffLogin } from "./components/StaffLogin";
 import { SystemChooser } from "./components/SystemChooser";
 import { PatientApp } from "./patient/PatientApp";
+import { AdminConsolePage } from "./pages/AdminConsolePage";
 import { AbnormalPage } from "./pages/AbnormalPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { FollowupPage } from "./pages/FollowupPage";
 import { NurseStationPage } from "./pages/NurseStationPage";
-import { OperationsPage } from "./pages/OperationsPage";
 import { PatientArchivePage } from "./pages/PatientArchivePage";
 import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
 import { PrescriptionReviewPage } from "./pages/PrescriptionReviewPage";
 import { ReportPage } from "./pages/ReportPage";
 import { initialTrainingVideos, VideoLibraryPage, type TrainingVideo } from "./pages/VideoLibraryPage";
 import { initialPrescriptionTasks, type PrescriptionTask } from "./prescriptionData";
-import type { DoctorPageKey, TrainingState } from "./types";
+import type { DoctorPageKey, Role, TrainingState } from "./types";
 
-type SystemKey = "chooser" | "doctor" | "patient";
+type SystemKey = "chooser" | "staffLogin" | "doctor" | "patient";
+type StaffRole = Exclude<Role, "PATIENT">;
+
+const adminPages: DoctorPageKey[] = ["adminOverview", "organization", "permissions", "videoConfig", "businessConfig", "trainingConfig", "documentConfig", "notifications", "audit", "integrations"];
 
 export default function App() {
   const [system, setSystem] = useState<SystemKey>("chooser");
+  const [role, setRole] = useState<StaffRole>("DOCTOR");
   const [doctorPage, setDoctorPage] = useState<DoctorPageKey>("dashboard");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [prescriptionTasks, setPrescriptionTasks] = useState<PrescriptionTask[]>(initialPrescriptionTasks);
@@ -26,11 +33,18 @@ export default function App() {
   const [trainingVideos, setTrainingVideos] = useState<TrainingVideo[]>(initialTrainingVideos);
 
   const selectedTask = prescriptionTasks.find((task) => task.id === selectedTaskId);
-  const publishedTrainingVideos = trainingVideos.filter((video) => video.status === "已发布" && video.url);
+  const publishedTrainingVideos = trainingVideos.filter((video) => video.status === "PUBLISHED" && video.url);
 
   function navigateDoctor(page: DoctorPageKey) {
+    if (!canAccessPage(role, page)) return;
     if (page === "prescriptions") setSelectedTaskId(null);
     setDoctorPage(page);
+  }
+
+  function changeRole(nextRole: StaffRole) {
+    setRole(nextRole);
+    if (!canAccessPage(nextRole, doctorPage)) setDoctorPage(firstPageForRole(nextRole));
+    setSelectedTaskId(null);
   }
 
   function openTask(taskId: string) {
@@ -58,27 +72,35 @@ export default function App() {
     setAnomaly(false);
   }
 
-  if (system === "chooser") return <SystemChooser onChoose={setSystem} />;
+  if (system === "chooser") return <SystemChooser onChoose={(target) => setSystem(target === "doctor" ? "staffLogin" : "patient")} />;
+
+  if (system === "staffLogin") {
+    return <StaffLogin onBack={() => setSystem("chooser")} onLogin={(nextRole) => { setRole(nextRole); setDoctorPage(firstPageForRole(nextRole)); setSystem("doctor"); }} />;
+  }
 
   if (system === "patient") {
     return <PatientApp onExit={() => setSystem("chooser")} trainingState={trainingState} setTrainingState={setTrainingState} anomaly={anomaly} setAnomaly={setAnomaly} publishedTrainingVideos={publishedTrainingVideos} />;
   }
 
-  const doctorContent: Record<DoctorPageKey, React.ReactNode> = {
-    dashboard: <DashboardPage tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
+  const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
+    dashboard: <DashboardPage role={role} tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
     prescriptions: selectedTask
       ? <PrescriptionReviewPage task={selectedTask} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onSign={signTask} />
       : <PrescriptionManagementPage tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
     report: <ReportPage onCreatePrescription={(taskId) => prescriptionTasks.find((task) => task.id === taskId)?.status === "pending_generation" ? generateDraft(taskId) : openTask(taskId)} />,
-    patients: <PatientArchivePage />,
+    patients: <PatientArchivePage role={role} />,
     abnormal: <AbnormalPage trainingState={trainingState} setTrainingState={setTrainingState} />,
-    nurse: <NurseStationPage />,
-    videos: <VideoLibraryPage videos={trainingVideos} setVideos={setTrainingVideos} />,
-    operations: <OperationsPage onReset={resetDemo} />
+    training: <NurseStationPage role={role} />,
+    followup: <FollowupPage role={role} />,
+    videos: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />
   };
 
+  for (const page of adminPages) {
+    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "report" | "prescriptions" | "training" | "abnormal" | "followup" | "videos">} videos={trainingVideos} onOpenVideos={() => setDoctorPage("videos")} />;
+  }
+
   return (
-    <DoctorLayout page={doctorPage} onNavigate={navigateDoctor} onExit={() => setSystem("chooser")}>
+    <DoctorLayout page={doctorPage} role={role} onRoleChange={changeRole} onNavigate={navigateDoctor} onExit={() => setSystem("staffLogin")}>
       {doctorContent[doctorPage]}
     </DoctorLayout>
   );

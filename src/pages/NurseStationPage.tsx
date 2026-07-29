@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Activity, AlertTriangle, Bike, CheckCircle2, ClipboardCheck, Gauge, HeartPulse, Radio, Signal, Timer, UserCheck, Wifi } from "lucide-react";
 import { PageHeader, SectionHeader, StatCard, StatusBadge } from "../components/UI";
+import type { Role } from "../types";
 
 const stationTasks = [
   { id: "NS-01", station: "功率车 01", patient: "陈女士", exercise: "功率车", phase: "主训练", elapsed: "12:18", remaining: "09:42", hr: 108, target: "100–116", power: 64, cadence: 61, resistance: 5, progress: 68, connection: "双设备已连接", quality: "数据完整", status: "在训" },
@@ -9,16 +10,18 @@ const stationTasks = [
   { id: "NS-04", station: "抗阻区 02", patient: "赵女士", exercise: "哑铃", phase: "已完成", elapsed: "24:00", remaining: "00:00", hr: 86, target: "≤110", power: 0, cadence: 0, resistance: 0, progress: 100, connection: "已归还设备", quality: "数据完整", status: "已完成" }
 ];
 
-export function NurseStationPage() {
+export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
   const [selectedId, setSelectedId] = useState("NS-01");
   const [arrived, setArrived] = useState<string[]>(["NS-01", "NS-02", "NS-04"]);
   const [note, setNote] = useState("");
   const selected = useMemo(() => stationTasks.find((item) => item.id === selectedId) ?? stationTasks[0], [selectedId]);
+  const canExecute = role === "ADMIN" || role === "REHAB_EXECUTION";
+  const displayPatient = (task: typeof stationTasks[number]) => role !== "DOCTOR" || task.id === "NS-01" ? task.patient : `患者 ${task.patient.slice(0, 1)}**`;
   const toggleArrival = (id: string) => setArrived((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
 
   return (
     <section data-testid="page-VIEW-NURSE-STATION">
-      <PageHeader eyebrow="护士工作区 · 院内训练" title="今日院内训练工作台" description="护士查看到诊、设备与在训状态，记录现场处置；设备开始、暂停和停止仍在患者训练Pad端完成。" action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />实时数据连接正常</StatusBadge>} />
+      <PageHeader eyebrow={canExecute ? "康复执行岗 · 当前康复中心" : "医生观察视图 · 非本人任务匿名"} title="训练工作台" description={canExecute ? "康复执行岗查看到诊、设备与在训状态，完成现场记录和异常上报；设备开始、暂停和停止仍在患者训练Pad端完成。" : "医生可查看本中心训练概览；仅本人负责的患者显示身份与详细指标，其他患者自动脱敏。"} action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />实时数据连接正常</StatusBadge>} />
       <div className="mb-5 grid grid-cols-5 gap-4">
         <StatCard label="今日计划患者" value="15" note="上午 9 人 · 下午 6 人" icon={<ClipboardCheck className="h-5 w-5" />} />
         <StatCard label="已到诊患者" value="12" note="3 人尚未到诊" tone="green" icon={<UserCheck className="h-5 w-5" />} />
@@ -33,19 +36,19 @@ export function NurseStationPage() {
           <div className="grid grid-cols-[1.1fr_0.9fr_0.85fr_0.75fr_0.75fr_0.9fr] border-y border-slate-100 bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>设备 / 患者</span><span>训练项目</span><span>当前阶段</span><span>心率</span><span>进度</span><span>到诊 / 状态</span></div>
           {stationTasks.map((task) => (
             <button type="button" onClick={() => setSelectedId(task.id)} key={task.id} className={`grid w-full grid-cols-[1.1fr_0.9fr_0.85fr_0.75fr_0.75fr_0.9fr] items-center border-b border-slate-100 px-5 py-3 text-left text-xs ${selectedId === task.id ? "bg-blue-50 ring-1 ring-inset ring-blue-100" : "bg-white hover:bg-slate-50"}`}>
-              <div><p className="font-bold text-slate-900">{task.station}</p><p className="mt-1 text-[10px] text-slate-400">{task.patient}</p></div>
+              <div><p className="font-bold text-slate-900">{task.station}</p><p className="mt-1 text-[10px] text-slate-400">{displayPatient(task)}</p></div>
               <span className="font-semibold text-slate-700">{task.exercise}</span>
               <div><p className="font-semibold text-slate-700">{task.phase}</p><p className="mt-1 text-[10px] text-slate-400">{task.elapsed}</p></div>
               <b className={task.hr > Number(task.target.split("–")[1]) ? "text-amber-700" : "text-blue-700"}>{task.hr} bpm</b>
               <span className="font-bold text-slate-700">{task.progress}%</span>
-              <div><StatusBadge tone={task.status === "在训" ? "green" : task.status === "已完成" ? "blue" : "orange"}>{task.status}</StatusBadge><span onClick={(event) => { event.stopPropagation(); toggleArrival(task.id); }} className="mt-1 block cursor-pointer text-[10px] font-bold text-blue-700">{arrived.includes(task.id) ? "已到诊" : "确认到诊"}</span></div>
+              <div><StatusBadge tone={task.status === "在训" ? "green" : task.status === "已完成" ? "blue" : "orange"}>{task.status}</StatusBadge>{canExecute ? <span onClick={(event) => { event.stopPropagation(); toggleArrival(task.id); }} className="mt-1 block cursor-pointer text-[10px] font-bold text-blue-700">{arrived.includes(task.id) ? "已到诊" : "确认到诊"}</span> : <span className="mt-1 block text-[9px] text-slate-400">只读</span>}</div>
             </button>
           ))}
         </section>
 
         <div className="space-y-4">
           <section className="card overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="text-[10px] font-bold text-blue-600">动态设备视图</p><h2 className="mt-1 text-lg font-bold text-slate-900">{selected.station} · {selected.patient}</h2></div><StatusBadge tone={selected.status === "在训" ? "green" : "orange"}>{selected.status}</StatusBadge></div>
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="text-[10px] font-bold text-blue-600">动态设备视图</p><h2 className="mt-1 text-lg font-bold text-slate-900">{selected.station} · {displayPatient(selected)}</h2></div><StatusBadge tone={selected.status === "在训" ? "green" : "orange"}>{selected.status}</StatusBadge></div>
             <div className="grid grid-cols-[0.92fr_1.08fr]">
               <div className="nurse-bike-stage relative flex min-h-[230px] flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-blue-50 to-slate-50 p-5">
                 <span className={`absolute right-4 top-4 flex items-center gap-1.5 text-[10px] font-bold ${selected.status === "在训" ? "text-emerald-600" : "text-slate-400"}`}><Signal className="h-3.5 w-3.5" />{selected.status === "在训" ? "数据刷新中" : "静止"}</span>
@@ -64,11 +67,11 @@ export function NurseStationPage() {
             </div>
             <div className={`mx-4 mb-4 rounded-lg border px-3 py-2.5 text-xs ${selected.quality === "数据完整" ? "border-emerald-100 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}><b>{selected.connection}</b> · {selected.quality} · 靶心率 {selected.target} bpm</div>
           </section>
-          <section className="card p-4">
+          {canExecute ? <section className="card p-4">
             <SectionHeader title="现场处置记录" description="护士仅记录现场事实，不形成处方或医学结论。" />
             <textarea value={note} onChange={(event) => setNote(event.target.value)} className="text-field min-h-20 resize-none" placeholder="例如：已协助患者坐位休息，复测血压并通知康复医生……" />
             <div className="mt-3 flex justify-end"><button type="button" disabled={!note.trim()} onClick={() => setNote("")} className="btn-primary">保存现场记录</button></div>
-          </section>
+          </section> : <section className="card border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-700">当前为医生只读观察视图。到诊确认、设备连接和现场记录由康复执行岗完成。</section>}
         </div>
       </div>
     </section>

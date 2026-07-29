@@ -1,18 +1,49 @@
 export type DoctorPageKey =
   | "dashboard"
-  | "prescriptions"
-  | "report"
   | "patients"
+  | "report"
+  | "prescriptions"
+  | "training"
   | "abnormal"
-  | "nurse"
+  | "followup"
   | "videos"
-  | "operations";
+  | "adminOverview"
+  | "organization"
+  | "permissions"
+  | "videoConfig"
+  | "businessConfig"
+  | "trainingConfig"
+  | "documentConfig"
+  | "notifications"
+  | "audit"
+  | "integrations";
 
 export type NursePageKey = "overview" | "tasks" | "stations" | "events";
 
 export type PatientPageKey = "task" | "prepare" | "training" | "result";
 
 export type PageKey = DoctorPageKey | PatientPageKey;
+
+export type Role = "ADMIN" | "DOCTOR" | "REHAB_EXECUTION" | "PATIENT";
+
+export type DataScope = "SELF_TASK" | "TEAM" | "CENTER" | "ALL";
+
+export type PermissionAction =
+  | "VIEW"
+  | "CREATE"
+  | "EDIT"
+  | "REVIEW"
+  | "SIGN"
+  | "PUBLISH"
+  | "UNPUBLISH"
+  | "DELETE"
+  | "RESTORE"
+  | "PERMANENT_DELETE"
+  | "PRINT"
+  | "EXPORT"
+  | "GRANT";
+
+export type ContentStatus = "DRAFT" | "PENDING" | "PUBLISHED" | "OFFLINE" | "RECYCLED";
 
 export type TrainingState =
   | "ready"

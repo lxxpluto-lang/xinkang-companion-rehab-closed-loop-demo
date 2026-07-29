@@ -12,10 +12,10 @@ import {
 } from "lucide-react";
 
 const doctorFeatures = [
-  { label: "处方任务", icon: Activity },
-  { label: "报告与档案", icon: UsersRound },
-  { label: "异常复核", icon: ShieldCheck },
-  { label: "院内护士站", icon: FileCheck2 }
+  { label: "角色权限登录", icon: ShieldCheck },
+  { label: "医生处方工作台", icon: Activity },
+  { label: "康复执行与随访", icon: UsersRound },
+  { label: "后台配置与审计", icon: FileCheck2 }
 ];
 
 const patientFeatures = [
@@ -59,7 +59,7 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
               更安全、更清晰。
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-500">
-              一个医护 Web 工作站与一个患者训练 Pad。两端共享训练会话，医生、护士和患者任务在各自工作区内清晰分离。
+              一个带角色权限的医护 Web 工作站与一个患者训练 Pad。医生、康复执行岗、管理员和患者在各自权限边界内协作。
             </p>
           </div>
 
@@ -81,9 +81,9 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
                     医护 Web 工作站
                   </span>
                 </div>
-                <h3 className="mt-8 text-3xl font-bold tracking-tight">医生处方与护士院内协作</h3>
+                <h3 className="mt-8 text-3xl font-bold tracking-tight">医护业务与管理后台</h3>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-slate-200">
-                  医生根据报告复核和签署运动处方；护士在独立工作区查看院内任务、设备和训练状态。
+                  登录后按管理员、康复医生和康复执行岗加载对应菜单、数据范围与操作权限。
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
                   {doctorFeatures.map(({ label, icon: Icon }) => (
@@ -94,7 +94,7 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
                   ))}
                 </div>
                 <span className="mt-auto flex items-center gap-2 pt-7 text-sm font-bold">
-                  进入医护 Web 工作站
+                  进入医护身份登录
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </div>

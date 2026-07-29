@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Activity, ArrowRight, FileText, Pencil, Save, Search, UserRound, X } from "lucide-react";
+import { Activity, ArrowRight, FileText, LockKeyhole, Pencil, Save, Search, UserRound, X } from "lucide-react";
 import { demoPatients } from "../mockData";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
+import type { Role } from "../types";
 
 type ManagedPatient = {
   patient_demo_id: string;
@@ -41,11 +42,12 @@ function riskTone(risk: string): "red" | "orange" | "green" {
   return risk === "高危" ? "red" : risk === "中危" ? "orange" : "green";
 }
 
-export function PatientArchivePage() {
+export function PatientArchivePage({ role }: { role: Exclude<Role, "PATIENT"> }) {
   const [patients, setPatients] = useState<ManagedPatient[]>(initialPatients);
   const [selectedId, setSelectedId] = useState(initialPatients[0].patient_demo_id);
   const [keyword, setKeyword] = useState("");
   const [editDraft, setEditDraft] = useState<ManagedPatient | null>(null);
+  const canEditClinical = role === "ADMIN" || role === "DOCTOR";
   const selected = patients.find((patient) => patient.patient_demo_id === selectedId) ?? patients[0];
   const filteredPatients = useMemo(() => {
     const value = keyword.trim().toLowerCase();
@@ -62,7 +64,7 @@ export function PatientArchivePage() {
 
   return (
     <section data-testid="page-VIEW-PATIENT-ARCHIVES">
-      <PageHeader eyebrow="患者管理" title="患者信息与康复档案" description="统一查看患者基础信息、危险分组、康复分组与当前处方；医生可维护基本信息，报告复核和处方调整仍在对应工作区完成。" />
+      <PageHeader eyebrow={role === "REHAB_EXECUTION" ? "当前康复中心 · 基础与执行字段可编辑" : role === "DOCTOR" ? "医疗团队共享 · 临床任务指定负责人" : "全部患者与字段权限"} title="患者信息与康复档案" description={role === "REHAB_EXECUTION" ? "可维护联系方式、接诊、生命体征、训练和随访记录；诊断、危险分组及处方字段只能提交更正申请。" : "团队医生共享查看患者，处方、异常和签署任务仍分派到具体责任人。"} />
 
       <section className="card overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-4">
@@ -146,11 +148,11 @@ export function PatientArchivePage() {
               <label><span className="field-label">年龄</span><input required min={1} max={120} type="number" value={editDraft.age} onChange={(event) => setEditDraft({ ...editDraft, age: Number(event.target.value) })} className="text-field" /></label>
               <label><span className="field-label">证件号码</span><input required value={editDraft.id_number} onChange={(event) => setEditDraft({ ...editDraft, id_number: event.target.value })} className="text-field" /></label>
               <label><span className="field-label">联系电话</span><input required value={editDraft.phone} onChange={(event) => setEditDraft({ ...editDraft, phone: event.target.value })} className="text-field" /></label>
-              <label><span className="field-label">危险分组</span><select value={editDraft.risk_level} onChange={(event) => setEditDraft({ ...editDraft, risk_level: event.target.value })} className="text-field"><option>低危</option><option>中危</option><option>高危</option></select></label>
+              <label><span className="field-label">危险分组 {!canEditClinical && <LockKeyhole className="ml-1 inline h-3.5 w-3.5 text-amber-500" />}</span><select disabled={!canEditClinical} value={editDraft.risk_level} onChange={(event) => setEditDraft({ ...editDraft, risk_level: event.target.value })} className="text-field disabled:bg-slate-100 disabled:text-slate-400"><option>低危</option><option>中危</option><option>高危</option></select></label>
               <label><span className="field-label">康复分组</span><select value={editDraft.rehab_group} onChange={(event) => setEditDraft({ ...editDraft, rehab_group: event.target.value })} className="text-field"><option>运动康复 A 组</option><option>运动康复 B 组</option><option>重点监护组</option></select></label>
               <label><span className="field-label">静息心率（bpm）</span><input type="number" min={30} max={180} value={editDraft.assessment.resting_hr} onChange={(event) => setEditDraft({ ...editDraft, assessment: { ...editDraft.assessment, resting_hr: Number(event.target.value) } })} className="text-field" /></label>
               <label><span className="field-label">最近随访</span><input type="date" value={editDraft.last_followup} onChange={(event) => setEditDraft({ ...editDraft, last_followup: event.target.value })} className="text-field" /></label>
-              <label className="col-span-3"><span className="field-label">诊断摘要</span><textarea required rows={3} value={editDraft.diagnosis_summary} onChange={(event) => setEditDraft({ ...editDraft, diagnosis_summary: event.target.value })} className="text-field min-h-20 py-2" /></label>
+              <label className="col-span-3"><span className="field-label">诊断摘要 {!canEditClinical && <><LockKeyhole className="ml-1 inline h-3.5 w-3.5 text-amber-500" /><small className="ml-2 font-normal text-amber-600">临床核心字段只读，如有错误请提交资料更正申请</small></>}</span><textarea disabled={!canEditClinical} required rows={3} value={editDraft.diagnosis_summary} onChange={(event) => setEditDraft({ ...editDraft, diagnosis_summary: event.target.value })} className="text-field min-h-20 py-2 disabled:bg-slate-100 disabled:text-slate-400" /></label>
             </div>
             <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
               <button type="button" onClick={() => setEditDraft(null)} className="btn-secondary">取消</button>
