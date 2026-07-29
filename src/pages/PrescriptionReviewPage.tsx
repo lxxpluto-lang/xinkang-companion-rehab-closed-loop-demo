@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, BadgeCheck, CalendarRange, Check, ExternalLink, FileText, PenTool, Printer, Sparkles, X } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Check, PenTool, Printer, Search, Sparkles, X } from "lucide-react";
 import type { PrescriptionTask } from "../prescriptionData";
 import { prescriptionStatusLabels } from "../prescriptionData";
 import { Notice, PageHeader, SectionHeader, StatusBadge } from "../components/UI";
@@ -9,12 +9,12 @@ export function PrescriptionReviewPage({
   task,
   onBack,
   onConfirm,
-  onOpenReport
+  onOpenPatient
 }: {
   task: PrescriptionTask;
   onBack: () => void;
   onConfirm: (taskId: string) => void;
-  onOpenReport: () => void;
+  onOpenPatient: (patientId: string) => void;
 }) {
   const readonly = task.status === "completed";
   const [height, setHeight] = useState("162");
@@ -89,21 +89,13 @@ export function PrescriptionReviewPage({
     setConfirmChecked(true);
   }
 
-  function openPatientReportPage() {
-    const url = new URL(window.location.href);
-    url.search = "";
-    url.searchParams.set("view", "patient-reports");
-    url.searchParams.set("patientId", task.patientId);
-    window.open(url.toString(), "_blank", "noopener,noreferrer");
-  }
-
   return (
     <section data-testid="page-VIEW-PRESCRIPTION-REVIEW">
       <PageHeader eyebrow={task.kind === "initial" ? "初始处方录入" : "报告驱动调整处方"} title={`${task.patientName} · ${task.version}`} description={task.kind === "initial" ? "基于首次基线评估由康复医生人工录入，不强制使用AI。" : "先核对报告、上一版处方与安全事件，再复核AI处方草稿。"} action={<button type="button" className="btn-secondary" onClick={onBack}><ArrowLeft className="h-4 w-4" />返回处方列表</button>} />
 
       <div className="space-y-4">
         <section className="card p-4">
-          <SectionHeader title="病人基础信息" description="先核对病史、诊断和特殊用药；这些信息只作为处方复核依据，不混入处方模板字段。" />
+          <SectionHeader title="病人基础信息" description="先核对患者编码、病史、诊断和特殊用药。" action={<button type="button" onClick={() => onOpenPatient(task.patientId)} className="btn-secondary"><Search className="h-4 w-4" />查询处方和病例信息</button>} />
           <div className="grid gap-3 md:grid-cols-5">
             <Evidence label="姓名 / 性别 / 年龄" value={`${task.patientName} · ${task.sex} · ${task.age}岁`} />
             <Evidence label="患者编码" value={task.patientId} />
@@ -122,18 +114,6 @@ export function PrescriptionReviewPage({
             <Evidence label="上一版参考" value={`${previousVersion.version} · ${previousVersion.targetHr.join("-")}次/分钟 · ${previousVersion.targetPower.join("-")}W`} />
             {linkedSafetyEvents.map((event) => <div key={event.id} className="rounded-xl border border-red-100 bg-red-50 p-3 text-red-800"><b>{event.type}</b><p className="mt-1">{event.metricSnapshot}；{event.doctorReview}；{event.prescriptionImpact}</p></div>)}
             <p className="rounded-xl bg-amber-50 p-3 text-amber-800">AI内容仅为草稿，正式处方以医生勾选、修改和签署内容为准。</p>
-          </div>
-        </section>
-
-        <section className="card p-4">
-          <SectionHeader title="报告列表查询" description={`当前患者编码：${task.patientId}。阶段性报告将在新的 Web 页面中按患者编码查询。`} />
-          <div className="grid gap-3 md:grid-cols-2">
-            <button type="button" onClick={openPatientReportPage} className="flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50 p-4 text-left hover:border-blue-300">
-              <span><CalendarRange className="h-4 w-4 text-blue-600" /><b className="mt-2 block text-xs text-slate-900">新页面查询该患者报告</b><small className="mt-1 block text-[10px] text-slate-500">阶段性报告、单次报告 · {task.patientId}</small></span><ExternalLink className="h-4 w-4 text-blue-600" />
-            </button>
-            <button type="button" onClick={onOpenReport} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-4 text-left hover:bg-slate-50">
-              <span><FileText className="h-4 w-4 text-emerald-600" /><b className="mt-2 block text-xs text-slate-900">进入完整报告中心</b><small className="mt-1 block text-[10px] text-slate-500">查询其他患者及全部报告</small></span><ExternalLink className="h-4 w-4 text-slate-400" />
-            </button>
           </div>
         </section>
 

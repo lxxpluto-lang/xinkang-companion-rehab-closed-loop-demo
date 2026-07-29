@@ -10,7 +10,6 @@ import { NurseStationPage } from "./pages/NurseStationPage";
 import { PatientArchivePage } from "./pages/PatientArchivePage";
 import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
 import { PrescriptionReviewPage } from "./pages/PrescriptionReviewPage";
-import { ReportPage } from "./pages/ReportPage";
 import { initialTrainingVideos, VideoLibraryPage, type TrainingVideo } from "./pages/VideoLibraryPage";
 import { initialPrescriptionTasks, type PrescriptionTask } from "./prescriptionData";
 import type { DoctorPageKey, Role, TrainingState } from "./types";
@@ -27,6 +26,7 @@ export default function App() {
   const [role, setRole] = useState<StaffRole>("DOCTOR");
   const [doctorPage, setDoctorPage] = useState<DoctorPageKey>("dashboard");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [prescriptionTasks, setPrescriptionTasks] = useState<PrescriptionTask[]>(initialPrescriptionTasks);
   const [trainingState, setTrainingState] = useState<TrainingState>("ready");
   const [anomaly, setAnomaly] = useState(false);
@@ -38,6 +38,7 @@ export default function App() {
   function navigateDoctor(page: DoctorPageKey) {
     if (!canAccessPage(role, page)) return;
     if (page === "prescriptions") setSelectedTaskId(null);
+    if (page === "patients") setSelectedPatientId(null);
     setDoctorPage(page);
   }
 
@@ -50,6 +51,11 @@ export default function App() {
   function openTask(taskId: string) {
     setSelectedTaskId(taskId);
     setDoctorPage("prescriptions");
+  }
+
+  function openPatient(patientId: string) {
+    setSelectedPatientId(patientId);
+    setDoctorPage("patients");
   }
 
   function generateDraft(taskId: string) {
@@ -75,7 +81,7 @@ export default function App() {
   }
 
   if (standaloneView === "patient-reports") {
-    return <main className="doctor-shell min-h-screen p-6"><div className="doctor-main mx-auto max-w-[1440px]"><ReportPage initialPatientId={standalonePatientId} standalone onCreatePrescription={() => undefined} /></div></main>;
+    return <main className="doctor-shell min-h-screen p-6"><div className="doctor-main mx-auto max-w-[1440px]"><PatientArchivePage role="DOCTOR" tasks={prescriptionTasks} initialPatientId={standalonePatientId} initialTab="reports" onOpenPrescription={openTask} /></div></main>;
   }
 
   if (system === "chooser") return <SystemChooser onChoose={(target) => setSystem(target === "doctor" ? "staffLogin" : "patient")} />;
@@ -91,10 +97,9 @@ export default function App() {
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
     dashboard: <DashboardPage role={role} tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} onConfirm={confirmTask} onSign={signTask} />,
     prescriptions: selectedTask
-      ? <PrescriptionReviewPage task={selectedTask} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onOpenReport={() => setDoctorPage("report")} />
+      ? <PrescriptionReviewPage task={selectedTask} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onOpenPatient={openPatient} />
       : <PrescriptionManagementPage tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
-    report: <ReportPage onCreatePrescription={(taskId) => prescriptionTasks.find((task) => task.id === taskId)?.status === "pending_generation" ? generateDraft(taskId) : openTask(taskId)} />,
-    patients: <PatientArchivePage role={role} />,
+    patients: <PatientArchivePage role={role} tasks={prescriptionTasks} initialPatientId={selectedPatientId} onOpenPrescription={openTask} />,
     training: <NurseStationPage role={role} />,
     videoConfig: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />
   };

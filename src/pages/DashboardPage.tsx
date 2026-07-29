@@ -21,12 +21,10 @@ export function DashboardPage({
   onConfirm: (taskId: string) => void;
   onSign: (taskId: string) => void;
 }) {
-  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [taskBucket, setTaskBucket] = useState<"all" | "not_generated" | "review">("all");
   const [riskFilter, setRiskFilter] = useState<"all" | PrescriptionTask["risk"]>("all");
   const [taskQuery, setTaskQuery] = useState("");
   const count = (status: PrescriptionStatus) => tasks.filter((task) => task.status === status).length;
-  const selectedAppointment = doctorAppointments.find((item) => item.id === selectedAppointmentId);
   const pendingPrescriptionTasks = tasks.filter((task) => task.status !== "completed");
   const ungeneratedCount = pendingPrescriptionTasks.filter((task) => task.status === "pending_generation").length;
   const reviewCount = pendingPrescriptionTasks.filter((task) => task.status === "pending_review" || task.status === "pending_signature").length;
@@ -59,10 +57,6 @@ export function DashboardPage({
       </section>
     );
   }
-  if (selectedAppointment) {
-    const task = tasks.find((item) => item.id === selectedAppointment.linkedTaskId) ?? tasks[0];
-    return <AppointmentDetail appointment={selectedAppointment} task={task} onBack={() => setSelectedAppointmentId(null)} onOpen={onOpen} onGenerate={onGenerate} onConfirm={onConfirm} onSign={onSign} />;
-  }
   const reviewCounts = {
     single: doctorAppointments.reduce((total, item) => total + item.singleReportIds.length, 0),
     stage: doctorAppointments.reduce((total, item) => total + item.stageReportIds.length, 0),
@@ -83,12 +77,12 @@ export function DashboardPage({
           <div className="grid grid-cols-[0.78fr_0.88fr_0.58fr_0.48fr] border-y border-slate-100 bg-slate-50 px-4 py-2.5 text-[10px] font-bold text-slate-400"><span>姓名</span><span>患者编码</span><span>分组</span><span>时间</span></div>
           {doctorAppointments.map((appointment) => {
             return (
-              <button type="button" key={appointment.id} onClick={() => setSelectedAppointmentId(appointment.id)} className="grid w-full grid-cols-[0.78fr_0.88fr_0.58fr_0.48fr] items-center border-b border-slate-100 px-4 py-3 text-left text-xs hover:bg-blue-50">
+              <div key={appointment.id} className="grid w-full grid-cols-[0.78fr_0.88fr_0.58fr_0.48fr] items-center border-b border-slate-100 px-4 py-3 text-left text-xs">
                 <span className="font-bold text-slate-900">{appointment.patientName}</span>
                 <span className="font-mono text-[10px] text-slate-500">{appointment.patientId}</span>
                 <StatusBadge tone={appointment.risk === "高危" ? "red" : appointment.risk === "中危" ? "orange" : "green"}>{appointment.risk}</StatusBadge>
                 <b className="font-mono text-slate-700">{appointment.time}</b>
-              </button>
+              </div>
             );
           })}
         </section>
