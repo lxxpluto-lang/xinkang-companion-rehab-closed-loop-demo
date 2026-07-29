@@ -232,6 +232,11 @@ textarea:focus-visible {
   display: none;
 }
 
+.signature-script {
+  font-family: "STXingkai", "Kaiti SC", "Songti SC", cursive;
+  letter-spacing: 0.08em;
+}
+
 @media print {
   body.printing-prescription * {
     visibility: hidden !important;
@@ -269,11 +274,17 @@ textarea:focus-visible {
 
   body.printing-prescription .prescription-sign-line {
     display: flex;
+    align-items: flex-end;
     justify-content: space-between;
     margin-top: 36px;
     border-top: 1px solid #cbd5e1;
     padding-top: 16px;
     font-size: 12px;
+  }
+
+  body.printing-prescription .signature-script {
+    font-size: 28px;
+    font-weight: 700;
   }
 }
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, BadgeCheck, Check, FileText, PenTool, Printer, ShieldAlert, Signature, Sparkles } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CalendarRange, Check, FileText, PenTool, Printer, ShieldAlert, Signature, Sparkles } from "lucide-react";
 import type { PrescriptionTask } from "../prescriptionData";
 import { prescriptionStatusLabels } from "../prescriptionData";
 import { AiBadge, Notice, PageHeader, SectionHeader, StatusBadge } from "../components/UI";
@@ -9,12 +9,14 @@ export function PrescriptionReviewPage({
   task,
   onBack,
   onConfirm,
-  onSign
+  onSign,
+  onOpenReport
 }: {
   task: PrescriptionTask;
   onBack: () => void;
   onConfirm: (taskId: string) => void;
   onSign: (taskId: string) => void;
+  onOpenReport: () => void;
 }) {
   const locked = task.status === "pending_signature" || task.status === "completed";
   const [reportTab, setReportTab] = useState<"stage" | "single">(task.sourceType === "single_report" ? "single" : "stage");
@@ -27,6 +29,13 @@ export function PrescriptionReviewPage({
   const [power, setPower] = useState(task.kind === "initial" ? "30–45 W" : "50–70 W");
   const [rpe, setRpe] = useState("11–13");
   const [notes, setNotes] = useState("训练期间如出现持续胸闷、胸痛、明显气促、头晕或心悸，应立即停止并通知现场医护。");
+  const [rehabGoal, setRehabGoal] = useState("改善症状、提高体能、改善心功能、预防支架内再狭窄");
+  const [breathingPlan, setBreathingPlan] = useState("腹式呼吸练习；吸气时鼓起肚子，呼气时缩紧肚子，呼气/吸气时间比≥3:1；每天2次，每次10分钟。");
+  const [warmupPlan, setWarmupPlan] = useState("原地踏步、肩部热身、扩胸运动、四肢伸展、手腕踝关节活动；每次5分钟。");
+  const [aerobicPlan, setAerobicPlan] = useState("功率车连续训练；运动时可正常语速交流但不能轻松唱歌。");
+  const [resistancePlan, setResistancePlan] = useState("弹力带/哑铃低阻力训练；每周2次，每次4种动作，每种动作2组，每组10个；呼气发力、吸气放松。");
+  const [flexibilityPlan, setFlexibilityPlan] = useState("颈部、躯干、上肢、下肢肌肉牵伸；每组肌肉拉伸3次，每次15-30秒；有氧或抗阻训练后进行。");
+  const [planRemark, setPlanRemark] = useState("此方案为4-8周计划，应根据训练反馈适时进阶；心脏康复需在病情允许且医学监测或家庭监护下安全进行，如出现任何不适请立即停止并就近就医。");
   const previousVersionKey = task.previousVersionId?.match(/V[1-4]/)?.[0] ?? (task.kind === "initial" ? "V1" : "V4");
   const previousVersion = getPrescriptionVersionDetail(previousVersionKey);
   const linkedSafetyEvents = minimalSafetyEvents.filter((event) => event.patientId === task.patientId);
@@ -60,7 +69,11 @@ export function PrescriptionReviewPage({
       <div className="grid grid-cols-[0.8fr_1.2fr] gap-5">
         <div className="space-y-4">
           <section className="card p-5">
-            <SectionHeader title={task.kind === "initial" ? "首次基线评估" : "处方依据"} action={task.kind === "adjustment" ? <AiBadge /> : <StatusBadge tone="blue">医生录入</StatusBadge>} />
+            <SectionHeader title="病人报告列表" description="处方必须能追溯到单次报告、阶段性报告或首次基线评估。" action={task.kind === "adjustment" ? <AiBadge /> : <StatusBadge tone="blue">医生录入</StatusBadge>} />
+            <div className="mb-4 grid grid-cols-2 gap-3">
+              <button type="button" onClick={onOpenReport} className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-left hover:border-blue-200"><CalendarRange className="h-4 w-4 text-blue-700" /><p className="mt-2 text-xs font-bold text-blue-900">阶段性报告列表</p><p className="mt-1 text-[10px] leading-4 text-blue-700">{task.sourceType === "stage_report" ? task.sourceLabel : "查看历史阶段报告"}</p></button>
+              <button type="button" onClick={onOpenReport} className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-left hover:border-emerald-200"><FileText className="h-4 w-4 text-emerald-700" /><p className="mt-2 text-xs font-bold text-emerald-900">单次报告列表</p><p className="mt-1 text-[10px] leading-4 text-emerald-700">{task.sourceType === "single_report" ? task.sourceLabel : "查看功率车单次报告"}</p></button>
+            </div>
             <div className="mb-4 grid grid-cols-1 gap-3">
               <Evidence label="病史记录" value={clinicalSnapshotChen.medicalHistory} />
               <Evidence label="诊断内容" value={clinicalSnapshotChen.diagnosis} />
@@ -105,12 +118,13 @@ export function PrescriptionReviewPage({
             )}
           </section>
           {hasBlockingMissing && <Notice tone="orange" title="关键评估缺失">{task.missingFields?.join("、")}。允许保存处方草稿，但补充并复核前不能确认或签名。</Notice>}
-          {task.kind === "adjustment" && <section className="card p-5"><SectionHeader title="AI调整建议与依据" action={<Sparkles className="h-4 w-4 text-blue-600" />} /><p className="leading-6 text-slate-600">建议主训练功率由45–65W调整至50–70W，靶心率上限增加2 bpm，训练时间增加2分钟；频次保持不变。</p><p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">AI仅生成可编辑草稿，不自动形成医嘱。医生必须核对安全事件、用药变化和患者主诉。</p></section>}
+          {task.kind === "adjustment" && <section className="card p-5"><SectionHeader title="AI生成建议和提示" action={<Sparkles className="h-4 w-4 text-blue-600" />} /><p className="leading-6 text-slate-600">建议主训练功率由45–65W调整至50–70W，靶心率上限增加2 bpm，训练时间增加2分钟；频次保持不变。</p><div className="mt-3 grid grid-cols-2 gap-3 text-xs"><Evidence label="为什么需要开方" value="阶段报告已完成且上一版本需复核/调整" /><Evidence label="AI依据" value="阶段报告、上一处方、安全事件、主诉和缺失数据" warning /></div><p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">AI仅生成可编辑草稿，不自动形成医嘱。医生必须核对安全事件、用药变化和患者主诉。</p></section>}
         </div>
 
         <section id="printable-prescription" className="card p-5">
-          <div className="print-only"><h1>心脏康复运动处方</h1><p>处方编号：{task.id}　患者：{task.patientName}　处方依据：{task.sourceLabel}</p></div>
-          <SectionHeader title="运动处方参数" description={locked ? "参数已确认锁定，如需调整必须创建新版本。" : "医生逐项核对并修改，确认后生成不可覆盖版本。"} action={<StatusBadge tone={task.status === "completed" ? "green" : "orange"}>{prescriptionStatusLabels[task.status]}</StatusBadge>} />
+          <div className="print-only"><h1>心脏康复中心运动处方</h1><p>处方编号：{task.id}　患者：{task.patientName}　性别：{task.sex}　年龄：{task.age}岁　BMI：{clinicalSnapshotChen.bmi}</p><p>处方依据：{task.sourceLabel}</p></div>
+          <SectionHeader title="心脏康复中心运动处方模板" description={locked ? "参数已确认锁定，如需调整必须创建新版本。" : "参考附件模板，AI自动填入后由医生逐项调整。"} action={<StatusBadge tone={task.status === "completed" ? "green" : "orange"}>{prescriptionStatusLabels[task.status]}</StatusBadge>} />
+          <label className="mb-4 block"><span className="field-label">康复目标</span><input className="text-field disabled:bg-slate-50" value={rehabGoal} onChange={(event) => setRehabGoal(event.target.value)} disabled={locked} /></label>
           <div className="grid grid-cols-2 gap-4">
             <PrescriptionField label="运动项目" value={exercise} setValue={setExercise} disabled={locked} />
             <PrescriptionField label="每周频次" value={frequency} setValue={setFrequency} disabled={locked} />
@@ -121,7 +135,15 @@ export function PrescriptionReviewPage({
             <PrescriptionField label="目标功率" value={power} setValue={setPower} disabled={locked} />
             <PrescriptionField label="RPE目标" value={rpe} setValue={setRpe} disabled={locked} />
           </div>
-          <label className="mt-4 block"><span className="field-label">注意事项与停止条件</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} disabled={locked} className="text-field min-h-24 resize-none disabled:bg-slate-50" /></label>
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <AdviceField label="呼吸训练" value={breathingPlan} setValue={setBreathingPlan} disabled={locked} />
+            <AdviceField label="热身运动" value={warmupPlan} setValue={setWarmupPlan} disabled={locked} />
+            <AdviceField label="有氧运动" value={aerobicPlan} setValue={setAerobicPlan} disabled={locked} />
+            <AdviceField label="抗阻训练" value={resistancePlan} setValue={setResistancePlan} disabled={locked} />
+            <AdviceField label="柔韧性训练" value={flexibilityPlan} setValue={setFlexibilityPlan} disabled={locked} />
+            <AdviceField label="4-8周计划备注" value={planRemark} setValue={setPlanRemark} disabled={locked} />
+          </div>
+          <label className="mt-4 block"><span className="field-label">注意事项与停止条件</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} disabled={locked} className="text-field min-h-20 resize-none disabled:bg-slate-50" /></label>
           <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 p-4">
             <SectionHeader title="患者可读建议" description="这些内容会同步到患者端处方确认与报告页，用通俗语言说明康复忌讳、饮食和运动注意。" />
             <div className="grid grid-cols-2 gap-4">
@@ -136,6 +158,7 @@ export function PrescriptionReviewPage({
           <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
             <label className="flex items-start gap-3"><input type="checkbox" checked={confirmChecked || locked} onChange={(event) => setConfirmChecked(event.target.checked)} disabled={locked} className="mt-0.5 accent-blue-600" /><span className="text-xs leading-5 text-slate-600">我已核对报告/评估依据、危险分组、运动强度、时长、频次及安全注意事项，确认当前内容由医生作出临床判断。</span></label>
           </div>
+          {(task.status === "pending_signature" || task.status === "completed") && <PrescriptionPdfPreview task={task} rehabGoal={rehabGoal} exercise={exercise} frequency={frequency} warmup={warmup} training={training} cooldown={cooldown} targetHr={targetHr} power={power} rpe={rpe} breathingPlan={breathingPlan} aerobicPlan={aerobicPlan} resistancePlan={resistancePlan} flexibilityPlan={flexibilityPlan} notes={notes} signed={task.status === "completed"} />}
           <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-5">
             <div className="text-xs text-slate-500">{task.status === "completed" ? <span className="flex items-center gap-2 font-bold text-emerald-700"><BadgeCheck className="h-4 w-4" />{task.signedBy ?? task.confirmedBy ?? "签署医生"} · CA签名有效</span> : task.status === "pending_signature" ? `处方参数已锁定，等待数字签名${task.confirmedBy ? ` · 复核人：${task.confirmedBy}` : ""}` : "确认后生成下一正式版本"}</div>
             <div className="flex gap-2">
@@ -144,7 +167,8 @@ export function PrescriptionReviewPage({
               {task.status === "completed" && <button type="button" className="btn-primary" onClick={printPrescription}><Printer className="h-4 w-4" />打印正式处方</button>}
             </div>
           </div>
-          <div className="print-only prescription-sign-line"><span>处方医生：{task.signedBy ?? task.confirmedBy ?? "待签署"}</span><span>数字签名：{task.signatureStatus === "signed" ? "已签名（CA验证有效）" : "未签名"}</span><span>报告依据：{task.sourceLabel}</span></div>
+          <div className="print-only"><h2>处方内容</h2><p>康复目标：{rehabGoal}</p><p>呼吸训练：{breathingPlan}</p><p>热身运动：{warmupPlan}</p><p>有氧运动：{aerobicPlan}；{frequency}；{warmup}+{training}+{cooldown}分钟；靶心率 {targetHr}；功率 {power}；RPE {rpe}</p><p>抗阻训练：{resistancePlan}</p><p>柔韧性训练：{flexibilityPlan}</p><p>备注：{planRemark}</p></div>
+          <div className="print-only prescription-sign-line"><span>制定者：{task.signedBy ?? task.confirmedBy ?? "待签署"}</span><span>数字签名：{task.signatureStatus === "signed" ? "已签名（CA验证有效）" : "未签名"}</span><span className="signature-script">王医生</span><span>制定日期：2026.07.29</span></div>
           <div className="print-only"><h2>患者注意事项</h2><p>康复忌讳：{rehabContraindications}</p><p>饮食注意：{dietCautions}</p><p>运动注意：{exerciseCautions}</p><p>停止条件：{stopConditions}</p><p>用药提醒：{medicationAdvice}</p><p>患者说明：{patientInstruction}</p></div>
         </section>
       </div>
@@ -162,4 +186,67 @@ function PrescriptionField({ label, value, setValue, disabled }: { label: string
 
 function AdviceField({ label, value, setValue, disabled }: { label: string; value: string; setValue: (value: string) => void; disabled: boolean }) {
   return <label><span className="field-label">{label}</span><textarea className="text-field min-h-20 resize-none bg-white py-2 disabled:bg-slate-50" value={value} onChange={(event) => setValue(event.target.value)} disabled={disabled} /></label>;
+}
+
+function PrescriptionPdfPreview({
+  task,
+  rehabGoal,
+  exercise,
+  frequency,
+  warmup,
+  training,
+  cooldown,
+  targetHr,
+  power,
+  rpe,
+  breathingPlan,
+  aerobicPlan,
+  resistancePlan,
+  flexibilityPlan,
+  notes,
+  signed
+}: {
+  task: PrescriptionTask;
+  rehabGoal: string;
+  exercise: string;
+  frequency: string;
+  warmup: string;
+  training: string;
+  cooldown: string;
+  targetHr: string;
+  power: string;
+  rpe: string;
+  breathingPlan: string;
+  aerobicPlan: string;
+  resistancePlan: string;
+  flexibilityPlan: string;
+  notes: string;
+  signed: boolean;
+}) {
+  return (
+    <section className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div><p className="text-xs font-bold text-blue-700">PDF预览</p><p className="mt-1 text-[10px] text-slate-500">签名完成后生成正式版，可直接打印。</p></div>
+        <StatusBadge tone={signed ? "green" : "orange"}>{signed ? "已签名，可打印" : "待数字签名"}</StatusBadge>
+      </div>
+      <div className="rounded-lg bg-white p-5 text-xs leading-6 text-slate-700 shadow-sm">
+        <h3 className="text-center text-lg font-bold text-slate-950">心脏康复中心运动处方</h3>
+        <div className="mt-4 grid grid-cols-4 gap-2 border-y border-slate-200 py-3">
+          <span>姓名：{task.patientName}</span><span>性别：{task.sex}</span><span>年龄：{task.age}岁</span><span>BMI：{clinicalSnapshotChen.bmi}</span>
+        </div>
+        <p className="mt-3"><b>康复目标：</b>{rehabGoal}</p>
+        <p><b>呼吸训练：</b>{breathingPlan}</p>
+        <p><b>有氧运动：</b>{exercise}；{aerobicPlan}；{frequency}；{warmup}+{training}+{cooldown}分钟；靶心率 {targetHr}；功率 {power}；RPE {rpe}</p>
+        <p><b>抗阻训练：</b>{resistancePlan}</p>
+        <p><b>柔韧性训练：</b>{flexibilityPlan}</p>
+        <p><b>注意事项：</b>{notes}</p>
+        <div className="mt-5 flex items-end justify-between border-t border-slate-200 pt-4">
+          <span>制定者：{task.signedBy ?? task.confirmedBy ?? "待签署"}</span>
+          <span>数字签名：{signed ? "已签名（CA验证有效）" : "未签名"}</span>
+          <span className={`signature-script text-2xl ${signed ? "text-slate-950" : "text-slate-300"}`}>王医生</span>
+          <span>制定日期：2026.07.29</span>
+        </div>
+      </div>
+    </section>
+  );
 }
