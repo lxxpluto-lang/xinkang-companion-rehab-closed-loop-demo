@@ -1,24 +1,57 @@
 import { useMemo, useState } from "react";
-import { ArrowRight, ClipboardList, LockKeyhole, PencilLine, Printer, Search, Sparkles } from "lucide-react";
+import { ArrowRight, ClipboardList, LockKeyhole, PencilLine, Printer, RotateCcw, Search, Sparkles } from "lucide-react";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
-import type { PrescriptionStatus, PrescriptionTask } from "../prescriptionData";
+import type { PrescriptionListStatusFilter, PrescriptionTask } from "../prescriptionData";
 import { prescriptionStatusLabels, sourceTypeLabels } from "../prescriptionData";
 
-export function PrescriptionManagementPage({ tasks, onOpen, onGenerate }: { tasks: PrescriptionTask[]; onOpen: (id: string) => void; onGenerate: (id: string) => void }) {
+type PrescriptionFilters = {
+  patientId: string;
+  prescriptionId: string;
+  assignedDoctor: string;
+  status: PrescriptionListStatusFilter;
+};
+
+function emptyFilters(status: PrescriptionListStatusFilter = "all"): PrescriptionFilters {
+  return { patientId: "", prescriptionId: "", assignedDoctor: "", status };
+}
+
+export function PrescriptionManagementPage({
+  tasks,
+  initialStatusFilter = "all",
+  onOpen,
+  onGenerate
+}: {
+  tasks: PrescriptionTask[];
+  initialStatusFilter?: PrescriptionListStatusFilter;
+  onOpen: (id: string) => void;
+  onGenerate: (id: string) => void;
+}) {
   const pendingTasks = tasks.filter((task) => task.status !== "completed");
   const completedTasks = tasks.filter((task) => task.status === "completed");
-  const [statusFilter, setStatusFilter] = useState<"all" | "unfinished" | PrescriptionStatus>("unfinished");
-  const [riskFilter, setRiskFilter] = useState<"all" | PrescriptionTask["risk"]>("all");
-  const [sourceFilter, setSourceFilter] = useState<"all" | PrescriptionTask["sourceType"]>("all");
-  const [query, setQuery] = useState("");
+  const [draftFilters, setDraftFilters] = useState<PrescriptionFilters>(() => emptyFilters(initialStatusFilter));
+  const [appliedFilters, setAppliedFilters] = useState<PrescriptionFilters>(() => emptyFilters(initialStatusFilter));
+  const doctorOptions = useMemo(() => Array.from(new Set(tasks.map((task) => task.assignedDoctor))).sort(), [tasks]);
   const filteredTasks = useMemo(() => tasks.filter((task) => {
-    const matchesStatus = statusFilter === "all" || (statusFilter === "unfinished" ? task.status !== "completed" : task.status === statusFilter);
-    const matchesRisk = riskFilter === "all" || task.risk === riskFilter;
-    const matchesSource = sourceFilter === "all" || task.sourceType === sourceFilter;
-    const keyword = query.trim();
-    const matchesKeyword = !keyword || `${task.patientName}${task.patientId}${task.stage}${task.version}${task.sourceLabel}`.includes(keyword);
-    return matchesStatus && matchesRisk && matchesSource && matchesKeyword;
-  }), [query, riskFilter, sourceFilter, statusFilter, tasks]);
+    const patientId = appliedFilters.patientId.trim().toLowerCase();
+    const prescriptionId = appliedFilters.prescriptionId.trim().toLowerCase();
+    const matchesPatientId = !patientId || task.patientId.toLowerCase().includes(patientId);
+    const matchesPrescriptionId = !prescriptionId || task.id.toLowerCase().includes(prescriptionId);
+    const matchesDoctor = !appliedFilters.assignedDoctor || task.assignedDoctor === appliedFilters.assignedDoctor;
+    const matchesStatus = appliedFilters.status === "all"
+      || (appliedFilters.status === "unfinished" ? task.status !== "completed" : task.status === appliedFilters.status);
+    return matchesPatientId && matchesPrescriptionId && matchesDoctor && matchesStatus;
+  }), [appliedFilters, tasks]);
+
+  function updateDraft<K extends keyof PrescriptionFilters>(key: K, value: PrescriptionFilters[K]) {
+    setDraftFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  function resetFilters() {
+    const next = emptyFilters();
+    setDraftFilters(next);
+    setAppliedFilters(next);
+  }
+
   return (
     <section data-testid="page-VIEW-PRESCRIPTIONS">
       <PageHeader eyebrow="处方管理" title="运动处方总台" description="未完成处方可编辑、保存和确认；已完成处方已签署归档，只能查看和打印。" action={<span className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600"><ClipboardList className="h-4 w-4 text-blue-600" />未完成 {pendingTasks.length} · 已完成 {completedTasks.length}</span>} />
@@ -26,38 +59,46 @@ export function PrescriptionManagementPage({ tasks, onOpen, onGenerate }: { task
         <div className="px-5 pt-5">
           <SectionHeader title="全部处方任务" description="未完成与已完成处方放在同一张工作表里，通过状态筛选切换；已完成版本只读。" />
         </div>
-        <div className="flex flex-wrap items-center gap-2 border-y border-slate-100 bg-slate-50 px-5 py-3">
-          {[
-            ["unfinished", `未完成 ${pendingTasks.length}`],
-            ["pending_generation", "未生成"],
-            ["pending_review", "待复核"],
-            ["pending_signature", "待签名"],
-            ["completed", `已完成 ${completedTasks.length}`],
-            ["all", "全部"]
-          ].map(([value, label]) => (
-            <button key={value} type="button" onClick={() => setStatusFilter(value as "all" | "unfinished" | PrescriptionStatus)} className={`rounded-lg px-3 py-1.5 text-[10px] font-bold ${statusFilter === value ? "bg-blue-600 text-white shadow-sm" : "bg-white text-slate-500 ring-1 ring-slate-200"}`}>{label}</button>
-          ))}
-          <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value as "all" | PrescriptionTask["risk"])} className="ml-auto rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-600">
-            <option value="all">全部分组</option>
-            <option value="低危">低危</option>
-            <option value="中危">中危</option>
-            <option value="高危">高危</option>
-          </select>
-          <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value as "all" | PrescriptionTask["sourceType"])} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-600">
-            <option value="all">全部依据</option>
-            <option value="baseline_assessment">基线评估</option>
-            <option value="single_report">单次报告</option>
-            <option value="stage_report">阶段性报告</option>
-          </select>
-          <label className="flex w-48 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] text-slate-400">
-            <Search className="h-3.5 w-3.5" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="患者/编号/版本" className="min-w-0 flex-1 bg-transparent font-medium text-slate-700 outline-none" />
-          </label>
+        <form onSubmit={(event) => { event.preventDefault(); setAppliedFilters(draftFilters); }} className="grid grid-cols-1 gap-3 border-y border-slate-100 bg-slate-50 px-5 py-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_0.9fr_0.9fr_auto] xl:items-end">
+          <FilterField label="患者编码">
+            <input value={draftFilters.patientId} onChange={(event) => updateDraft("patientId", event.target.value)} placeholder="例如 P-DEMO-001" className="text-field" />
+          </FilterField>
+          <FilterField label="处方编码">
+            <input value={draftFilters.prescriptionId} onChange={(event) => updateDraft("prescriptionId", event.target.value)} placeholder="例如 RX-TASK-001" className="text-field" />
+          </FilterField>
+          <FilterField label="所属医生">
+            <select value={draftFilters.assignedDoctor} onChange={(event) => updateDraft("assignedDoctor", event.target.value)} className="text-field">
+              <option value="">全部医生</option>
+              {doctorOptions.map((doctor) => <option key={doctor} value={doctor}>{doctor}</option>)}
+            </select>
+          </FilterField>
+          <FilterField label="状态">
+            <select value={draftFilters.status} onChange={(event) => updateDraft("status", event.target.value as PrescriptionListStatusFilter)} className="text-field" data-testid="prescription-status-filter">
+              <option value="all">全部</option>
+              <option value="unfinished">未完成</option>
+              <option value="pending_generation">待生成</option>
+              <option value="pending_review">待复核</option>
+              <option value="pending_signature">待签名</option>
+              <option value="completed">已完成</option>
+            </select>
+          </FilterField>
+          <div className="flex gap-2 md:col-span-2 xl:col-span-1">
+            <button type="submit" className="btn-primary flex-1 xl:flex-none"><Search className="h-4 w-4" />查询</button>
+            <button type="button" onClick={resetFilters} className="btn-secondary flex-1 xl:flex-none"><RotateCcw className="h-4 w-4" />重置</button>
+          </div>
+        </form>
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 text-xs text-slate-500">
+          <span>查询结果 <b className="text-slate-900">{filteredTasks.length}</b> 条</span>
+          {appliedFilters.status === "unfinished" && <StatusBadge tone="orange">已筛选：未完成处方</StatusBadge>}
         </div>
         <PrescriptionTable tasks={filteredTasks} onOpen={onOpen} onGenerate={onGenerate} />
       </section>
     </section>
   );
+}
+
+function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="block"><span className="field-label">{label}</span>{children}</label>;
 }
 
 function PrescriptionTable({ tasks, onOpen, onGenerate }: { tasks: PrescriptionTask[]; onOpen: (id: string) => void; onGenerate: (id: string) => void }) {
@@ -75,7 +116,7 @@ function PrescriptionTable({ tasks, onOpen, onGenerate }: { tasks: PrescriptionT
           <StatusBadge tone={task.risk === "高危" ? "red" : task.risk === "中危" ? "orange" : "green"}>{task.risk}</StatusBadge>
           <span className="text-slate-600">{task.kind === "initial" ? "初始" : "调整"}</span>
           <span className="text-slate-600">{sourceTypeLabels[task.sourceType]}</span>
-          <span className="font-semibold text-slate-700">{task.confirmedBy ?? task.signedBy ?? "王医生"}</span>
+          <span className="font-semibold text-slate-700">{task.assignedDoctor}</span>
           <StatusBadge tone={task.status === "completed" ? "green" : task.status === "pending_generation" ? "blue" : "orange"}>{prescriptionStatusLabels[task.status]}</StatusBadge>
           <span className="flex items-center gap-1 font-bold text-blue-700">
             {task.status === "completed" ? <><LockKeyhole className="h-3.5 w-3.5" />查看/打印<Printer className="h-3.5 w-3.5" /></> : task.status === "pending_generation" ? <><Sparkles className="h-3.5 w-3.5" />生成草稿</> : <><PencilLine className="h-3.5 w-3.5" />编辑审核</>}

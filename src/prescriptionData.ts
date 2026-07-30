@@ -1,4 +1,5 @@
 export type PrescriptionStatus = "pending_generation" | "pending_review" | "pending_signature" | "completed";
+export type PrescriptionListStatusFilter = "all" | "unfinished" | PrescriptionStatus;
 export type PrescriptionKind = "initial" | "adjustment";
 export type PrescriptionSourceType = "baseline_assessment" | "single_report" | "stage_report";
 
@@ -6,6 +7,7 @@ export type PrescriptionTask = {
   id: string;
   patientId: string;
   patientName: string;
+  assignedDoctor: string;
   age: number;
   sex: string;
   stage: string;
@@ -47,6 +49,7 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
     id: "RX-TASK-001",
     patientId: "P-DEMO-001",
     patientName: "陈女士",
+    assignedDoctor: "王医生",
     age: 59,
     sex: "女",
     stage: "Ⅱ期 · 第4周",
@@ -67,6 +70,7 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
     id: "RX-TASK-002",
     patientId: "P-DEMO-002",
     patientName: "李先生",
+    assignedDoctor: "王医生",
     age: 58,
     sex: "男",
     stage: "Ⅱ期 · 第2周",
@@ -87,6 +91,7 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
     id: "RX-TASK-003",
     patientId: "P-DEMO-003",
     patientName: "王先生",
+    assignedDoctor: "赵医生",
     age: 66,
     sex: "男",
     stage: "Ⅱ期 · 第3周",
@@ -107,6 +112,7 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
     id: "RX-TASK-004",
     patientId: "P-DEMO-004",
     patientName: "赵女士",
+    assignedDoctor: "王医生",
     age: 60,
     sex: "女",
     stage: "首次评估",
@@ -125,6 +131,7 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
     id: "RX-TASK-005",
     patientId: "P-DEMO-005",
     patientName: "周先生",
+    assignedDoctor: "赵医生",
     age: 55,
     sex: "男",
     stage: "Ⅱ期 · 第6周",
@@ -149,6 +156,7 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
     id: "RX-TASK-006",
     patientId: "P-DEMO-006",
     patientName: "孙女士",
+    assignedDoctor: "王医生",
     age: 64,
     sex: "女",
     stage: "首次评估",
@@ -205,6 +213,32 @@ export const doctorAppointments: DoctorAppointment[] = [
     stageReportIds: ["STAGE-202607-003"],
     reportReviewStatus: "待复核",
     linkedTaskId: "RX-TASK-003"
+  },
+  {
+    id: "APT-20260729-004",
+    patientId: "P-DEMO-004",
+    patientName: "赵女士",
+    time: "14:00",
+    purpose: "首次评估后制定初始运动处方",
+    stage: "首次评估",
+    risk: "高危",
+    singleReportIds: [],
+    stageReportIds: [],
+    reportReviewStatus: "待复核",
+    linkedTaskId: "RX-TASK-004"
+  },
+  {
+    id: "APT-20260729-005",
+    patientId: "P-DEMO-006",
+    patientName: "孙女士",
+    time: "15:30",
+    purpose: "补充评估资料并复核初始处方",
+    stage: "首次评估",
+    risk: "中危",
+    singleReportIds: [],
+    stageReportIds: [],
+    reportReviewStatus: "待复核",
+    linkedTaskId: "RX-TASK-006"
   }
 ];
 

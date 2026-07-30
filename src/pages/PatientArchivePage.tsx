@@ -88,13 +88,15 @@ export function PatientArchivePage({
   tasks,
   initialPatientId,
   initialTab = "profile",
-  onOpenPrescription
+  onOpenPrescription,
+  onBackToPrescription
 }: {
   role: Exclude<Role, "PATIENT">;
   tasks: PrescriptionTask[];
   initialPatientId?: string | null;
   initialTab?: PatientWorkspaceTab;
   onOpenPrescription: (taskId: string) => void;
+  onBackToPrescription?: () => void;
 }) {
   const [patients, setPatients] = useState<ManagedPatient[]>(initialPatients);
   const [selectedId, setSelectedId] = useState<string | null>(initialPatientId ?? null);
@@ -161,6 +163,7 @@ export function PatientArchivePage({
           setActiveTab={setActiveTab}
           tasks={tasks.filter((task) => task.patientId === selected.patient_demo_id)}
           onBack={() => { setSelectedId(null); setActiveTab("profile"); }}
+          onBackToPrescription={onBackToPrescription}
           onEdit={() => openEdit(selected)}
           onOpenPrescription={onOpenPrescription}
         />
@@ -197,12 +200,13 @@ export function PatientArchivePage({
   );
 }
 
-function PatientDetail({ patient, activeTab, setActiveTab, tasks, onBack, onEdit, onOpenPrescription }: {
+function PatientDetail({ patient, activeTab, setActiveTab, tasks, onBack, onBackToPrescription, onEdit, onOpenPrescription }: {
   patient: ManagedPatient;
   activeTab: PatientWorkspaceTab;
   setActiveTab: (tab: PatientWorkspaceTab) => void;
   tasks: PrescriptionTask[];
   onBack: () => void;
+  onBackToPrescription?: () => void;
   onEdit: () => void;
   onOpenPrescription: (taskId: string) => void;
 }) {
@@ -215,7 +219,7 @@ function PatientDetail({ patient, activeTab, setActiveTab, tasks, onBack, onEdit
   ];
   return (
     <div className="space-y-4">
-      <PageHeader eyebrow="患者详情页面" title={`${patient.name} · ${patient.patient_demo_id}`} description="以患者为中心聚合基础档案、医患沟通、历次处方、每次训练记录和报告。" action={<button type="button" onClick={onBack} className="btn-secondary"><ArrowLeft className="h-4 w-4" />返回患者列表</button>} />
+      <PageHeader eyebrow="患者详情页面" title={`${patient.name} · ${patient.patient_demo_id}`} description="以患者为中心聚合基础档案、医患沟通、历次处方、每次训练记录和报告。" action={<div className="flex gap-2">{onBackToPrescription && <button type="button" onClick={onBackToPrescription} className="btn-primary"><ArrowLeft className="h-4 w-4" />返回当前处方</button>}<button type="button" onClick={onBack} className="btn-secondary">返回患者列表</button></div>} />
       <section className="card p-4">
         <div className="flex items-start gap-4">
           <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><UserRound className="h-6 w-6" /></span>

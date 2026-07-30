@@ -11,7 +11,7 @@ import { PatientArchivePage } from "./pages/PatientArchivePage";
 import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
 import { PrescriptionReviewPage } from "./pages/PrescriptionReviewPage";
 import { initialTrainingVideos, VideoLibraryPage, type TrainingVideo } from "./pages/VideoLibraryPage";
-import { initialPrescriptionTasks, type PrescriptionTask } from "./prescriptionData";
+import { initialPrescriptionTasks, type PrescriptionListStatusFilter, type PrescriptionTask } from "./prescriptionData";
 import type { DoctorPageKey, Role, TrainingState } from "./types";
 
 type SystemKey = "chooser" | "staffLogin" | "doctor" | "patient";
@@ -27,6 +27,7 @@ export default function App() {
   const [doctorPage, setDoctorPage] = useState<DoctorPageKey>("dashboard");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [prescriptionEntryStatus, setPrescriptionEntryStatus] = useState<PrescriptionListStatusFilter>("all");
   const [prescriptionTasks, setPrescriptionTasks] = useState<PrescriptionTask[]>(initialPrescriptionTasks);
   const [trainingState, setTrainingState] = useState<TrainingState>("ready");
   const [anomaly, setAnomaly] = useState(false);
@@ -35,11 +36,19 @@ export default function App() {
   const selectedTask = prescriptionTasks.find((task) => task.id === selectedTaskId);
   const publishedTrainingVideos = trainingVideos.filter((video) => video.status === "PUBLISHED" && video.url);
 
+  function resetViewScroll() {
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+  }
+
   function navigateDoctor(page: DoctorPageKey) {
     if (!canAccessPage(role, page)) return;
-    if (page === "prescriptions") setSelectedTaskId(null);
+    if (page === "prescriptions") {
+      setSelectedTaskId(null);
+      setPrescriptionEntryStatus("all");
+    }
     if (page === "patients") setSelectedPatientId(null);
     setDoctorPage(page);
+    resetViewScroll();
   }
 
   function changeRole(nextRole: StaffRole) {
@@ -51,11 +60,26 @@ export default function App() {
   function openTask(taskId: string) {
     setSelectedTaskId(taskId);
     setDoctorPage("prescriptions");
+    resetViewScroll();
+  }
+
+  function openPrescriptionList(status: PrescriptionListStatusFilter = "all") {
+    setSelectedTaskId(null);
+    setPrescriptionEntryStatus(status);
+    setDoctorPage("prescriptions");
+    resetViewScroll();
   }
 
   function openPatient(patientId: string) {
     setSelectedPatientId(patientId);
     setDoctorPage("patients");
+    resetViewScroll();
+  }
+
+  function returnToSelectedPrescription() {
+    if (!selectedTaskId) return;
+    setDoctorPage("prescriptions");
+    resetViewScroll();
   }
 
   function generateDraft(taskId: string) {
@@ -95,11 +119,11 @@ export default function App() {
   }
 
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
-    dashboard: <DashboardPage role={role} tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} onConfirm={confirmTask} onSign={signTask} />,
+    dashboard: <DashboardPage role={role} tasks={prescriptionTasks} onOpenPrescriptionList={openPrescriptionList} onOpen={openTask} onGenerate={generateDraft} onConfirm={confirmTask} onSign={signTask} />,
     prescriptions: selectedTask
       ? <PrescriptionReviewPage task={selectedTask} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onOpenPatient={openPatient} />
-      : <PrescriptionManagementPage tasks={prescriptionTasks} onOpen={openTask} onGenerate={generateDraft} />,
-    patients: <PatientArchivePage role={role} tasks={prescriptionTasks} initialPatientId={selectedPatientId} onOpenPrescription={openTask} />,
+      : <PrescriptionManagementPage tasks={prescriptionTasks} initialStatusFilter={prescriptionEntryStatus} onOpen={openTask} onGenerate={generateDraft} />,
+    patients: <PatientArchivePage role={role} tasks={prescriptionTasks} initialPatientId={selectedPatientId} onOpenPrescription={openTask} onBackToPrescription={selectedTaskId ? returnToSelectedPrescription : undefined} />,
     training: <NurseStationPage role={role} />,
     videoConfig: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />
   };
