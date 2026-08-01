@@ -83,18 +83,49 @@ export default function App() {
   }
 
   function generateDraft(taskId: string) {
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, aiDraftStatus: "generated", status: "pending_review", updatedAt: "2026-07-29 10:46" } : task));
+    const generatedAt = "2026-07-30T10:46:00+08:00";
+    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? {
+      ...task,
+      aiDraftStatus: "generated",
+      status: "pending_review",
+      draftedAt: generatedAt,
+      updatedAt: generatedAt,
+      aiDraft: {
+        draftId: `AI-${task.prescriptionNo}-${generatedAt}`,
+        prescriptionId: task.prescriptionId,
+        generatedAt,
+        evidenceSnapshot: [
+          task.sourceLabel,
+          task.previousVersionId ? `上一版处方 ${task.previousVersionId}` : "基线临床评估",
+          "诊断、特殊用药与风险分层",
+          ...(task.risk === "高危" ? ["高危患者人工复核要求"] : [])
+        ],
+        missingData: task.missingFields ?? [],
+        proposedContent: {
+          targetHeartRate: task.risk === "高危" ? "90–104 bpm" : task.risk === "中危" ? "100–116 bpm" : "104–120 bpm",
+          targetPower: task.risk === "高危" ? "30–45 W" : task.risk === "中危" ? "48–62 W" : "50–70 W",
+          frequency: "每周 3 次",
+          duration: task.kind === "initial" ? "25 分钟/次" : "30 分钟/次",
+          clinicalAdvice: task.missingFields?.length
+            ? "关键评估尚未补齐，仅生成待补充草稿，不提供强度上调结论。"
+            : "结合风险分层与近期训练反馈生成，需由医生逐项确认。"
+        },
+        modelVersion: "CardiacRx-Demo-1.0",
+        promptVersion: "rx-draft-2026.07",
+        status: "generated"
+      }
+    } : task));
     openTask(taskId);
   }
 
   function confirmTask(taskId: string) {
     const actor = roleMeta[role].account;
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, reviewStatus: "confirmed", signatureStatus: "signed", status: "completed", confirmedBy: actor, confirmedAt: "2026-07-29 10:51", signedBy: actor, signedAt: "2026-07-29 10:51", updatedAt: "2026-07-29 10:51", version: task.version.replace(" 草稿", "") } : task));
+    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, reviewStatus: "confirmed", signatureStatus: "signed", status: "completed", confirmedBy: actor, confirmedAt: "2026-07-30T10:51:00+08:00", reviewedAt: "2026-07-30T10:51:00+08:00", signedBy: actor, signedAt: "2026-07-30T10:51:00+08:00", effectiveFrom: "2026-07-30T10:51:00+08:00", updatedAt: "2026-07-30T10:51:00+08:00", version: task.version.replace(" 草稿", ""), aiDraft: task.aiDraft ? { ...task.aiDraft, status: "accepted" } : undefined } : task));
   }
 
   function signTask(taskId: string) {
     const actor = roleMeta[role].account;
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, signatureStatus: "signed", status: "completed", signedBy: actor, signedAt: "2026-07-29 10:54", updatedAt: "2026-07-29 10:54", version: task.version.replace(" 草稿", "") } : task));
+    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, signatureStatus: "signed", status: "completed", signedBy: actor, signedAt: "2026-07-30T10:54:00+08:00", effectiveFrom: "2026-07-30T10:54:00+08:00", updatedAt: "2026-07-30T10:54:00+08:00", version: task.version.replace(" 草稿", "") } : task));
   }
 
   function resetDemo() {
@@ -121,7 +152,7 @@ export default function App() {
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
     dashboard: <DashboardPage role={role} tasks={prescriptionTasks} onOpenPrescriptionList={openPrescriptionList} onOpen={openTask} onGenerate={generateDraft} onConfirm={confirmTask} onSign={signTask} />,
     prescriptions: selectedTask
-      ? <PrescriptionReviewPage task={selectedTask} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onOpenPatient={openPatient} />
+      ? <PrescriptionReviewPage task={selectedTask} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onGenerate={generateDraft} onOpenPatient={openPatient} />
       : <PrescriptionManagementPage tasks={prescriptionTasks} initialStatusFilter={prescriptionEntryStatus} onOpen={openTask} onGenerate={generateDraft} />,
     patients: <PatientArchivePage role={role} tasks={prescriptionTasks} initialPatientId={selectedPatientId} onOpenPrescription={openTask} onBackToPrescription={selectedTaskId ? returnToSelectedPrescription : undefined} />,
     training: <NurseStationPage role={role} />,

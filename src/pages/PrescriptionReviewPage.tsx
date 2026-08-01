@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   Activity,
   ArrowLeft,
+  ArrowRight,
   BadgeCheck,
   Bot,
   Check,
@@ -17,23 +18,25 @@ import {
 import type { PrescriptionTask } from "../prescriptionData";
 import { prescriptionStatusLabels } from "../prescriptionData";
 import { Notice, SectionHeader, StatusBadge } from "../components/UI";
-import { clinicalSnapshotChen, getPrescriptionVersionDetail, minimalSafetyEvents } from "../clinicalSharedData";
+import { clinicalSnapshotChen, getPrescriptionVersionDetail, minimalSafetyEvents, patientMasterChen } from "../clinicalSharedData";
+import { formatDate, formatDateTime, formatSignedDateTime } from "../utils/dateTime";
 
 export function PrescriptionReviewPage({
   task,
   onBack,
   onConfirm,
+  onGenerate,
   onOpenPatient
 }: {
   task: PrescriptionTask;
   onBack: () => void;
   onConfirm: (taskId: string) => void;
+  onGenerate: (taskId: string) => void;
   onOpenPatient: (patientId: string) => void;
 }) {
   const readonly = task.status === "completed";
   const [height, setHeight] = useState("162");
   const [contact, setContact] = useState("138****2688");
-  const [identityNo, setIdentityNo] = useState("3702************26");
   const [rehabGoals, setRehabGoals] = useState(["改善症状", "提高体能", "改善心功能", "预防支架内再狭窄"]);
   const [breathingModes, setBreathingModes] = useState(["腹式呼吸练习"]);
   const [breathingIntensity, setBreathingIntensity] = useState("吸气时鼓起肚子，呼气时缩紧肚子，呼气/吸气时间比≥3:1");
@@ -64,7 +67,6 @@ export function PrescriptionReviewPage({
   const prescriptionDocument = {
     height,
     contact,
-    identityNo,
     rehabGoal: rehabGoals.join("、"),
     breathingMode: breathingModes.join("、"),
     breathingIntensity,
@@ -131,15 +133,20 @@ export function PrescriptionReviewPage({
         </div>
       </header>
 
+      <AiPrescriptionWorkspace task={task} previousVersion={previousVersion} readonly={readonly} onGenerate={() => {
+        if (task.aiDraft && !window.confirm("重新生成将替换当前 AI 建议，但不会覆盖医生已编辑的处方字段。是否继续？")) return;
+        onGenerate(task.id);
+      }} />
+
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <section id="printable-prescription" className="card prescription-editor-card overflow-hidden">
-          <div className="print-only"><h1>心脏康复中心运动处方</h1><p>处方编号：{task.id}　患者编码：{task.patientId}　患者：{task.patientName}　性别：{task.sex}　年龄：{task.age}岁　BMI：{clinicalSnapshotChen.bmi}</p><p>处方依据：{task.sourceLabel}</p></div>
+          <div className="print-only"><h1>心脏康复中心运动处方</h1><p>处方号：{task.prescriptionNo}　版本：{task.versionNo}　患者号：{task.patientNo}　患者：{task.patientName}　性别：{task.sex}　年龄：{task.age}岁　BMI：{clinicalSnapshotChen.bmi}</p><p>处方依据：{task.sourceLabel}</p></div>
           <div className="border-b border-slate-100 bg-white px-5 py-5">
-            <SectionHeader title="心脏康复中心运动处方" description={readonly ? "该处方已完成签署，当前为只读状态。" : "请按临床判断逐项核对并完善处方内容。"} action={<span className="hidden text-[10px] text-slate-400 sm:inline">处方编号 {task.id}</span>} />
+            <SectionHeader title="心脏康复中心运动处方" description={readonly ? "该处方已完成签署，当前为只读状态。" : "请按临床判断逐项核对并完善处方内容。"} action={<span className="hidden text-[10px] text-slate-400 sm:inline">处方号 {task.prescriptionNo}</span>} />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <PrescriptionField label="身高（cm）" value={height} setValue={setHeight} disabled={readonly} />
               <PrescriptionField label="联系方式" value={contact} setValue={setContact} disabled={readonly} />
-              <PrescriptionField label="身份证号" value={identityNo} setValue={setIdentityNo} disabled={readonly} />
+              <div><span className="field-label">身份核验信息（只读）</span><div className="text-field flex items-center bg-slate-50 text-slate-500">{patientMasterChen.idNumber}</div></div>
             </div>
           </div>
 
@@ -174,11 +181,20 @@ export function PrescriptionReviewPage({
           <section className="card overflow-hidden">
             <div className="border-b border-slate-100 px-4 py-4">
               <SectionHeader title="患者临床摘要" description="签署前请核对关键信息" action={<HeartPulse className="h-4 w-4 text-blue-600" />} />
-              <button type="button" onClick={() => onOpenPatient(task.patientId)} className="btn-secondary w-full"><Search className="h-4 w-4" />查看完整患者档案</button>
+              <button
+                type="button"
+                onClick={() => onOpenPatient(task.patientId)}
+                className="mt-1 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-sm font-bold text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 hover:text-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 active:translate-y-px"
+              >
+                <Search className="h-5 w-5" />
+                查看完整患者档案
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
             <div className="space-y-2 p-4">
               <Evidence label="患者" value={`${task.patientName} · ${task.sex} · ${task.age}岁`} />
-              <Evidence label="患者编码" value={task.patientId} />
+              <Evidence label="患者号" value={task.patientNo} />
+              <Evidence label="处方号 / 版本" value={`${task.prescriptionNo} / ${task.versionNo}`} />
               <Evidence label="危险分组" value={task.risk} warning={task.risk === "高危"} />
               <Evidence label="病史" value={clinicalSnapshotChen.medicalHistory} stacked />
               <Evidence label="诊断" value={clinicalSnapshotChen.diagnosis} stacked />
@@ -191,7 +207,7 @@ export function PrescriptionReviewPage({
           <section className="card overflow-hidden">
             <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><span className="rounded-lg bg-blue-600 p-2 text-white"><Bot className="h-4 w-4" /></span><div><p className="text-sm font-bold text-slate-900">AI 复核建议</p><p className="mt-0.5 text-[10px] text-slate-500">辅助信息，不替代医生判断</p></div></div>
+                <div className="flex items-center gap-2"><span className="rounded-lg bg-blue-600 p-2 text-white"><Bot className="h-4 w-4" /></span><div><p className="text-sm font-bold text-slate-900">临床风险复核</p><p className="mt-0.5 text-[10px] text-slate-500">与顶部 AI 草稿工作区联动</p></div></div>
                 <Sparkles className="h-4 w-4 text-blue-500" />
               </div>
             </div>
@@ -215,6 +231,62 @@ export function PrescriptionReviewPage({
   );
 }
 
+function AiPrescriptionWorkspace({
+  task,
+  previousVersion,
+  readonly,
+  onGenerate
+}: {
+  task: PrescriptionTask;
+  previousVersion: ReturnType<typeof getPrescriptionVersionDetail>;
+  readonly: boolean;
+  onGenerate: () => void;
+}) {
+  const draft = task.aiDraft;
+  return (
+    <section className="mt-4 overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-900 text-white shadow-lg shadow-blue-100" data-testid="region-AI-PRESCRIPTION-WORKSPACE">
+      <div className="flex flex-wrap items-start justify-between gap-4 p-5">
+        <div className="flex max-w-2xl items-start gap-3">
+          <span className="rounded-xl bg-white/15 p-3 ring-1 ring-white/20"><Sparkles className="h-5 w-5 text-blue-100" /></span>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-bold">AI 处方草稿工作区</h2>
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold text-blue-100">{draft ? "草稿已生成" : "等待生成"}</span>
+              {draft?.missingData.length ? <span className="rounded-full bg-amber-400/20 px-2.5 py-1 text-[10px] font-bold text-amber-100">存在阻断项</span> : null}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-blue-100/80">AI 只生成可编辑草稿，不自动发布、不自动签名，也不会覆盖医生已填写的字段。最终内容必须由医生复核确认。</p>
+          </div>
+        </div>
+        {!readonly && <button type="button" onClick={onGenerate} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-50"><Sparkles className="h-4 w-4" />{draft ? "重新生成 AI 草稿" : "生成 AI 处方草稿"}</button>}
+      </div>
+
+      {draft ? (
+        <div className="grid gap-px border-t border-white/10 bg-white/10 lg:grid-cols-[0.9fr_1.4fr]">
+          <div className="bg-blue-950/70 p-5">
+            <p className="text-xs font-bold text-blue-100">生成依据快照</p>
+            <div className="mt-3 space-y-2">{draft.evidenceSnapshot.map((item) => <div key={item} className="flex items-start gap-2 text-xs leading-5 text-blue-50"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300" />{item}</div>)}</div>
+            {draft.missingData.length > 0 && <div className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-xs leading-5 text-amber-100"><b>关键数据待补：</b>{draft.missingData.join("、")}。当前草稿不提供强度上调结论，补齐前不可签署。</div>}
+            <p className="mt-4 text-[10px] text-blue-200/60">生成时间：{formatDateTime(draft.generatedAt)} · {draft.modelVersion} · {draft.promptVersion}</p>
+          </div>
+          <div className="bg-white p-5 text-slate-800">
+            <div className="mb-3 flex items-center justify-between"><div><p className="text-sm font-bold">上一版—AI 建议—医生最终值</p><p className="mt-1 text-[10px] text-slate-500">医生最终值来自下方处方编辑区，保存和签署前仍可调整。</p></div><StatusBadge tone="blue">待医生确认</StatusBadge></div>
+            <div className="overflow-hidden rounded-xl border border-slate-100 text-xs">
+              <div className="grid grid-cols-[0.75fr_1fr_1fr_1fr] bg-slate-50 px-3 py-2 text-[10px] font-bold text-slate-400"><span>参数</span><span>上一版</span><span>AI 建议</span><span>医生最终值</span></div>
+              {[
+                ["靶心率", `${previousVersion.targetHr.join("–")} bpm`, draft.proposedContent.targetHeartRate, "下方处方为准"],
+                ["目标功率", `${previousVersion.targetPower.join("–")} W`, draft.proposedContent.targetPower, "下方处方为准"],
+                ["频率", `每周 ${previousVersion.weeklyFrequency} 次`, draft.proposedContent.frequency, "下方处方为准"],
+                ["时长", `${previousVersion.trainingMinutes} 分钟/次`, draft.proposedContent.duration, "下方处方为准"]
+              ].map((row) => <div key={row[0]} className="grid grid-cols-[0.75fr_1fr_1fr_1fr] border-t border-slate-100 px-3 py-2.5"><b>{row[0]}</b><span className="text-slate-500">{row[1]}</span><span className="font-bold text-blue-700">{row[2]}</span><span className="text-slate-600">{row[3]}</span></div>)}
+            </div>
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800"><b>临床建议：</b>{draft.proposedContent.clinicalAdvice}</p>
+          </div>
+        </div>
+      ) : <div className="border-t border-white/10 bg-blue-950/50 px-5 py-4 text-xs text-blue-100">尚未生成草稿。系统将先检查风险分层、评估资料、用药、上一版处方及安全事件，再提供结构化建议。</div>}
+    </section>
+  );
+}
+
 function Evidence({ label, value, warning = false, stacked = false }: { label: string; value: string; warning?: boolean; stacked?: boolean }) {
   return <div className={`${stacked ? "block" : "flex items-center justify-between gap-3"} rounded-xl border px-3 py-2.5 ${warning ? "border-amber-200 bg-amber-50" : "border-slate-100 bg-slate-50"}`}><span className="text-[10px] text-slate-500">{label}</span><b className={`${stacked ? "mt-1 block text-xs leading-5" : "text-right text-xs"} ${warning ? "text-amber-800" : "text-slate-800"}`}>{value}</b></div>;
 }
@@ -230,7 +302,6 @@ function AdviceField({ label, value, setValue, disabled }: { label: string; valu
 type PrescriptionDocument = {
   height: string;
   contact: string;
-  identityNo: string;
   rehabGoal: string;
   breathingMode: string;
   breathingIntensity: string;
@@ -286,7 +357,7 @@ function FinalPrescriptionPrintContent({ task, document, signed }: { task: Presc
   return (
     <div className="print-only">
       <h2>处方内容</h2>
-      <p>患者编码：{task.patientId}　姓名：{task.patientName}　性别：{task.sex}　年龄：{task.age}　身高：{document.height}cm　体重：{clinicalSnapshotChen.weightKg}kg　BMI：{clinicalSnapshotChen.bmi}　联系方式：{document.contact}　身份证号：{document.identityNo}</p>
+      <p>处方号：{task.prescriptionNo}　版本：{task.versionNo}　患者号：{task.patientNo}　姓名：{task.patientName}　性别：{task.sex}　年龄：{task.age}　身高：{document.height}cm　体重：{clinicalSnapshotChen.weightKg}kg　BMI：{clinicalSnapshotChen.bmi}　联系方式：{document.contact}</p>
       <p>康复目标：{document.rehabGoal}</p>
       <p>呼吸训练：{document.breathingMode}；{document.breathingIntensity}；{document.breathingFrequency}；{document.breathingTime}</p>
       <p>热身运动：{document.warmupMode}；{document.warmupFrequency}；{document.warmupTime}</p>
@@ -294,7 +365,7 @@ function FinalPrescriptionPrintContent({ task, document, signed }: { task: Presc
       <p>抗阻训练：{document.resistanceMode}；{document.resistanceIntensity}；{document.resistanceFrequency}；{document.resistanceTime}</p>
       <p>柔韧性训练：{document.flexibilityMode}；{document.flexibilityIntensity}；{document.flexibilityFrequency}；{document.flexibilityTime}</p>
       <p>备注：{document.remark}</p>
-      <div className="prescription-sign-line"><span>制定者：{task.signedBy ?? task.confirmedBy ?? "王医生"}</span><span>数字签名：{signed ? "已签名（CA验证有效）" : "未签名"}</span><span className="signature-script">王医生</span><span>制定日期：2026.07.29</span></div>
+      <div className="prescription-sign-line"><span>制定者：{task.signedBy ?? task.confirmedBy ?? "王医生"}</span><span>数字签名：{signed ? "已签名（CA验证有效）" : "未签名"}</span><span className="signature-script">王医生</span><span>签署时间：{formatSignedDateTime(task.signedAt)}</span></div>
     </div>
   );
 }
@@ -311,8 +382,9 @@ function FinalPrescriptionPage({ task, document, signed, onClose, onPrint }: { t
           <div id="formal-prescription-page" className="mx-auto min-h-[820px] max-w-3xl bg-white p-8 text-xs leading-6 text-slate-800 shadow-sm">
             <h1 className="text-center text-2xl font-bold text-slate-950">心脏康复中心运动处方</h1>
             <div className="mt-5 grid grid-cols-4 gap-x-4 gap-y-2 border-y border-slate-300 py-3">
-              <span>患者编码：{task.patientId}</span><span>姓名：{task.patientName}</span><span>性别：{task.sex}</span><span>年龄：{task.age}</span>
-              <span>身高：{document.height}cm</span><span>体重：{clinicalSnapshotChen.weightKg}kg</span><span>BMI：{clinicalSnapshotChen.bmi}</span><span>联系方式：{document.contact}</span><span className="col-span-2">身份证号：{document.identityNo}</span>
+              <span className="col-span-2">处方号：{task.prescriptionNo}</span><span>版本：{task.versionNo}</span><span>患者号：{task.patientNo}</span>
+              <span>姓名：{task.patientName}</span><span>性别：{task.sex}</span><span>年龄：{task.age}</span><span>身高：{document.height}cm</span>
+              <span>体重：{clinicalSnapshotChen.weightKg}kg</span><span>BMI：{clinicalSnapshotChen.bmi}</span><span className="col-span-2">联系方式：{document.contact}</span>
             </div>
             <PrescriptionLine title="康复目标" value={document.rehabGoal} />
             <PrescriptionLine title="呼吸训练" value={`${document.breathingMode}；${document.breathingIntensity}；${document.breathingFrequency}；${document.breathingTime}`} />
@@ -325,7 +397,7 @@ function FinalPrescriptionPage({ task, document, signed, onClose, onPrint }: { t
               <span>制定者：{task.signedBy ?? task.confirmedBy ?? "王医生"}</span>
               <span>数字签名：{signed ? "已签名（CA验证有效）" : "未签名"}</span>
               <span className="signature-script text-3xl font-bold text-slate-950">王医生</span>
-              <span>制定日期：2026.07.29</span>
+              <span>签署时间：{task.signedAt ? formatDate(task.signedAt) : "待签署"}</span>
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { ArrowRight, ClipboardList, LockKeyhole, PencilLine, Printer, RotateCcw,
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { PrescriptionListStatusFilter, PrescriptionTask } from "../prescriptionData";
 import { prescriptionStatusLabels, sourceTypeLabels } from "../prescriptionData";
+import { formatDateTime } from "../utils/dateTime";
 
 type PrescriptionFilters = {
   patientId: string;
@@ -34,8 +35,8 @@ export function PrescriptionManagementPage({
   const filteredTasks = useMemo(() => tasks.filter((task) => {
     const patientId = appliedFilters.patientId.trim().toLowerCase();
     const prescriptionId = appliedFilters.prescriptionId.trim().toLowerCase();
-    const matchesPatientId = !patientId || task.patientId.toLowerCase().includes(patientId);
-    const matchesPrescriptionId = !prescriptionId || task.id.toLowerCase().includes(prescriptionId);
+    const matchesPatientId = !patientId || task.patientNo.toLowerCase().includes(patientId);
+    const matchesPrescriptionId = !prescriptionId || task.prescriptionNo.toLowerCase().includes(prescriptionId);
     const matchesDoctor = !appliedFilters.assignedDoctor || task.assignedDoctor === appliedFilters.assignedDoctor;
     const matchesStatus = appliedFilters.status === "all"
       || (appliedFilters.status === "unfinished" ? task.status !== "completed" : task.status === appliedFilters.status);
@@ -60,11 +61,11 @@ export function PrescriptionManagementPage({
           <SectionHeader title="全部处方任务" description="未完成与已完成处方放在同一张工作表里，通过状态筛选切换；已完成版本只读。" />
         </div>
         <form onSubmit={(event) => { event.preventDefault(); setAppliedFilters(draftFilters); }} className="grid grid-cols-1 gap-3 border-y border-slate-100 bg-slate-50 px-5 py-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_0.9fr_0.9fr_auto] xl:items-end">
-          <FilterField label="患者编码">
-            <input value={draftFilters.patientId} onChange={(event) => updateDraft("patientId", event.target.value)} placeholder="例如 P-DEMO-001" className="text-field" />
+          <FilterField label="患者号">
+            <input value={draftFilters.patientId} onChange={(event) => updateDraft("patientId", event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="例如 000001" className="text-field" />
           </FilterField>
-          <FilterField label="处方编码">
-            <input value={draftFilters.prescriptionId} onChange={(event) => updateDraft("prescriptionId", event.target.value)} placeholder="例如 RX-TASK-001" className="text-field" />
+          <FilterField label="处方号">
+            <input value={draftFilters.prescriptionId} onChange={(event) => updateDraft("prescriptionId", event.target.value)} placeholder="例如 CRH-RX-20260729-0001" className="text-field" />
           </FilterField>
           <FilterField label="所属医生">
             <select value={draftFilters.assignedDoctor} onChange={(event) => updateDraft("assignedDoctor", event.target.value)} className="text-field">
@@ -103,28 +104,30 @@ function FilterField({ label, children }: { label: string; children: React.React
 
 function PrescriptionTable({ tasks, onOpen, onGenerate }: { tasks: PrescriptionTask[]; onOpen: (id: string) => void; onGenerate: (id: string) => void }) {
   return (
-    <>
-      <div className="grid grid-cols-[0.3fr_0.62fr_0.72fr_0.72fr_0.46fr_0.5fr_0.65fr_0.62fr_0.66fr_0.82fr] bg-white px-5 py-2.5 text-[10px] font-bold text-slate-400">
-        <span>序号</span><span>患者姓名</span><span>患者编码</span><span>阶段</span><span>分组</span><span>类型</span><span>依据</span><span>所属医生</span><span>状态</span><span>操作</span>
+    <div className="overflow-x-auto">
+      <div className="grid min-w-[1300px] grid-cols-[0.58fr_0.68fr_0.9fr_0.48fr_0.58fr_0.44fr_0.46fr_0.58fr_0.78fr_0.58fr_0.6fr_0.95fr] bg-white px-5 py-2.5 text-[10px] font-bold text-slate-400">
+        <span>患者姓名</span><span>患者号</span><span>处方号</span><span>版本</span><span>阶段</span><span>分组</span><span>类型</span><span>依据</span><span>生成时间</span><span>所属医生</span><span>状态</span><span>操作</span>
       </div>
-      {tasks.map((task, index) => (
-        <button type="button" key={task.id} onClick={() => task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id)} className="grid w-full grid-cols-[0.3fr_0.62fr_0.72fr_0.72fr_0.46fr_0.5fr_0.65fr_0.62fr_0.66fr_0.82fr] items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50">
-          <span className="font-mono text-slate-400">{String(index + 1).padStart(2, "0")}</span>
+      {tasks.map((task) => (
+        <button type="button" key={task.id} onClick={() => task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id)} className="grid min-w-[1300px] w-full grid-cols-[0.58fr_0.68fr_0.9fr_0.48fr_0.58fr_0.44fr_0.46fr_0.58fr_0.78fr_0.58fr_0.6fr_0.95fr] items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50">
           <span className="font-bold text-slate-900">{task.patientName}</span>
-          <span className="font-mono text-[10px] text-slate-500">{task.patientId}</span>
+          <span className="font-mono text-[10px] text-slate-500">{task.patientNo}</span>
+          <span className="font-mono text-[10px] text-slate-500">{task.prescriptionNo}</span>
+          <span className="font-bold text-slate-700">{task.versionNo}</span>
           <span className="text-slate-600">{task.stage}</span>
           <StatusBadge tone={task.risk === "高危" ? "red" : task.risk === "中危" ? "orange" : "green"}>{task.risk}</StatusBadge>
           <span className="text-slate-600">{task.kind === "initial" ? "初始" : "调整"}</span>
           <span className="text-slate-600">{sourceTypeLabels[task.sourceType]}</span>
+          <span className="text-[10px] text-slate-500">{formatDateTime(task.createdAt)}</span>
           <span className="font-semibold text-slate-700">{task.assignedDoctor}</span>
           <StatusBadge tone={task.status === "completed" ? "green" : task.status === "pending_generation" ? "blue" : "orange"}>{prescriptionStatusLabels[task.status]}</StatusBadge>
           <span className="flex items-center gap-1 font-bold text-blue-700">
-            {task.status === "completed" ? <><LockKeyhole className="h-3.5 w-3.5" />查看/打印<Printer className="h-3.5 w-3.5" /></> : task.status === "pending_generation" ? <><Sparkles className="h-3.5 w-3.5" />生成草稿</> : <><PencilLine className="h-3.5 w-3.5" />编辑审核</>}
+            {task.status === "completed" ? <><LockKeyhole className="h-3.5 w-3.5" />查看/打印<Printer className="h-3.5 w-3.5" /></> : task.status === "pending_generation" ? <><Sparkles className="h-3.5 w-3.5" />AI 生成处方草稿</> : <><PencilLine className="h-3.5 w-3.5" />编辑审核</>}
             <ArrowRight className="h-3.5 w-3.5" />
           </span>
         </button>
       ))}
       {tasks.length === 0 && <div className="px-5 py-12 text-center text-xs text-slate-400">当前筛选条件下暂无处方。</div>}
-    </>
+    </div>
   );
 }

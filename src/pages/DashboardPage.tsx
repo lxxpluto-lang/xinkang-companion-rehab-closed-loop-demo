@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { Activity, AlertTriangle, ArrowLeft, BadgeCheck, BarChart3, CalendarClock, CheckCircle2, ClipboardList, FileText, MonitorUp, PenTool, PhoneCall, Printer, RefreshCw, Signature, Sparkles, TrendingUp, UserCheck, UsersRound } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, BarChart3, CalendarClock, CheckCircle2, ClipboardList, FileText, MonitorUp, PenTool, PhoneCall, Printer, RefreshCw, Signature, Sparkles, TrendingUp, UserCheck, UsersRound } from "lucide-react";
 import { doctorAppointments, prescriptionStatusLabels, type DoctorAppointment, type PrescriptionListStatusFilter, type PrescriptionTask } from "../prescriptionData";
 import { PageHeader, SectionHeader, StatCard, StatusBadge } from "../components/UI";
 import type { Role } from "../types";
+import { roleMeta } from "../accessControl";
 import { clinicalSnapshotChen, getPrescriptionVersionDetail, getSingleTrainingReportDetail, minimalSafetyEvents } from "../clinicalSharedData";
 import { stageReportData } from "../patient/stageReportData";
+import { formatDateTime, formatSignedDateTime, formatTime } from "../utils/dateTime";
 
 export function DashboardPage({
   role,
@@ -23,7 +25,11 @@ export function DashboardPage({
   onConfirm: (taskId: string) => void;
   onSign: (taskId: string) => void;
 }) {
-  const pendingPrescriptionTasks = tasks.filter((task) => task.status !== "completed");
+  const allPendingPrescriptionTasks = tasks.filter((task) => task.status !== "completed");
+  const currentAccount = roleMeta[role].account;
+  const pendingPrescriptionTasks = role === "DOCTOR"
+    ? allPendingPrescriptionTasks.filter((task) => task.assignedDoctor === currentAccount)
+    : allPendingPrescriptionTasks;
   if (role === "REHAB_EXECUTION") {
     return (
       <section data-testid="page-VIEW-DASHBOARD">
@@ -64,33 +70,51 @@ export function DashboardPage({
   const trend = [34, 46, 42, 58, 54, 73, 66];
   return (
     <section data-testid="page-VIEW-DASHBOARD">
-      <PageHeader
-        eyebrow={role === "ADMIN" ? "AI 运动康复管理系统 · 管理员视图" : "AI 运动康复管理系统 · 医生工作台"}
-        title={role === "ADMIN" ? "林管理员，上午好" : "王医生，上午好"}
-        description={role === "ADMIN" ? "汇总全院康复闭环运行情况，并保留处方签署、异常复核等高风险操作入口。" : "以数据概览、趋势提醒和处方任务为主，帮助医生先处理需要临床判断的事项。"}
+      {role === "ADMIN" && <PageHeader
+        eyebrow="AI 运动康复管理系统 · 管理员视图"
+        title="林管理员，上午好"
+        description="汇总全院康复闭环运行情况，并保留处方签署、异常复核等高风险操作入口。"
         action={<button type="button" className="btn-secondary"><RefreshCw className="h-4 w-4" />刷新</button>}
-      />
+      />}
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <OverviewMetric icon={<UsersRound className="h-5 w-5" />} label="总患者数" value="168" note="本月新增 12" />
         <OverviewMetric icon={<ClipboardList className="h-5 w-5" />} label="总运动处方量" value="42" note="当前执行" />
+        <OverviewMetric icon={<Sparkles className="h-5 w-5" />} label="待开具处方数" value={String(pendingPrescriptionTasks.length)} note="点击进入 · AI 生成草稿" tone="orange" emphasized completed={pendingPrescriptionTasks.length === 0} onClick={() => onOpenPrescriptionList("unfinished")} />
         <OverviewMetric icon={<TrendingUp className="h-5 w-5" />} label="平均训练完成率" value="83%" note="本月平均" tone="green" />
         <OverviewMetric icon={<AlertTriangle className="h-5 w-5" />} label="训练异常记录数" value="5" note="等待处理" tone="red" />
-        <OverviewMetric icon={<PenTool className="h-5 w-5" />} label="待开具处方数" value={String(pendingPrescriptionTasks.length)} note="点击查看未完成处方" tone="orange" onClick={() => onOpenPrescriptionList("unfinished")} />
       </div>
 
-      <div className="mb-5 grid grid-cols-[1.08fr_0.92fr] gap-5">
-        <TrendCard values={trend} />
-        <RankingCard items={taskRankings} />
-      </div>
-
-      <div className="mb-5 grid grid-cols-[1.1fr_0.9fr] gap-5">
-        <ReminderCard items={reminders} />
-        <TodayAppointmentCard appointments={doctorAppointments} onOpen={(taskId) => {
-          const task = tasks.find((item) => item.id === taskId);
-          if (!task) return;
-          task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id);
-        }} />
-      </div>
+      {role === "DOCTOR" ? (
+        <>
+          <div className="mb-4 grid items-stretch gap-4 lg:grid-cols-[0.9fr_0.9fr_1.2fr]">
+            <TodayAppointmentCard appointments={doctorAppointments} compact onOpen={(taskId) => {
+              const task = tasks.find((item) => item.id === taskId);
+              if (!task) return;
+              task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id);
+            }} />
+            <RankingCard items={taskRankings} compact />
+            <TrendCard values={trend} compact />
+          </div>
+          <div>
+            <PendingReviewPrescriptionCard tasks={pendingPrescriptionTasks} onViewAll={() => onOpenPrescriptionList("pending_review")} onOpen={onOpen} />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="mb-5 grid grid-cols-[1.08fr_0.92fr] gap-5">
+            <TrendCard values={trend} />
+            <RankingCard items={taskRankings} />
+          </div>
+          <div className="mb-5 grid grid-cols-[1.1fr_0.9fr] gap-5">
+            <ReminderCard items={reminders} />
+            <TodayAppointmentCard appointments={doctorAppointments} onOpen={(taskId) => {
+              const task = tasks.find((item) => item.id === taskId);
+              if (!task) return;
+              task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id);
+            }} />
+          </div>
+        </>
+      )}
 
     </section>
   );
@@ -135,12 +159,12 @@ function AppointmentDetail({
 
   return (
     <section data-testid="page-VIEW-APPOINTMENT-DETAIL">
-      <PageHeader eyebrow="预约患者处方闭环" title={`${appointment.patientName} · ${appointment.time} 预约`} description="从预约进入报告依据，右侧生成AI运动参数草稿，医生确认后签名并打印最终报告。" action={<button type="button" className="btn-secondary" onClick={onBack}><ArrowLeft className="h-4 w-4" />返回今日预约</button>} />
+      <PageHeader eyebrow="预约患者处方闭环" title={`${appointment.patientName} · ${formatTime(appointment.scheduledStartAt)} 预约`} description="从预约进入报告依据，右侧生成AI运动参数草稿，医生确认后签名并打印最终报告。" action={<button type="button" className="btn-secondary" onClick={onBack}><ArrowLeft className="h-4 w-4" />返回今日预约</button>} />
       <div className="grid grid-cols-[0.7fr_1.05fr_0.85fr] gap-5">
         <section className="card p-5">
           <SectionHeader title="患者与报告入口" description={appointment.purpose} />
           <div className="grid grid-cols-2 gap-3">
-            {[["姓名", appointment.patientName], ["编号", appointment.patientId], ["阶段", appointment.stage], ["风险", appointment.risk]].map(([label, value]) => <InfoTile key={label} label={label} value={value} />)}
+            {[["姓名", appointment.patientName], ["患者号", appointment.patientNo], ["阶段", appointment.stage], ["风险", appointment.risk]].map(([label, value]) => <InfoTile key={label} label={label} value={value} />)}
           </div>
           <div className="mt-5 flex rounded-lg bg-slate-100 p-1">
             <button type="button" onClick={() => setReportType("stage")} disabled={!appointment.stageReportIds.length} className={`flex-1 rounded-md px-3 py-2 text-xs font-bold disabled:text-slate-300 ${reportType === "stage" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>阶段性报告</button>
@@ -189,13 +213,13 @@ function AppointmentDetail({
           <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">上一版：{previousVersion.version} · {previousVersion.targetPower.join("–")}W · {previousVersion.targetHr.join("–")} bpm。AI建议仅为草稿，医生确认后才能签名。</div>
           {task.missingFields?.length && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">缺失关键数据：{task.missingFields.join("、")}。可保存草稿，禁止确认和签名。</div>}
           <div className="mt-5 flex flex-wrap gap-2">
-            {task.status === "pending_generation" && <button type="button" className="btn-primary" onClick={() => onGenerate(task.id)}><Sparkles className="h-4 w-4" />生成AI草稿</button>}
+            {task.status === "pending_generation" && <button type="button" className="btn-primary" onClick={() => onGenerate(task.id)}><Sparkles className="h-4 w-4" />生成 AI 处方草稿</button>}
             {task.status === "pending_review" && <button type="button" className="btn-primary" disabled={!canConfirm} onClick={() => onConfirm(task.id)}><PenTool className="h-4 w-4" />医生确认参数</button>}
             {task.status === "pending_signature" && <button type="button" className="btn-primary" onClick={() => onSign(task.id)}><Signature className="h-4 w-4" />数字签名</button>}
             {task.status === "completed" && <button type="button" className="btn-primary" onClick={printFinalReport}><Printer className="h-4 w-4" />打印最终报告</button>}
             <button type="button" className="btn-secondary" onClick={() => onOpen(task.id)}><BadgeCheck className="h-4 w-4" />进入完整复核页</button>
           </div>
-          {task.status === "completed" && <div className="print-only"><h1>心脏康复最终处方报告</h1><p>患者：{appointment.patientName}　处方编号：{task.id}　版本：{task.version}</p><p>报告依据：{task.sourceLabel}　签署人：{task.signedBy ?? task.confirmedBy ?? "待签署"}　签名时间：{task.signedAt}</p><p>处方参数：{exercise}，{frequency}，{times}，靶心率 {targetHr}，功率 {power}，RPE {rpe}</p><p>注意事项：{diet}</p></div>}
+          {task.status === "completed" && <div className="print-only"><h1>心脏康复最终处方报告</h1><p>患者：{appointment.patientName}　患者号：{task.patientNo}　处方号：{task.prescriptionNo}　版本：{task.versionNo}</p><p>报告依据：{task.sourceLabel}　签署人：{task.signedBy ?? task.confirmedBy ?? "待签署"}　签署时间：{formatSignedDateTime(task.signedAt)}</p><p>处方参数：{exercise}，{frequency}，{times}，靶心率 {targetHr}，功率 {power}，RPE {rpe}</p><p>注意事项：{diet}</p></div>}
         </section>
       </div>
     </section>
@@ -206,14 +230,27 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold text-slate-400">{label}</p><p className="mt-2 text-xs font-bold leading-5 text-slate-800">{value}</p></div>;
 }
 
-function OverviewMetric({ icon, label, value, note, tone = "blue", onClick }: { icon: React.ReactNode; label: string; value: string; note: string; tone?: "blue" | "orange" | "red" | "green"; onClick?: () => void }) {
+function OverviewMetric({ icon, label, value, note, tone = "blue", onClick, emphasized = false, completed = false }: { icon: React.ReactNode; label: string; value: string; note: string; tone?: "blue" | "orange" | "red" | "green"; onClick?: () => void; emphasized?: boolean; completed?: boolean }) {
   const classes = {
     blue: "bg-blue-50 text-blue-700",
     orange: "bg-amber-50 text-amber-700",
     red: "bg-red-50 text-red-700",
     green: "bg-emerald-50 text-emerald-700"
   };
-  const content = (
+  const content = emphasized ? (
+      <div className="flex items-center gap-3">
+        <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${completed ? "bg-emerald-100 text-emerald-700" : classes.orange}`}>{completed ? <CheckCircle2 className="h-5 w-5" /> : icon}</span>
+        <div className="min-w-0 flex-1">
+          <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-200 text-amber-900"}`}>{completed ? "已完成" : "待处理"}</span>
+          <p className={`mt-1 text-[10px] font-bold ${completed ? "text-emerald-700" : "text-amber-800"}`}>{label}</p>
+          <p className="mt-0.5 truncate text-[10px] text-slate-500">{completed ? "当前已处理完毕" : note}</p>
+        </div>
+        <div className="text-right">
+          <b className={`block text-3xl ${completed ? "text-emerald-800" : "text-amber-950"}`}>{value}</b>
+          <span className={`mt-1 inline-flex items-center gap-1 text-[10px] font-black ${completed ? "text-emerald-700" : "text-amber-800"}`}>点击处理<ArrowRight className="h-3 w-3" /></span>
+        </div>
+      </div>
+  ) : (
       <div className="flex items-center gap-3">
         <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${classes[tone]}`}>{icon}</span>
         <div className="min-w-0 flex-1">
@@ -223,40 +260,42 @@ function OverviewMetric({ icon, label, value, note, tone = "blue", onClick }: { 
         <b className="text-3xl text-slate-950">{value}</b>
       </div>
   );
-  const className = "w-full rounded-xl border border-slate-100 bg-white px-4 py-4 text-left shadow-sm";
+  const className = emphasized
+    ? `w-full rounded-xl border-2 px-4 py-3.5 text-left shadow-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-4 active:translate-y-px ${completed ? "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 focus-visible:ring-emerald-100" : "border-amber-300 bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-amber-100/80 hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-lg focus-visible:ring-amber-200"}`
+    : "w-full rounded-xl border border-slate-100 bg-white px-4 py-4 text-left shadow-sm";
   return onClick
-    ? <button type="button" onClick={onClick} className={`${className} cursor-pointer hover:border-amber-200 hover:bg-amber-50/40`} aria-label={`${label} ${value}，进入处方管理查看未完成处方`}>{content}</button>
+    ? <button type="button" onClick={onClick} className={`${className} cursor-pointer`} aria-label={`${label} ${value}，点击进入处方管理查看未完成处方`}>{content}</button>
     : <article className={className}>{content}</article>;
 }
 
-function TrendCard({ values }: { values: number[] }) {
+function TrendCard({ values, compact = false }: { values: number[]; compact?: boolean }) {
   const points = values.map((value, index) => `${20 + index * 72},${150 - value}`).join(" ");
   return (
-    <section className="card p-5">
+    <section className={`card ${compact ? "p-4" : "p-5"}`}>
       <SectionHeader title="本周康复闭环趋势" description="参考资料页的数据趋势结构，展示训练完成、报告回流和处方复核的综合变化。" action={<StatusBadge tone="blue"><BarChart3 className="h-3.5 w-3.5" />近 7 天</StatusBadge>} />
-      <div className="mt-2 h-44 rounded-xl border border-slate-100 bg-gradient-to-b from-slate-50 to-white p-4">
+      <div className={`${compact ? "mt-1 h-28 p-2" : "mt-2 h-44 p-4"} rounded-xl border border-slate-100 bg-gradient-to-b from-slate-50 to-white`}>
         <svg viewBox="0 0 480 170" className="h-full w-full" role="img" aria-label="本周康复闭环趋势折线图">
           {[30, 70, 110, 150].map((y) => <line key={y} x1="0" x2="480" y1={y} y2={y} stroke="#e2e8f0" strokeWidth="1" />)}
           <polyline points={points} fill="none" stroke="#0ea5e9" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
           {values.map((value, index) => <circle key={`${value}-${index}`} cx={20 + index * 72} cy={150 - value} r="5" fill="#0ea5e9" stroke="white" strokeWidth="3" />)}
         </svg>
       </div>
-      <div className="mt-3 grid grid-cols-7 text-center text-[10px] font-bold text-slate-400">{["周一", "周二", "周三", "周四", "周五", "周六", "今日"].map((day) => <span key={day}>{day}</span>)}</div>
+      <div className={`${compact ? "mt-1" : "mt-3"} grid grid-cols-7 text-center text-[10px] font-bold text-slate-400`}>{["周一", "周二", "周三", "周四", "周五", "周六", "今日"].map((day) => <span key={day}>{day}</span>)}</div>
     </section>
   );
 }
 
-function RankingCard({ items }: { items: readonly (readonly [string, number, string])[] }) {
+function RankingCard({ items, compact = false }: { items: readonly (readonly [string, number, string])[]; compact?: boolean }) {
   const max = Math.max(...items.map((item) => item[1]));
   return (
-    <section className="card p-5">
+    <section className={`card ${compact ? "p-4" : "p-5"}`}>
       <SectionHeader title="医生待办任务构成" description="用排行榜形式展示今日最需要医生注意的工作类型。" />
-      <div className="mt-6 flex h-44 items-end justify-center gap-10">
+      <div className={`${compact ? "mt-2 h-32 gap-7" : "mt-6 h-44 gap-10"} flex items-end justify-center`}>
         {items.map(([label, value, note], index) => (
-          <div key={label} className="flex w-24 flex-col items-center">
-            <span className="mb-2 text-sm font-bold text-slate-900">{value}</span>
-            <div className="w-16 rounded-t-xl bg-gradient-to-b from-sky-500 to-medical-700 shadow-sm" style={{ height: `${Math.max(42, (value / max) * 128)}px` }} />
-            <span className="mt-3 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500">NO.{index + 1}</span>
+          <div key={label} className={`flex ${compact ? "w-20" : "w-24"} flex-col items-center`}>
+            <span className={`${compact ? "mb-1 text-xs" : "mb-2 text-sm"} font-bold text-slate-900`}>{value}</span>
+            <div className={`${compact ? "w-12" : "w-16"} rounded-t-xl bg-gradient-to-b from-sky-500 to-medical-700 shadow-sm`} style={{ height: `${compact ? Math.max(26, (value / max) * 68) : Math.max(42, (value / max) * 128)}px` }} />
+            <span className={`${compact ? "mt-1 px-1.5 py-0.5" : "mt-3 px-2 py-1"} rounded-full bg-slate-100 text-[9px] font-bold text-slate-500`}>NO.{index + 1}</span>
             <b className="mt-1 text-xs text-slate-800">{label}</b>
             <span className="mt-0.5 text-[10px] text-slate-400">{note}</span>
           </div>
@@ -289,13 +328,57 @@ function ReminderCard({ items }: { items: readonly (readonly [string, string, st
   );
 }
 
-function TodayAppointmentCard({ appointments, onOpen }: { appointments: DoctorAppointment[]; onOpen: (taskId: string) => void }) {
+function PendingReviewPrescriptionCard({
+  tasks,
+  onViewAll,
+  onOpen
+}: {
+  tasks: PrescriptionTask[];
+  onViewAll: () => void;
+  onOpen: (taskId: string) => void;
+}) {
+  const riskPriority = { 高危: 0, 中危: 1, 低危: 2 };
+  const reviewTasks = tasks.filter((task) => task.status === "pending_review" || task.status === "pending_signature");
+  const visibleTasks = [...reviewTasks]
+    .sort((left, right) =>
+      riskPriority[left.risk] - riskPriority[right.risk]
+      || Number(Boolean(right.missingFields?.length)) - Number(Boolean(left.missingFields?.length))
+      || left.updatedAt.localeCompare(right.updatedAt))
+    .slice(0, 3);
+
+  return (
+    <section className="card overflow-hidden">
+      <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <SectionHeader title="待审核处方数" description="优先展示高风险、资料缺失及等待时间较长的处方。" />
+        <button type="button" onClick={onViewAll} className="shrink-0 text-xs font-bold text-medical-700">查看全部（{reviewTasks.length}）</button>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {visibleTasks.map((task) => {
+          const hasSafetyEvent = minimalSafetyEvents.some((event) => event.patientId === task.patientId);
+          return (
+            <button key={task.id} type="button" onClick={() => onOpen(task.id)} className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-blue-50">
+              <span className={`h-2 w-2 rounded-full ${task.risk === "高危" || hasSafetyEvent ? "bg-red-500" : task.missingFields?.length ? "bg-sky-500" : "bg-amber-500"}`} />
+              <span className="min-w-0">
+                <span className="flex flex-wrap items-center gap-2"><b className="text-sm text-slate-900">{task.patientName}</b><StatusBadge tone={task.risk === "高危" ? "red" : task.risk === "中危" ? "orange" : "green"}>{task.risk}</StatusBadge><StatusBadge tone={task.status === "pending_signature" ? "blue" : "orange"}>{prescriptionStatusLabels[task.status]}</StatusBadge>{!!task.missingFields?.length && <StatusBadge tone="red">资料待补</StatusBadge>}{hasSafetyEvent && <StatusBadge tone="red">训练异常</StatusBadge>}</span>
+                <span className="mt-1 block truncate text-xs text-slate-500">{task.stage} · {task.kind === "initial" ? "初始处方" : "调整处方"} · {task.sourceLabel}</span>
+              </span>
+              <span className="text-right"><span className="block font-mono text-[10px] text-slate-400">{formatTime(task.updatedAt)}</span><span className="mt-1 block text-[10px] font-bold text-medical-700">进入审核</span></span>
+            </button>
+          );
+        })}
+        {!visibleTasks.length && <div className="px-5 py-12 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" /><p className="mt-3 text-xs font-bold text-slate-700">当前没有待审处方</p></div>}
+      </div>
+    </section>
+  );
+}
+
+function TodayAppointmentCard({ appointments, onOpen, compact = false }: { appointments: DoctorAppointment[]; onOpen: (taskId: string) => void; compact?: boolean }) {
   const [showAll, setShowAll] = useState(false);
   const visibleAppointments = showAll ? appointments : appointments.slice(0, 3);
   const hasMore = appointments.length > 3;
   return (
     <section className="card overflow-hidden">
-      <div className="px-5 pt-5">
+      <div className={compact ? "px-4 pt-4" : "px-5 pt-5"}>
         <SectionHeader
           title="今日预约患者"
           description="按预约时间展示今日患者，点击可进入对应处方任务。"
@@ -306,13 +389,13 @@ function TodayAppointmentCard({ appointments, onOpen }: { appointments: DoctorAp
       </div>
       <div className="divide-y divide-slate-100">
         {visibleAppointments.map((appointment) => (
-          <button key={appointment.id} type="button" onClick={() => onOpen(appointment.linkedTaskId)} className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-4 text-left hover:bg-blue-50">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-medical-100 text-sm font-bold text-medical-700">{appointment.patientName.slice(0, 1)}</span>
+          <button key={appointment.id} type="button" onClick={() => onOpen(appointment.linkedTaskId)} className={`grid w-full grid-cols-[auto_1fr_auto] items-center text-left hover:bg-blue-50 ${compact ? "gap-2 px-4 py-2.5" : "gap-3 px-5 py-4"}`}>
+            <span className={`flex items-center justify-center rounded-full bg-medical-100 font-bold text-medical-700 ${compact ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm"}`}>{appointment.patientName.slice(0, 1)}</span>
             <span>
-              <span className="flex items-center gap-2"><b className="text-sm text-slate-900">{appointment.patientName}</b><StatusBadge tone={appointment.risk === "高危" ? "red" : appointment.risk === "中危" ? "orange" : "green"}>{appointment.risk}</StatusBadge></span>
-              <span className="mt-1 block text-xs text-slate-500">{appointment.stage} · {appointment.purpose}</span>
+              <span className="flex items-center gap-2"><b className={`${compact ? "text-xs" : "text-sm"} text-slate-900`}>{appointment.patientName}</b><StatusBadge tone={appointment.risk === "高危" ? "red" : appointment.risk === "中危" ? "orange" : "green"}>{appointment.risk}</StatusBadge></span>
+              <span className={`mt-1 block truncate text-slate-500 ${compact ? "max-w-48 text-[9px]" : "text-xs"}`}>{appointment.stage} · {appointment.purpose}</span>
             </span>
-            <span className="text-right"><span className="block text-[10px] font-bold text-slate-400">预约时间</span><span className="mt-1 block font-mono text-sm font-bold text-slate-700">{appointment.time}</span></span>
+            <span className="text-right"><span className="block text-[9px] font-bold text-slate-400">预约时间</span><span className={`mt-1 block font-mono font-bold text-slate-700 ${compact ? "text-xs" : "text-sm"}`}>{formatTime(appointment.scheduledStartAt)}</span></span>
           </button>
         ))}
       </div>

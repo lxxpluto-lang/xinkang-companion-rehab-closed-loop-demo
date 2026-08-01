@@ -26,6 +26,8 @@ export type PrescriptionClinicalAdvice = {
 
 export type PrescriptionVersionDetail = {
   id: PrescriptionVersionId;
+  prescriptionId: string;
+  prescriptionNo: string;
   version: string;
   issuedAt: string;
   physician: string;
@@ -74,14 +76,24 @@ export type EcgEvent = {
 
 export type SingleTrainingReportDetail = {
   id: string;
+  singleReportId: string;
+  singleReportNo: string;
+  trainingSessionId: string;
+  trainingRecordNo: string;
   taskId: string;
   patientId: string;
+  patientNo: string;
+  prescriptionId: string;
   prescriptionVersionId: PrescriptionVersionId;
   dataMode: ReportDataMode;
   dataSourceNote: string;
   sampleSeries?: TrainingSamplePoint[];
   ecgEvents?: EcgEvent[];
   dateTime: string;
+  actualStartAt: string;
+  actualEndAt: string;
+  deviceRecordedAt: string;
+  uploadedAt: string;
   exercise: string;
   trainingType: string;
   totalMinutes: number;
@@ -123,6 +135,7 @@ export const clinicalSnapshotChen: ClinicalSnapshot = {
 
 export const patientMasterChen = {
   patientId: clinicalSnapshotChen.patientId,
+  patientNo: "000001",
   name: clinicalSnapshotChen.name,
   idNumber: "3702********1531",
   phone: "138****6021",
@@ -141,11 +154,15 @@ export const patientMasterChen = {
 
 export type MinimalSafetyEvent = {
   id: string;
+  safetyEventId: string;
+  safetyEventNo: string;
   patientId: string;
   patientName: string;
   prescriptionVersionId: PrescriptionVersionId;
   sessionId: string;
   occurredAt: string;
+  recordedAt: string;
+  reviewedAt: string;
   source: string;
   type: string;
   metricSnapshot: string;
@@ -159,11 +176,15 @@ export type MinimalSafetyEvent = {
 export const minimalSafetyEvents: MinimalSafetyEvent[] = [
   {
     id: "SAFE-20260725-01",
+    safetyEventId: "01J61SE0000000000000000001",
+    safetyEventNo: "CRH-SE-20260725-0001",
     patientId: clinicalSnapshotChen.patientId,
     patientName: clinicalSnapshotChen.name,
     prescriptionVersionId: "V4",
     sessionId: "TR-20260725-012",
-    occurredAt: "2026-07-25 09:48",
+    occurredAt: "2026-07-25T09:48:00+08:00",
+    recordedAt: "2026-07-25T09:50:00+08:00",
+    reviewedAt: "2026-07-25T10:08:00+08:00",
     source: "患者主诉 + 背包心率提醒",
     type: "训练中胸闷主诉",
     metricSnapshot: "HR 113 bpm，SpO₂ 97%，功率 58W，RPE 13",
@@ -175,7 +196,9 @@ export const minimalSafetyEvents: MinimalSafetyEvent[] = [
   }
 ];
 
-export const prescriptionVersionDetails: PrescriptionVersionDetail[] = [
+type PrescriptionVersionSeed = Omit<PrescriptionVersionDetail, "prescriptionId" | "prescriptionNo">;
+
+const prescriptionVersionSeeds: PrescriptionVersionSeed[] = [
   {
     id: "V1",
     version: "V1.0",
@@ -282,7 +305,16 @@ export const prescriptionVersionDetails: PrescriptionVersionDetail[] = [
   }
 ];
 
-export const singleTrainingReportDetails: SingleTrainingReportDetail[] = [
+export const prescriptionVersionDetails: PrescriptionVersionDetail[] = prescriptionVersionSeeds.map((version, index) => ({
+  ...version,
+  prescriptionId: `01J60RX${String(index + 1).padStart(18, "0")}`,
+  prescriptionNo: `CRH-RX-${version.issuedAt.slice(0, 10).replace(/-/g, "")}-${String(index + 1).padStart(4, "0")}`,
+  issuedAt: `${version.issuedAt.replace(" ", "T")}:00+08:00`
+}));
+
+type SingleTrainingReportSeed = Omit<SingleTrainingReportDetail, "singleReportId" | "singleReportNo" | "trainingSessionId" | "trainingRecordNo" | "patientNo" | "prescriptionId" | "actualStartAt" | "actualEndAt" | "deviceRecordedAt" | "uploadedAt">;
+
+const singleTrainingReportSeeds: SingleTrainingReportSeed[] = [
   {
     id: "TR-20260725-012",
     taskId: "RX-TASK-001",
@@ -358,6 +390,26 @@ export const singleTrainingReportDetails: SingleTrainingReportDetail[] = [
     executionSummary: "训练完成度良好，未提前终止，可纳入阶段汇总。"
   }
 ];
+
+export const singleTrainingReportDetails: SingleTrainingReportDetail[] = singleTrainingReportSeeds.map((report, index) => {
+  const actualStartAt = `${report.dateTime.replace(" ", "T")}:00+08:00`;
+  const start = new Date(actualStartAt);
+  const actualEndAt = new Date(start.getTime() + report.totalMinutes * 60_000).toISOString();
+  return {
+    ...report,
+    singleReportId: `01J61SR${String(index + 1).padStart(18, "0")}`,
+    singleReportNo: `CRH-SR-${report.id.slice(3, 11)}-${report.id.split("-")[2].padStart(4, "0")}`,
+    trainingSessionId: `01J61TR${String(index + 1).padStart(18, "0")}`,
+    trainingRecordNo: `CRH-TR-${report.id.slice(3, 11)}-${report.id.split("-")[2].padStart(4, "0")}`,
+    patientNo: patientMasterChen.patientNo,
+    prescriptionId: "01J60RX0000000000000000004",
+    dateTime: actualStartAt,
+    actualStartAt,
+    actualEndAt,
+    deviceRecordedAt: actualEndAt,
+    uploadedAt: new Date(new Date(actualEndAt).getTime() + 2 * 60_000).toISOString()
+  };
+});
 
 export function getPrescriptionVersionDetail(versionId?: string) {
   return prescriptionVersionDetails.find((item) => item.id === versionId) ?? prescriptionVersionDetails[prescriptionVersionDetails.length - 1];
