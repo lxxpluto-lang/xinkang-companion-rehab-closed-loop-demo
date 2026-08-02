@@ -406,6 +406,13 @@ textarea:focus-visible {
   letter-spacing: 0.08em;
 }
 
+.prescription-hand-signature {
+  display: inline-block;
+  min-width: 128px;
+  transform: rotate(-2deg);
+  transform-origin: center;
+}
+
 @media print {
   body.printing-prescription * {
     visibility: hidden !important;
@@ -455,6 +462,12 @@ textarea:focus-visible {
     font-size: 28px;
     font-weight: 700;
   }
+
+  .prescription-hand-signature {
+    color: #172554 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }
 
 .clinical-table tbody tr {
@@ -468,6 +481,21 @@ textarea:focus-visible {
 @keyframes soft-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
+}
+
+@keyframes metric-value-pulse {
+  0% {
+    opacity: 0.72;
+    transform: translateY(1px) scale(0.97);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(0) scale(1.035);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes nurse-bike-float {
@@ -490,8 +518,14 @@ textarea:focus-visible {
   animation: soft-pulse 1.7s ease-in-out infinite;
 }
 
+.metric-value-pulse {
+  animation: metric-value-pulse 280ms ease-out;
+  transform-origin: left bottom;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .metric-live-dot {
+  .metric-live-dot,
+  .metric-value-pulse {
     animation: none;
   }
 }

@@ -7,10 +7,16 @@ import { roleMeta } from "../accessControl";
 import { clinicalSnapshotChen, getPrescriptionVersionDetail, getSingleTrainingReportDetail, minimalSafetyEvents } from "../clinicalSharedData";
 import { stageReportData } from "../patient/stageReportData";
 import { formatDateTime, formatSignedDateTime, formatTime } from "../utils/dateTime";
+import { daysUntil, effectiveFollowUpStatus, isFollowUpVisibleInPending, type FollowUpTask } from "../followUpData";
+import type { ManagedPatient } from "./PatientArchivePage";
+import type { FollowUpView } from "./FollowUpManagementPage";
 
 export function DashboardPage({
   role,
   tasks,
+  patients,
+  followUpTasks,
+  onOpenFollowUps,
   onOpenPrescriptionList,
   onOpen,
   onGenerate,
@@ -19,6 +25,9 @@ export function DashboardPage({
 }: {
   role: Exclude<Role, "PATIENT">;
   tasks: PrescriptionTask[];
+  patients: ManagedPatient[];
+  followUpTasks: FollowUpTask[];
+  onOpenFollowUps: (view?: FollowUpView, taskId?: string) => void;
   onOpenPrescriptionList: (status?: PrescriptionListStatusFilter) => void;
   onOpen: (taskId: string) => void;
   onGenerate: (taskId: string) => void;
@@ -30,6 +39,10 @@ export function DashboardPage({
   const pendingPrescriptionTasks = role === "DOCTOR"
     ? allPendingPrescriptionTasks.filter((task) => task.assignedDoctor === currentAccount)
     : allPendingPrescriptionTasks;
+  const accessibleTaskIds = new Set(tasks.map((task) => task.id));
+  const visibleAppointments = role === "DOCTOR"
+    ? doctorAppointments.filter((appointment) => accessibleTaskIds.has(appointment.linkedTaskId))
+    : doctorAppointments;
   if (role === "REHAB_EXECUTION") {
     return (
       <section data-testid="page-VIEW-DASHBOARD">
@@ -53,9 +66,9 @@ export function DashboardPage({
     );
   }
   const reviewCounts = {
-    single: doctorAppointments.reduce((total, item) => total + item.singleReportIds.length, 0),
-    stage: doctorAppointments.reduce((total, item) => total + item.stageReportIds.length, 0),
-    abnormal: doctorAppointments.filter((item) => item.reportReviewStatus === "异常优先").length
+    single: visibleAppointments.reduce((total, item) => total + item.singleReportIds.length, 0),
+    stage: visibleAppointments.reduce((total, item) => total + item.stageReportIds.length, 0),
+    abnormal: visibleAppointments.filter((item) => item.reportReviewStatus === "异常优先").length
   };
   const taskRankings = [
     ["处方待处理", pendingPrescriptionTasks.length, "医生决策"],
@@ -87,7 +100,7 @@ export function DashboardPage({
       {role === "DOCTOR" ? (
         <>
           <div className="mb-4 grid items-stretch gap-4 lg:grid-cols-[0.9fr_0.9fr_1.2fr]">
-            <TodayAppointmentCard appointments={doctorAppointments} compact onOpen={(taskId) => {
+            <TodayAppointmentCard appointments={visibleAppointments} compact onOpen={(taskId) => {
               const task = tasks.find((item) => item.id === taskId);
               if (!task) return;
               task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id);
@@ -95,7 +108,8 @@ export function DashboardPage({
             <RankingCard items={taskRankings} compact />
             <TrendCard values={trend} compact />
           </div>
-          <div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <FollowUpReminderCard patients={patients} tasks={followUpTasks} onViewAll={() => onOpenFollowUps("pending")} onOpen={(taskId) => onOpenFollowUps("pending", taskId)} />
             <PendingReviewPrescriptionCard tasks={pendingPrescriptionTasks} onViewAll={() => onOpenPrescriptionList("pending_review")} onOpen={onOpen} />
           </div>
         </>
@@ -326,6 +340,27 @@ function ReminderCard({ items }: { items: readonly (readonly [string, string, st
       </div>
     </section>
   );
+}
+
+function FollowUpReminderCard({ patients, tasks, onViewAll, onOpen }: { patients: ManagedPatient[]; tasks: FollowUpTask[]; onViewAll: () => void; onOpen: (taskId: string) => void }) {
+  const patientMap = new Map(patients.map((patient) => [patient.patient_demo_id, patient]));
+  const riskPriority: Record<string, number> = { 高危: 0, 中危: 1, 低危: 2, 待评估: 3 };
+  const actionableTasks = tasks.filter((task) => isFollowUpVisibleInPending(task));
+  const visibleTasks = [...actionableTasks].sort((left, right) => {
+    const statusOrder = { overdue: 0, due: 1, rescheduled: 2, upcoming: 3, completed: 4 };
+    const leftPatient = patientMap.get(left.patientId);
+    const rightPatient = patientMap.get(right.patientId);
+    return statusOrder[effectiveFollowUpStatus(left)] - statusOrder[effectiveFollowUpStatus(right)]
+      || riskPriority[leftPatient?.risk_level ?? "待评估"] - riskPriority[rightPatient?.risk_level ?? "待评估"]
+      || left.currentDueDate.localeCompare(right.currentDueDate);
+  }).slice(0, 3);
+  return <section className="card overflow-hidden"><div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4"><SectionHeader title="随访待办" description="提前7天提醒，逾期和高风险患者优先。" /><button type="button" onClick={onViewAll} className="shrink-0 text-xs font-bold text-medical-700">查看全部（{actionableTasks.length}）</button></div><div className="divide-y divide-slate-100">{visibleTasks.map((task) => {
+    const patient = patientMap.get(task.patientId);
+    if (!patient) return null;
+    const status = effectiveFollowUpStatus(task);
+    const distance = daysUntil(task.currentDueDate);
+    return <button key={task.id} type="button" onClick={() => onOpen(task.id)} className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-3 text-left hover:bg-blue-50"><span className={`flex h-9 w-9 items-center justify-center rounded-lg ${status === "overdue" ? "bg-red-50 text-red-600" : status === "due" ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"}`}><PhoneCall className="h-4 w-4" /></span><span className="min-w-0"><span className="flex items-center gap-2"><b className="text-xs text-slate-900">{patient.name}</b><StatusBadge tone={patient.risk_level === "高危" ? "red" : patient.risk_level === "中危" ? "orange" : "green"}>{patient.risk_level}</StatusBadge></span><span className="mt-1 block text-[10px] text-slate-500">出院后{task.milestoneMonth}个月 · 计划 {task.currentDueDate}</span></span><span className={`text-[10px] font-bold ${status === "overdue" ? "text-red-600" : "text-blue-700"}`}>{distance < 0 ? `逾期${Math.abs(distance)}天` : distance === 0 ? "今日沟通" : `${distance}天后`}</span></button>;
+  })}{!visibleTasks.length && <div className="px-5 py-12 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" /><p className="mt-3 text-xs font-bold text-slate-700">7天内没有随访待办</p></div>}</div></section>;
 }
 
 function PendingReviewPrescriptionCard({

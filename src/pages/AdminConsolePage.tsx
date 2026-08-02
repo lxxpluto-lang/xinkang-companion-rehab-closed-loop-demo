@@ -175,7 +175,8 @@ function PermissionSheet() {
             {[
               ["菜单范围", selectedRole === "ADMIN" ? "核心业务 + 4 个后台菜单" : "核心业务 + 授权后台菜单"],
               ["数据范围", roleMeta[selectedRole].scope === "ALL" ? "全部验证数据" : roleMeta[selectedRole].scope === "TEAM" ? "医疗团队" : "当前康复中心"],
-              ["患者档案", selectedRole === "REHAB_EXECUTION" ? "基础字段可维护" : "团队患者可维护"],
+              ["患者档案", selectedRole === "DOCTOR" ? "仅本人患者可查看、建档和维护" : selectedRole === "ADMIN" ? "全部患者只读查看" : "中心患者只读查看"],
+              ["随访管理", selectedRole === "DOCTOR" ? "仅本人患者可沟通、改期和完成" : selectedRole === "ADMIN" ? "全院随访只读查看" : "无随访管理入口"],
               ["视频资源", selectedRole === "ADMIN" ? "发布、下架、删除" : "草稿、编辑、提交发布"],
               ["签署动作", selectedRole === "DOCTOR" || selectedRole === "ADMIN" ? "可签署本人任务" : "不可签署"]
             ].map(([label, value]) => (

@@ -1,5 +1,6 @@
 import {
   Building2,
+  CalendarCheck2,
   ClipboardList,
   FileSignature,
   LayoutDashboard,
@@ -25,6 +26,7 @@ export const navItems: NavItem[] = [
   { key: "dashboard", label: "今日工作台", icon: LayoutDashboard, group: "business", roles: clinicalRoles },
   { key: "prescriptions", label: "处方管理", icon: ClipboardList, group: "business", roles: ["ADMIN", "DOCTOR"] },
   { key: "patients", label: "患者档案", icon: UsersRound, group: "business", roles: clinicalRoles },
+  { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: ["ADMIN", "DOCTOR"] },
   { key: "training", label: "训练工作台", icon: MonitorUp, group: "business", roles: clinicalRoles },
   { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: clinicalRoles },
   { key: "orgPermissions", label: "组织权限", icon: Building2, group: "admin", roles: ["ADMIN"] },
@@ -32,8 +34,8 @@ export const navItems: NavItem[] = [
 ];
 
 export const roleMeta: Record<Role, { label: string; account: string; scope: DataScope; note: string }> = {
-  ADMIN: { label: "系统管理员", account: "林管理员", scope: "ALL", note: "系统与临床全部权限" },
-  DOCTOR: { label: "康复医生", account: "王医生", scope: "TEAM", note: "团队共享查看 · 本人任务负责" },
+  ADMIN: { label: "系统管理员", account: "林管理员", scope: "ALL", note: "全量数据与随访只读查看" },
+  DOCTOR: { label: "康复医生", account: "王医生", scope: "TEAM", note: "仅本人患者 · 建档与随访" },
   REHAB_EXECUTION: { label: "康复执行岗", account: "周康复师", scope: "CENTER", note: "当前康复中心执行与异常上报" },
   PATIENT: { label: "患者", account: "陈女士", scope: "SELF_TASK", note: "仅本人数据" }
 };
@@ -43,7 +45,7 @@ const allActions: PermissionAction[] = ["VIEW", "CREATE", "EDIT", "REVIEW", "SIG
 export const roleActions: Record<Role, PermissionAction[]> = {
   ADMIN: allActions,
   DOCTOR: ["VIEW", "CREATE", "EDIT", "REVIEW", "SIGN", "PRINT", "EXPORT"],
-  REHAB_EXECUTION: ["VIEW", "CREATE", "EDIT", "EXPORT"],
+  REHAB_EXECUTION: ["VIEW", "EDIT", "EXPORT"],
   PATIENT: ["VIEW"]
 };
 

@@ -90,6 +90,11 @@ type Exercise =
 type TrainingType = "continuous" | "interval";
 type BpMode = "twice" | "multiple" | "none";
 type Phase = "warmup" | "training" | "cooldown";
+type LocalBikeVideo = {
+  id: string;
+  title: string;
+  url: string;
+};
 
 const exerciseVideoSubtypes: Partial<Record<Exercise, string>> = {
   diaphragmatic: "腹式呼吸",
@@ -119,7 +124,6 @@ const patient = {
 const activePrescription = getPrescriptionVersionDetail("V4");
 const prescribedTrainingType: TrainingType = activePrescription.trainingType === "间歇训练" ? "interval" : "continuous";
 const prescribedTargetHr = Math.round((activePrescription.targetHr[0] + activePrescription.targetHr[1]) / 2);
-const bikeTrainingVideoUrl = "https://player.bilibili.com/player.html?bvid=BV1HKgX6LEe1&page=1&high_quality=1&danmaku=0";
 
 const flow = [
   ["prescription", "确认处方"],
@@ -159,6 +163,8 @@ export function PatientApp({
   const [measuredBp, setMeasuredBp] = useState("126 / 78");
   const [measuredBpTime, setMeasuredBpTime] = useState("09:18");
   const [reportToOpen, setReportToOpen] = useState<string | null>(null);
+  const [bikeTrainingVideos, setBikeTrainingVideos] = useState<LocalBikeVideo[]>([]);
+  const [selectedBikeVideo, setSelectedBikeVideo] = useState<LocalBikeVideo | null>(null);
   const selectedTrainingVideo = publishedTrainingVideos.find((video) => video.subtype === exerciseVideoSubtypes[exercise]) ?? null;
 
   const totalMinutes = warmup + mainMinutes * repeats + cooldown;
@@ -170,7 +176,42 @@ export function PatientApp({
 
   useEffect(() => () => stopAudioGuidance(), []);
 
+  useEffect(() => {
+    let active = true;
+    fetch("/api/training-videos", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`视频目录读取失败：${response.status}`);
+        return response.json() as Promise<LocalBikeVideo[]>;
+      })
+      .then((videos) => {
+        if (active) setBikeTrainingVideos(videos);
+      })
+      .catch(() => {
+        if (active) setBikeTrainingVideos([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function chooseRandomBikeVideo(avoidId?: string) {
+    if (!bikeTrainingVideos.length) {
+      setSelectedBikeVideo(null);
+      return;
+    }
+    const candidates = bikeTrainingVideos.length > 1 && avoidId
+      ? bikeTrainingVideos.filter((video) => video.id !== avoidId)
+      : bikeTrainingVideos;
+    setSelectedBikeVideo(candidates[Math.floor(Math.random() * candidates.length)]);
+  }
+
+  useEffect(() => {
+    if (view !== "training" || selectedBikeVideo || !bikeTrainingVideos.length) return;
+    setSelectedBikeVideo(bikeTrainingVideos[Math.floor(Math.random() * bikeTrainingVideos.length)]);
+  }, [bikeTrainingVideos, selectedBikeVideo, view]);
+
   function startTraining() {
+    chooseRandomBikeVideo(selectedBikeVideo?.id);
     setPhase("warmup");
     setElapsed(0);
     setPaused(false);
@@ -217,6 +258,7 @@ export function PatientApp({
     setPaused(false);
     setAnomaly(false);
     setTrainingState("ready");
+    setSelectedBikeVideo(null);
     setReportToOpen(null);
     setView("home");
   }
@@ -339,6 +381,8 @@ export function PatientApp({
               setRpe={setRpe}
               anomaly={anomaly}
               setAnomaly={changeAnomaly}
+              video={selectedBikeVideo}
+              onVideoEnded={() => chooseRandomBikeVideo(selectedBikeVideo?.id)}
               onFinish={finishTraining}
             />
           )}
@@ -695,18 +739,7 @@ function VideoTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrai
           <div className="flex items-center gap-2"><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">跟练计时 {time}</span><button type="button" onClick={openFullscreen} className="flex h-10 items-center gap-2 rounded-xl bg-white/10 px-3 text-xs font-bold text-white hover:bg-white/15"><Maximize2 className="h-4 w-4" />全屏跟练</button></div>
         </div>
         <div className="relative min-h-0 flex-1 bg-black">
-          {video.source === "bilibili" ? (
-            <iframe
-              title={video.title}
-              src={video.url}
-              className="absolute inset-0 h-full w-full border-0"
-              allow="autoplay; fullscreen; picture-in-picture"
-              allowFullScreen
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <video title={video.title} src={video.url} className="absolute inset-0 h-full w-full object-contain" controls playsInline />
-          )}
+          <video title={video.title} src={video.url} className="absolute inset-0 h-full w-full object-contain" controls playsInline />
         </div>
         {showMonitoring && <div className="flex items-center gap-5 border-t border-white/10 bg-[#102c3b] px-5 py-3 text-xs text-white"><span className="font-bold text-teal-200">可选监测</span><span>心率 <b className="ml-1 text-base">86 bpm</b></span><span>血氧 <b className="ml-1 text-base">97%</b></span><span className="flex-1 text-slate-300">心电波形需连接背包后显示；当前Demo不覆盖在视频画面上。</span></div>}
       </article>
@@ -796,7 +829,7 @@ function PrescriptionScreen(props: {
 
   return (
     <>
-    <section className="grid h-full min-h-[570px] grid-cols-[0.9fr_1.1fr] gap-4" data-testid="page-VIEW-PATIENT-PRESCRIPTION">
+    <section className="grid h-full min-h-[570px] grid-cols-2 items-stretch gap-4" data-testid="page-VIEW-PATIENT-PRESCRIPTION">
       <article className="rounded-3xl border border-white bg-white p-6 shadow-card">
         <p className="text-xs font-bold text-medical-600">医生处方 · 现场核对</p><h1 className="mt-2 text-2xl font-bold text-slate-950">今日功率车训练参数</h1><p className="mt-2 text-sm leading-6 text-slate-500">默认读取医生已审核并签署的处方；现场调整后，左侧训练目标会同步更新。</p>
         <div className="mt-6 rounded-2xl bg-gradient-to-br from-[#123d54] to-[#1f7e79] p-6 text-white">
@@ -806,14 +839,13 @@ function PrescriptionScreen(props: {
         </div>
         <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800"><ShieldCheck className="mr-2 inline h-5 w-5" />处方版本 {prescription.version} · {prescription.physician}已审核签署</div>
         <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4">
-          <p className="text-sm font-bold text-amber-900">医生写给您的注意事项</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-bold text-amber-900">本次训练安全提醒</p>
+            <span className="text-[10px] font-bold text-amber-700">完整医嘱见处方详情</span>
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs leading-5 text-amber-900">
-            <PatientAdvice label="康复忌讳" value={prescriptionAdvice.rehabContraindications} />
-            <PatientAdvice label="吃饭注意" value={prescriptionAdvice.dietCautions} />
-            <PatientAdvice label="运动注意" value={prescriptionAdvice.exerciseCautions} />
-            <PatientAdvice label="何时停止" value={prescriptionAdvice.stopConditions} />
-            <PatientAdvice label="用药提醒" value={prescriptionAdvice.medicationAdvice} />
-            <PatientAdvice label="医生说明" value={prescriptionAdvice.patientInstruction} />
+            <PatientAdvice label="训练注意" value={prescriptionAdvice.exerciseCautions} />
+            <PatientAdvice label="立即停止条件" value={prescriptionAdvice.stopConditions} />
           </div>
         </div>
       </article>
@@ -942,12 +974,24 @@ function BpModeScreen({ mode, setMode, onBack, onStart }: { mode: BpMode | null;
 
 function TrainingScreen(props: {
   phase: Phase; setPhase: (value: Phase) => void; elapsed: number; paused: boolean; setPaused: (value: boolean) => void; bpMode: BpMode; measuredBp: string; measuredBpTime: string; onMeasureBp: () => void;
-  targetHr: number; targetPowerMin: number; targetPowerMax: number; warmup: number; mainMinutes: number; cooldown: number; repeats: number; setElapsed: (value: number) => void; rpe: number; setRpe: (value: number) => void; anomaly: boolean; setAnomaly: (value: boolean) => void; onFinish: () => void;
+  targetHr: number; targetPowerMin: number; targetPowerMax: number; warmup: number; mainMinutes: number; cooldown: number; repeats: number; setElapsed: (value: number) => void; rpe: number; setRpe: (value: number) => void; anomaly: boolean; setAnomaly: (value: boolean) => void; video: LocalBikeVideo | null; onVideoEnded: () => void; onFinish: () => void;
 }) {
-  const { phase, setPhase, elapsed, paused, setPaused, bpMode, measuredBp, measuredBpTime, onMeasureBp, targetHr, targetPowerMin, targetPowerMax, warmup, mainMinutes, cooldown, repeats, setElapsed, rpe, setRpe, anomaly, setAnomaly, onFinish } = props;
-  const hr = anomaly ? targetHr + 24 : phase === "warmup" ? targetHr - 14 : phase === "cooldown" ? targetHr - 10 : targetHr + (elapsed % 5) - 2;
-  const speed = paused ? 0 : phase === "training" ? 22.6 : 16.8;
-  const currentPower = phase === "training" ? Math.round((targetPowerMin + targetPowerMax) / 2) : Math.max(10, targetPowerMin - 8);
+  const { phase, setPhase, elapsed, paused, setPaused, bpMode, measuredBp, measuredBpTime, onMeasureBp, targetHr, targetPowerMin, targetPowerMax, warmup, mainMinutes, cooldown, repeats, setElapsed, rpe, setRpe, anomaly, setAnomaly, video, onVideoEnded, onFinish } = props;
+  const sampleIndex = elapsed % 12;
+  const heartRateWave = [0, 1, -1, 2, 0, -2, 1, 3, 0, -1, 2, -1];
+  const speedWave = [0, 0.4, -0.2, 0.7, 0.2, -0.5, 0.3, 0.8, -0.1, -0.4, 0.5, 0.1];
+  const powerWave = [0, 2, -1, 3, 1, -2, 2, 4, 0, -3, 1, -1];
+  const cadenceWave = [0, 1, -1, 2, 0, -2, 1, 3, -1, 0, 2, -1];
+  const oxygenWave = [0, 0, 1, 0, 0, -1, 0, 0, 1, 0, 0, -1];
+  const phaseHeartRate = phase === "warmup" ? targetHr - 14 : phase === "cooldown" ? targetHr - 10 : targetHr;
+  const hr = anomaly ? targetHr + 22 + Math.abs(heartRateWave[sampleIndex]) : phaseHeartRate + heartRateWave[sampleIndex];
+  const baseSpeed = phase === "training" ? 22.2 : phase === "warmup" ? 16.6 : 15.2;
+  const speed = paused ? 0 : Math.max(0, baseSpeed + speedWave[sampleIndex]);
+  const basePower = phase === "training" ? Math.round((targetPowerMin + targetPowerMax) / 2) : Math.max(10, targetPowerMin - 8);
+  const currentPower = paused ? 0 : Math.max(0, basePower + powerWave[sampleIndex]);
+  const cadence = paused ? 0 : (phase === "training" ? 64 : phase === "warmup" ? 50 : 46) + cadenceWave[sampleIndex];
+  const resistance = paused ? 0 : phase === "training" ? 5 + (sampleIndex === 7 ? 1 : 0) : 3;
+  const oxygen = anomaly ? 95 + Math.max(oxygenWave[sampleIndex], 0) : 97 + oxygenWave[sampleIndex];
   const phaseLabels: Record<Phase, string> = { warmup: "热身", training: "主要训练", cooldown: "放松" };
   const trainingMinutes = mainMinutes * repeats;
   const totalSeconds = (warmup + trainingMinutes + cooldown) * 60;
@@ -969,6 +1013,7 @@ function TrainingScreen(props: {
     { key: "cooldown", label: "放松", minutes: cooldown }
   ];
   const trainingVideoPanelRef = useRef<HTMLDivElement>(null);
+  const trainingVideoRef = useRef<HTMLVideoElement>(null);
   const phaseIndex = phasePlan.findIndex((item) => item.key === phase);
   const nextPhase = () => {
     if (phase === "warmup") {
@@ -986,6 +1031,13 @@ function TrainingScreen(props: {
     const expectedPhase: Phase = elapsed < warmupEnd ? "warmup" : elapsed < trainingEnd ? "training" : "cooldown";
     if (expectedPhase !== phase) setPhase(expectedPhase);
   }, [elapsed, paused, phase, setPhase, totalSeconds, trainingEnd, warmupEnd]);
+
+  useEffect(() => {
+    const player = trainingVideoRef.current;
+    if (!player) return;
+    if (paused) player.pause();
+    else void player.play().catch(() => undefined);
+  }, [paused, video?.url]);
 
   return (
     <section className="h-full min-h-[620px]" data-testid="page-VIEW-PATIENT-TRAINING">
@@ -1019,17 +1071,29 @@ function TrainingScreen(props: {
 
           <div className="mt-3 grid grid-cols-[minmax(0,1fr)_260px] items-stretch gap-3">
             <div ref={trainingVideoPanelRef} className="relative aspect-video w-full overflow-hidden rounded-2xl bg-slate-950 shadow-xl ring-1 ring-slate-950/10">
-              <iframe
-                title="功率车沉浸式训练视频"
-                src={bikeTrainingVideoUrl}
-                className={`absolute inset-0 h-full w-full border-0 transition duration-300 ${paused ? "scale-[1.01] opacity-50" : "opacity-100"}`}
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-                referrerPolicy="no-referrer"
-              />
+              {video ? (
+                <video
+                  key={video.url}
+                  ref={trainingVideoRef}
+                  title={video.title}
+                  src={video.url}
+                  className={`absolute inset-0 h-full w-full object-contain transition duration-300 ${paused ? "scale-[1.01] opacity-50" : "opacity-100"}`}
+                  autoPlay
+                  playsInline
+                  preload="auto"
+                  onEnded={onVideoEnded}
+                />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-300">
+                  <FileText className="h-10 w-10 opacity-60" />
+                  <p className="mt-3 text-sm font-bold">本地视频目录暂无可播放文件</p>
+                  <p className="mt-1 text-[10px] text-slate-500">请将 MP4、MOV、WebM 或 M4V 放入 Bilibili下载目录</p>
+                </div>
+              )}
               <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-slate-950/75 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur-md">
                 <span className={`h-2 w-2 rounded-full ${paused ? "bg-amber-400" : "metric-live-dot bg-emerald-400"}`} />{paused ? "训练视频已暂停" : `${phaseLabels[phase]}跟练中`}
               </div>
+              {video && <div className="absolute left-3 top-12 max-w-[70%] truncate rounded-lg bg-slate-950/60 px-3 py-1.5 text-[9px] font-bold text-white/85 backdrop-blur-md">随机视频：{video.title}</div>}
               <button type="button" onClick={() => trainingVideoPanelRef.current?.requestFullscreen?.()} className="absolute right-3 top-3 flex h-9 items-center gap-2 rounded-xl bg-slate-950/75 px-3 text-[10px] font-bold text-white shadow-lg backdrop-blur-md hover:bg-slate-950/90"><Maximize2 className="h-4 w-4" />全屏跟练</button>
               {paused && <div className="absolute inset-0 flex items-center justify-center"><div className="rounded-2xl bg-white/95 px-8 py-5 text-center shadow-xl"><Pause className="mx-auto h-8 w-8 text-medical-700" /><p className="mt-2 font-bold text-slate-900">训练已暂停</p><p className="mt-1 text-[10px] text-slate-500">点击“继续训练”恢复</p></div></div>}
               {anomaly && !paused && <div className="absolute inset-0 flex items-center justify-center bg-red-950/20"><div className="rounded-2xl border border-red-200 bg-red-50/95 px-8 py-5 text-center text-red-800 shadow-xl"><AlertTriangle className="mx-auto h-8 w-8 animate-pulse text-red-600" /><p className="mt-2 text-base font-bold">请降低踏频并等待医护确认</p><p className="mt-1 text-xs text-red-600">心率已高于目标控制区间</p></div></div>}
@@ -1043,7 +1107,7 @@ function TrainingScreen(props: {
             <aside className="flex h-full min-h-0 flex-col gap-2" aria-label="实时心率与训练指标">
               <div className={`rounded-2xl p-3 text-white shadow-lg ${anomaly ? "bg-gradient-to-br from-red-600 to-red-800" : "bg-gradient-to-br from-[#102c3b] to-[#18536a]"}`}>
                 <div className="flex items-center justify-between"><div className="flex items-center gap-2"><HeartPulse className={`h-5 w-5 ${anomaly ? "animate-pulse" : "text-rose-300"}`} /><span className="text-xs font-bold text-white">实时心率</span></div><span className={`h-2.5 w-2.5 rounded-full ${anomaly ? "animate-pulse bg-white" : "metric-live-dot bg-emerald-400"}`} /></div>
-                <div className="mt-1.5 flex items-end gap-2"><span className="text-4xl font-bold tabular-nums text-white">{hr}</span><span className="pb-1 text-[10px] font-bold text-white/70">bpm</span></div>
+                <div className="mt-1.5 flex items-end gap-2"><span key={`hr-${hr}`} className="metric-value-pulse text-4xl font-bold tabular-nums text-white">{hr}</span><span className="pb-1 text-[10px] font-bold text-white/70">bpm</span><span className="mb-1 ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[8px] font-bold text-white/75">1 秒采样</span></div>
                 <div className="relative mt-2">
                   <div className="grid h-2.5 grid-cols-4 overflow-hidden rounded-full">
                     <span className="bg-sky-400" />
@@ -1058,13 +1122,13 @@ function TrainingScreen(props: {
                 <p className="mt-2 border-t border-white/10 pt-2 text-[9px] font-bold leading-4 text-white/80"><Volume2 className={`mr-1 inline h-3.5 w-3.5 ${anomaly ? "animate-pulse" : ""}`} />{anomaly ? "声音警报：心率超出目标区间" : phaseAnnouncements[phase]}</p>
               </div>
               <div className="grid flex-1 grid-cols-2 gap-1.5">
-                <TrainingMetric icon={Gauge} label="速度" value={speed.toFixed(1)} unit="km/h" />
-                <TrainingMetric icon={Activity} label="距离" value={(elapsed * speed / 3600).toFixed(2)} unit="km" />
-                <TrainingMetric icon={Bike} label="功率" value={String(currentPower)} unit="W" note={`目标 ${targetPowerMin}–${targetPowerMax}W`} />
-                <TrainingMetric icon={Settings2} label="阻力" value={phase === "training" ? "5" : "3"} unit="级" />
-                <TrainingMetric icon={ThermometerSun} label="血氧" value="97" unit="%" />
+                <TrainingMetric icon={Gauge} label="速度" value={speed.toFixed(1)} unit="km/h" live />
+                <TrainingMetric icon={Activity} label="距离" value={(elapsed * (phase === "training" ? 21.8 : 16.0) / 3600).toFixed(2)} unit="km" live />
+                <TrainingMetric icon={Bike} label="功率" value={String(currentPower)} unit="W" note={`目标 ${targetPowerMin}–${targetPowerMax}W`} live />
+                <TrainingMetric icon={Settings2} label="踏频 / 阻力" value={String(cadence)} unit="rpm" note={`阻力 ${resistance} 级`} live />
+                <TrainingMetric icon={ThermometerSun} label="血氧" value={String(oxygen)} unit="%" live />
                 <button type="button" onClick={onMeasureBp} disabled={bpMode === "none"} className="rounded-xl border border-sky-100 bg-sky-50 p-2 text-left shadow-sm disabled:opacity-50"><p className="text-[9px] font-bold text-sky-600">血压</p><p className="mt-1 text-sm font-bold text-slate-950">{bpMode === "none" ? "— / —" : measuredBp}</p><p className="mt-0.5 text-[8px] text-slate-500">{bpMode === "none" ? "未测量" : measuredBpTime}</p></button>
-                <TrainingMetric icon={Clock3} label="热量" value={String(Math.round(elapsed / 8))} unit="kcal" />
+                <TrainingMetric icon={Clock3} label="热量" value={String(Math.round(elapsed / 8))} unit="kcal" live />
                 <label className="rounded-xl border border-violet-100 bg-violet-50 p-2 shadow-sm"><p className="text-[9px] font-bold text-violet-600">RPE</p><p className="mt-1 text-sm font-bold text-slate-950">{rpe}<span className="ml-1 text-[8px] text-slate-500">/20</span></p><input type="range" min="6" max="20" value={rpe} onChange={(event) => setRpe(Number(event.target.value))} className="mt-1 w-full accent-violet-600" /></label>
               </div>
             </aside>
@@ -1074,12 +1138,12 @@ function TrainingScreen(props: {
   );
 }
 
-function TrainingMetric({ icon: Icon, label, value, unit, tone = "blue", note }: { icon: typeof Gauge; label: string; value: string; unit: string; tone?: "blue" | "rose" | "red"; note?: string }) {
+function TrainingMetric({ icon: Icon, label, value, unit, tone = "blue", note, live = false }: { icon: typeof Gauge; label: string; value: string; unit: string; tone?: "blue" | "rose" | "red"; note?: string; live?: boolean }) {
   const toneClasses = tone === "red" ? "border-red-100 bg-red-50/90 text-red-600" : tone === "rose" ? "border-rose-100 bg-rose-50/90 text-rose-600" : "border-medical-100 bg-medical-50/90 text-medical-600";
   return (
     <div className={`rounded-xl border p-2 shadow-sm ${toneClasses}`}>
-      <div className="flex items-center gap-1"><Icon className="h-3.5 w-3.5" /><p className="text-[9px] font-bold">{label}</p></div>
-      <p className="mt-1 text-base font-bold text-slate-950">{value}<span className="ml-0.5 text-[8px] text-slate-500">{unit}</span></p>
+      <div className="flex items-center gap-1"><Icon className="h-3.5 w-3.5" /><p className="text-[9px] font-bold">{label}</p>{live && <span className="metric-live-dot ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500" />}</div>
+      <p key={`${label}-${value}`} className={`mt-1 text-base font-bold tabular-nums text-slate-950 ${live ? "metric-value-pulse" : ""}`}>{value}<span className="ml-0.5 text-[8px] text-slate-500">{unit}</span></p>
       {note && <p className="mt-0.5 truncate text-[8px] font-bold">{note}</p>}
     </div>
   );

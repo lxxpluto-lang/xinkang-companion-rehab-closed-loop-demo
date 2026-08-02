@@ -1,6 +1,7 @@
 export type DoctorPageKey =
   | "dashboard"
   | "patients"
+  | "followups"
   | "report"
   | "prescriptions"
   | "training"

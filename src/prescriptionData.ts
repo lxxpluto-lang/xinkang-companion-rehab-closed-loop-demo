@@ -42,6 +42,11 @@ export type PrescriptionTask = {
   versionNo: string;
   previousVersionId?: string;
   previousPrescriptionId?: string;
+  currentNarrativeId?: string;
+  sourceReportIds: string[];
+  sourceTrainingRecordIds: string[];
+  draftState: "unsaved" | "saved" | "signed";
+  lastDraftSavedAt?: string;
   aiDraftStatus: "not_required" | "not_generated" | "generated";
   aiDraft?: AiPrescriptionDraft;
   reviewStatus: "pending" | "confirmed";
@@ -80,7 +85,7 @@ export type DoctorAppointment = {
   linkedTaskId: string;
 };
 
-type PrescriptionTaskSeed = Omit<PrescriptionTask, "taskNo" | "prescriptionId" | "prescriptionNo" | "patientNo" | "versionNo" | "previousPrescriptionId" | "createdAt" | "draftedAt" | "reviewedAt" | "effectiveFrom" | "aiDraft">;
+type PrescriptionTaskSeed = Omit<PrescriptionTask, "taskNo" | "prescriptionId" | "prescriptionNo" | "patientNo" | "versionNo" | "previousPrescriptionId" | "currentNarrativeId" | "sourceReportIds" | "sourceTrainingRecordIds" | "draftState" | "lastDraftSavedAt" | "createdAt" | "draftedAt" | "reviewedAt" | "effectiveFrom" | "aiDraft">;
 
 const prescriptionTaskSeeds: PrescriptionTaskSeed[] = [
   {
@@ -258,6 +263,7 @@ function buildAiDraft(task: PrescriptionTaskSeed, prescriptionId: string, index:
 
 export const initialPrescriptionTasks: PrescriptionTask[] = prescriptionTaskSeeds.map((task, index) => {
   const prescriptionId = `01J61RX${String(index + 1).padStart(18, "0")}`;
+  const previousVersionNumber = Number(task.previousVersionId?.match(/V(\d+)/)?.[1] ?? 0);
   return {
     ...task,
     taskNo: `RX-TASK-${String(index + 1).padStart(4, "0")}`,
@@ -265,7 +271,11 @@ export const initialPrescriptionTasks: PrescriptionTask[] = prescriptionTaskSeed
     prescriptionNo: `CRH-RX-20260729-${String(index + 1).padStart(4, "0")}`,
     patientNo: patientNoById[task.patientId],
     versionNo: task.version.replace(" 草稿", ""),
-    previousPrescriptionId: task.previousVersionId ? `01J60RX${String(index + 1).padStart(18, "0")}` : undefined,
+    previousPrescriptionId: previousVersionNumber ? `01J60RX${String(previousVersionNumber).padStart(18, "0")}` : undefined,
+    sourceReportIds: task.sourceReportId ? [task.sourceReportId] : [],
+    sourceTrainingRecordIds: task.patientId === "P-DEMO-001" ? ["TR-20260725-012", "TR-20260723-011"] : task.sourceType === "single_report" && task.sourceReportId ? [task.sourceReportId] : [],
+    draftState: task.status === "completed" ? "signed" : task.aiDraftStatus === "generated" ? "saved" : "unsaved",
+    lastDraftSavedAt: task.aiDraftStatus === "generated" ? toIsoDateTime(task.updatedAt) : undefined,
     createdAt: toIsoDateTime(task.updatedAt) ?? "2026-07-29T09:00:00+08:00",
     draftedAt: task.aiDraftStatus === "generated" ? toIsoDateTime(task.updatedAt) : undefined,
     reviewedAt: task.reviewStatus === "confirmed" ? toIsoDateTime(task.confirmedAt ?? task.updatedAt) : undefined,

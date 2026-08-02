@@ -12,25 +12,30 @@ type PrescriptionFilters = {
   status: PrescriptionListStatusFilter;
 };
 
-function emptyFilters(status: PrescriptionListStatusFilter = "all"): PrescriptionFilters {
-  return { patientId: "", prescriptionId: "", assignedDoctor: "", status };
+function emptyFilters(status: PrescriptionListStatusFilter = "all", assignedDoctor = ""): PrescriptionFilters {
+  return { patientId: "", prescriptionId: "", assignedDoctor, status };
 }
 
 export function PrescriptionManagementPage({
+  role,
+  currentDoctor,
   tasks,
   initialStatusFilter = "all",
   onOpen,
   onGenerate
 }: {
+  role: "ADMIN" | "DOCTOR";
+  currentDoctor: string;
   tasks: PrescriptionTask[];
   initialStatusFilter?: PrescriptionListStatusFilter;
   onOpen: (id: string) => void;
   onGenerate: (id: string) => void;
 }) {
+  const doctorScope = role === "DOCTOR" ? currentDoctor : "";
   const pendingTasks = tasks.filter((task) => task.status !== "completed");
   const completedTasks = tasks.filter((task) => task.status === "completed");
-  const [draftFilters, setDraftFilters] = useState<PrescriptionFilters>(() => emptyFilters(initialStatusFilter));
-  const [appliedFilters, setAppliedFilters] = useState<PrescriptionFilters>(() => emptyFilters(initialStatusFilter));
+  const [draftFilters, setDraftFilters] = useState<PrescriptionFilters>(() => emptyFilters(initialStatusFilter, doctorScope));
+  const [appliedFilters, setAppliedFilters] = useState<PrescriptionFilters>(() => emptyFilters(initialStatusFilter, doctorScope));
   const doctorOptions = useMemo(() => Array.from(new Set(tasks.map((task) => task.assignedDoctor))).sort(), [tasks]);
   const filteredTasks = useMemo(() => tasks.filter((task) => {
     const patientId = appliedFilters.patientId.trim().toLowerCase();
@@ -48,17 +53,17 @@ export function PrescriptionManagementPage({
   }
 
   function resetFilters() {
-    const next = emptyFilters();
+    const next = emptyFilters("all", doctorScope);
     setDraftFilters(next);
     setAppliedFilters(next);
   }
 
   return (
     <section data-testid="page-VIEW-PRESCRIPTIONS">
-      <PageHeader eyebrow="处方管理" title="运动处方总台" description="未完成处方可编辑、保存和确认；已完成处方已签署归档，只能查看和打印。" action={<span className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600"><ClipboardList className="h-4 w-4 text-blue-600" />未完成 {pendingTasks.length} · 已完成 {completedTasks.length}</span>} />
+      <PageHeader eyebrow="处方管理" title={role === "ADMIN" ? "运动处方总台" : "我的运动处方"} description={role === "ADMIN" ? "管理员可查看全部医生的处方数据；已完成处方只能查看和打印。" : `仅展示所属医生为${currentDoctor}的处方；已完成处方只能查看和打印。`} action={<span className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600"><ClipboardList className="h-4 w-4 text-blue-600" />未完成 {pendingTasks.length} · 已完成 {completedTasks.length}</span>} />
       <section className="card overflow-hidden">
         <div className="px-5 pt-5">
-          <SectionHeader title="全部处方任务" description="未完成与已完成处方放在同一张工作表里，通过状态筛选切换；已完成版本只读。" />
+          <SectionHeader title={role === "ADMIN" ? "全部处方任务" : "本人处方任务"} description="未完成与已完成处方放在同一张工作表里，通过状态筛选切换；已完成版本只读。" />
         </div>
         <form onSubmit={(event) => { event.preventDefault(); setAppliedFilters(draftFilters); }} className="grid grid-cols-1 gap-3 border-y border-slate-100 bg-slate-50 px-5 py-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_0.9fr_0.9fr_auto] xl:items-end">
           <FilterField label="患者号">
@@ -68,10 +73,7 @@ export function PrescriptionManagementPage({
             <input value={draftFilters.prescriptionId} onChange={(event) => updateDraft("prescriptionId", event.target.value)} placeholder="例如 CRH-RX-20260729-0001" className="text-field" />
           </FilterField>
           <FilterField label="所属医生">
-            <select value={draftFilters.assignedDoctor} onChange={(event) => updateDraft("assignedDoctor", event.target.value)} className="text-field">
-              <option value="">全部医生</option>
-              {doctorOptions.map((doctor) => <option key={doctor} value={doctor}>{doctor}</option>)}
-            </select>
+            {role === "ADMIN" ? <select value={draftFilters.assignedDoctor} onChange={(event) => updateDraft("assignedDoctor", event.target.value)} className="text-field"><option value="">全部医生</option>{doctorOptions.map((doctor) => <option key={doctor} value={doctor}>{doctor}</option>)}</select> : <div className="text-field flex items-center justify-between bg-slate-100 font-semibold text-slate-700"><span>{currentDoctor}</span><span className="text-[10px] text-slate-400">仅本人</span></div>}
           </FilterField>
           <FilterField label="状态">
             <select value={draftFilters.status} onChange={(event) => updateDraft("status", event.target.value as PrescriptionListStatusFilter)} className="text-field" data-testid="prescription-status-filter">

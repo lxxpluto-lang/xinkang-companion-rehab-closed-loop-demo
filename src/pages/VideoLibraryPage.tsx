@@ -1,5 +1,5 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { Ban, CheckCircle2, ExternalLink, FileVideo, Link2, Play, RotateCcw, Send, ShieldCheck, Trash2, Upload, Video } from "lucide-react";
+import { Ban, CheckCircle2, FileVideo, FolderOpen, Play, RotateCcw, Send, ShieldCheck, Trash2, Upload, Video } from "lucide-react";
 import { can } from "../accessControl";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { ContentStatus, Role } from "../types";
@@ -10,7 +10,7 @@ export type PublishedTrainingVideo = {
   title: string;
   category: VideoCategory;
   subtype: string;
-  source: "bilibili" | "upload";
+  source: "local" | "upload";
   url: string;
 };
 export type TrainingVideo = PublishedTrainingVideo & {
@@ -19,21 +19,13 @@ export type TrainingVideo = PublishedTrainingVideo & {
   updatedBy?: string;
 };
 
-export const defaultBaduanjinVideo: PublishedTrainingVideo = {
-  id: "VIDEO-BDJ-001",
-  title: "八段锦完整教学",
-  category: "中医运动",
-  subtype: "八段锦",
-  source: "bilibili",
-  url: "https://player.bilibili.com/player.html?bvid=BV1gT4y1m7ec&page=1&high_quality=1&danmaku=0"
-};
-
-const breathTrainingVideoUrl = "https://player.bilibili.com/player.html?bvid=BV1Av4y1p7SL&page=1&high_quality=1&danmaku=0";
+const localVideoUrl = (fileName: string) => `/local-training-videos/${encodeURIComponent(fileName)}`;
+const riversideVideo = "云逛魔都 4K HDR ｜ 沉浸式体验陆家嘴滨江骑行：南浦大桥到杨浦大桥 [BV1HKgX6LEe1].mp4";
+const qiantanVideo = "云逛魔都 4K HDR ｜ 前滩夏日的傍晚：从繁华的太古里到静謐江滨绿道 [BV1HKKt6eEdh].mp4";
 
 export const initialTrainingVideos: TrainingVideo[] = [
-  { ...defaultBaduanjinVideo, status: "PUBLISHED", updatedBy: "林管理员" },
-  { id: "VIDEO-BREATH-001", title: "腹式呼吸与正念呼吸跟练", category: "呼吸训练", subtype: "腹式呼吸", source: "bilibili", url: breathTrainingVideoUrl, status: "PUBLISHED", updatedBy: "林管理员" },
-  { id: "VIDEO-BREATH-002", title: "腹式呼吸与正念呼吸跟练", category: "呼吸训练", subtype: "正念呼吸", source: "bilibili", url: breathTrainingVideoUrl, status: "PUBLISHED", updatedBy: "林管理员" },
+  { id: "VIDEO-BIKE-LOCAL-001", title: "陆家嘴滨江骑行", category: "有氧运动", subtype: "功率车", source: "local", url: localVideoUrl(riversideVideo), status: "PUBLISHED", fileSize: "871 MB", updatedBy: "本地视频目录" },
+  { id: "VIDEO-BIKE-LOCAL-002", title: "前滩夏日傍晚骑行", category: "有氧运动", subtype: "功率车", source: "local", url: localVideoUrl(qiantanVideo), status: "PUBLISHED", fileSize: "983 MB", updatedBy: "本地视频目录" },
   { id: "VIDEO-RESIST-001", title: "弹力带上肢训练", category: "抗阻运动", subtype: "弹力带", source: "upload", url: "", status: "PENDING", updatedBy: "周康复师" },
   { id: "VIDEO-BIKE-OLD", title: "功率车旧版热身", category: "有氧运动", subtype: "功率车", source: "upload", url: "", status: "OFFLINE", updatedBy: "林管理员" }
 ];
@@ -63,13 +55,10 @@ export function VideoLibraryPage({
   setVideos: Dispatch<SetStateAction<TrainingVideo[]>>;
   role: Exclude<Role, "PATIENT">;
 }) {
-  const [sourceMode, setSourceMode] = useState<"upload" | "bilibili">("upload");
-  const [category, setCategory] = useState<VideoCategory>("中医运动");
+  const [category, setCategory] = useState<VideoCategory>("有氧运动");
   const [title, setTitle] = useState("");
-  const [subtype, setSubtype] = useState(categorySubtypes["中医运动"][0]);
-  const [bilibiliUrl, setBilibiliUrl] = useState("");
-  const [linkError, setLinkError] = useState("");
-  const [previewId, setPreviewId] = useState("VIDEO-BDJ-001");
+  const [subtype, setSubtype] = useState(categorySubtypes["有氧运动"][0]);
+  const [previewId, setPreviewId] = useState("VIDEO-BIKE-LOCAL-001");
   const canPublish = can(role, "PUBLISH");
   const canDelete = can(role, "DELETE");
   const canPermanentDelete = can(role, "PERMANENT_DELETE");
@@ -101,26 +90,6 @@ export function VideoLibraryPage({
     });
   }
 
-  function addBilibiliLink() {
-    const bvid = bilibiliUrl.match(/BV[0-9A-Za-z]{10}/i)?.[0];
-    if (!bvid) {
-      setLinkError("未识别到有效的 BV 号，请粘贴标准B站视频页或播放器链接。");
-      return;
-    }
-    addRecord({
-      id: `VIDEO-BILIBILI-${Date.now()}`,
-      title: title.trim() || `${subtype}跟练视频`,
-      category,
-      subtype,
-      source: "bilibili",
-      url: `https://player.bilibili.com/player.html?bvid=${bvid}&page=1&high_quality=1&danmaku=0`,
-      status: "DRAFT",
-      updatedBy: role === "DOCTOR" ? "王医生" : role === "REHAB_EXECUTION" ? "周康复师" : "林管理员"
-    });
-    setBilibiliUrl("");
-    setLinkError("");
-  }
-
   function changeStatus(videoId: string, status: ContentStatus) {
     setVideos((items) => items.map((video) => video.id === videoId ? { ...video, status, updatedBy: role === "ADMIN" ? "林管理员" : role === "DOCTOR" ? "王医生" : "周康复师" } : video));
   }
@@ -147,25 +116,17 @@ export function VideoLibraryPage({
       <div className="grid grid-cols-[0.78fr_1.22fr] gap-5">
         <div className="space-y-5">
           <section className="card p-5">
-            <SectionHeader title="添加训练视频" description="新增内容一律先保存为草稿，提交后进入管理员待发布队列。" />
-            <div className="mb-4 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
-              <button type="button" onClick={() => { setSourceMode("upload"); setLinkError(""); }} className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-bold ${sourceMode === "upload" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}><Upload className="h-4 w-4" />上传本地视频</button>
-              <button type="button" onClick={() => setSourceMode("bilibili")} className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-bold ${sourceMode === "bilibili" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}><Link2 className="h-4 w-4" />添加B站链接</button>
+            <SectionHeader title="添加训练视频" description="仅采用本地视频文件，不再支持外部链接和嵌入播放器。" />
+            <div className="mb-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800">
+              <FolderOpen className="mt-0.5 h-5 w-5 shrink-0" />
+              <span>功率车视频目录：<b>/Users/guagua/Documents/冠心病课题/Bilibili下载</b>。放入 MP4、MOV、WebM 或 M4V 后，患者开始骑行时会自动从目录中随机选择。</span>
             </div>
             <label className="block"><span className="field-label">视频名称</span><input value={title} onChange={(event) => setTitle(event.target.value)} className="text-field" placeholder="例如：腹式呼吸基础练习" /></label>
             <label className="mt-4 block"><span className="field-label">训练子类型</span><select value={subtype} onChange={(event) => setSubtype(event.target.value)} className="text-field">{categorySubtypes[category].map((item) => <option key={item}>{item}</option>)}</select></label>
-            {sourceMode === "upload" ? (
-              <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 px-5 py-8 text-center hover:border-blue-400">
-                <Upload className="h-7 w-7 text-blue-600" /><span className="mt-3 font-bold text-blue-800">选择本地视频文件</span><span className="mt-1 text-[10px] text-slate-500">支持 MP4、MOV、WebM · 保存后进入我的草稿</span>
-                <input type="file" accept="video/mp4,video/quicktime,video/webm" className="hidden" onChange={(event) => uploadFile(event.target.files?.[0])} />
-              </label>
-            ) : (
-              <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
-                <label className="block"><span className="field-label">B站视频链接</span><input value={bilibiliUrl} onChange={(event) => { setBilibiliUrl(event.target.value); setLinkError(""); }} className="text-field bg-white" placeholder="https://www.bilibili.com/video/BV..." /></label>
-                <p className={`mt-2 text-[10px] ${linkError ? "font-bold text-red-600" : "text-slate-500"}`}>{linkError || "仅允许后台白名单中的嵌入域名。"}</p>
-                <button type="button" onClick={addBilibiliLink} className="btn-primary mt-4 w-full"><Link2 className="h-4 w-4" />保存为草稿</button>
-              </div>
-            )}
+            <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 px-5 py-8 text-center hover:border-blue-400">
+              <Upload className="h-7 w-7 text-blue-600" /><span className="mt-3 font-bold text-blue-800">选择本地视频文件</span><span className="mt-1 text-[10px] text-slate-500">支持 MP4、MOV、WebM · 保存后进入我的草稿</span>
+              <input type="file" accept="video/mp4,video/quicktime,video/webm" className="hidden" onChange={(event) => uploadFile(event.target.files?.[0])} />
+            </label>
           </section>
           <section className="card overflow-hidden">
             <div className="px-5 pt-5"><SectionHeader title={`${category}视频`} /></div>
@@ -176,11 +137,10 @@ export function VideoLibraryPage({
           <section className="card overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="text-[10px] font-bold text-blue-600">内容与权限预览</p><h2 className="mt-1 text-lg font-bold text-slate-900">{preview.title}</h2></div><StatusBadge tone={statusMeta[preview.status].tone}>{statusMeta[preview.status].label}</StatusBadge></div>
             <div className="relative aspect-video bg-slate-950">
-              {preview.url ? preview.source === "bilibili" ? <iframe title={preview.title} src={preview.url} className="absolute inset-0 h-full w-full border-0" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen referrerPolicy="no-referrer" /> : <video src={preview.url} className="h-full w-full" controls /> : <div className="flex h-full flex-col items-center justify-center text-slate-400"><Play className="h-12 w-12" /><p className="mt-3 text-xs">尚未上传视频文件</p></div>}
+              {preview.url ? <video src={preview.url} className="h-full w-full" controls playsInline /> : <div className="flex h-full flex-col items-center justify-center text-slate-400"><Play className="h-12 w-12" /><p className="mt-3 text-xs">尚未上传视频文件</p></div>}
             </div>
             <div className="p-5">
-              <div className="grid grid-cols-4 gap-3">{[["运动大类", preview.category], ["训练子类型", preview.subtype], ["素材来源", preview.source === "bilibili" ? "外部嵌入" : "院内上传"], ["最近维护", preview.updatedBy || "—"]].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] text-slate-400">{label}</p><p className="mt-2 font-bold text-slate-800">{value}</p></div>)}</div>
-              {preview.source === "bilibili" && <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800"><ExternalLink className="mt-0.5 h-4 w-4 shrink-0" /><span>正式发布前需确认链接白名单、院内网络及内容授权。</span></div>}
+              <div className="grid grid-cols-4 gap-3">{[["运动大类", preview.category], ["训练子类型", preview.subtype], ["素材来源", preview.source === "local" ? "本地视频目录" : "院内上传"], ["最近维护", preview.updatedBy || "—"]].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] text-slate-400">{label}</p><p className="mt-2 font-bold text-slate-800">{value}</p></div>)}</div>
               <div className="mt-5 flex flex-wrap justify-end gap-2">
                 {preview.status === "DRAFT" && <button type="button" disabled={!preview.url} onClick={() => changeStatus(preview.id, "PENDING")} className="btn-primary"><Send className="h-4 w-4" />提交发布</button>}
                 {canPublish && preview.status === "PENDING" && <button type="button" disabled={!preview.url} onClick={() => changeStatus(preview.id, "PUBLISHED")} className="btn-primary"><CheckCircle2 className="h-4 w-4" />审核并发布</button>}
