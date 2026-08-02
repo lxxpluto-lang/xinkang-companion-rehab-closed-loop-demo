@@ -50,6 +50,7 @@ import { stageReportData, summarizeVersion } from "./stageReportData";
 import type { PrescriptionVersion, VersionSummary } from "./stageReportData";
 import { clinicalSnapshotChen, getPrescriptionVersionDetail, getSingleTrainingReportDetail, patientMasterChen, singleTrainingReportDetails } from "../clinicalSharedData";
 import { formatDateTime } from "../utils/dateTime";
+import { demoDischargeHandbook } from "../dischargeHandbookData";
 
 type PatientAppProps = {
   onExit: () => void;
@@ -614,6 +615,7 @@ function FlowBar({ view }: { view: View }) {
 }
 
 function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos }: { exercise: Exercise; onChoose: (value: Exercise) => void; onStart: () => void; publishedTrainingVideos: PublishedTrainingVideo[] }) {
+  const [showHandbook, setShowHandbook] = useState(false);
   const exerciseNames: Record<Exercise, string> = {
     diaphragmatic: "腹式呼吸",
     mindfulness: "正念呼吸",
@@ -699,7 +701,7 @@ function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos }: { 
           </div>
         </article>
 
-        <aside className="grid grid-rows-2 gap-4">
+        <aside className="grid grid-rows-3 gap-3">
           <article className="flex flex-col rounded-3xl border border-white bg-white p-5 shadow-card">
             <div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-600">累计完成次数</p><Activity className="h-5 w-5 text-medical-600" /></div>
             <div className="mt-auto flex items-end gap-2"><p className="text-5xl font-bold text-slate-950">{patient.completed}</p><p className="pb-1 text-sm font-bold text-slate-400">/ {patient.sessions} 次</p></div>
@@ -710,11 +712,20 @@ function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos }: { 
             <div className="flex items-center justify-between"><p className="text-sm font-bold text-medical-900">下次随访</p><CalendarDays className="h-5 w-5 text-medical-600" /></div>
             <div className="mt-auto"><p className="text-3xl font-bold text-slate-950">8 月 6 日</p><p className="mt-1 text-lg font-bold text-medical-800">14:30</p><p className="mt-3 text-xs text-slate-500">心脏康复门诊 · 王医生</p></div>
           </article>
+          <button type="button" data-action="ACT-PATIENT-OPEN-HANDBOOK" onClick={() => setShowHandbook(true)} className="flex flex-col rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-left transition hover:border-emerald-300 hover:shadow-card"><div className="flex items-center justify-between"><p className="text-sm font-bold text-emerald-900">我的出院康复手册</p><FileText className="h-5 w-5 text-emerald-600" /></div><p className="mt-auto text-xs leading-5 text-slate-600">查看居家运动、用药、饮食和1/3/6个月复查计划</p><span className="mt-2 flex items-center gap-1 text-xs font-bold text-emerald-700">已由王医生确认 <ChevronRight className="h-4 w-4" /></span></button>
         </aside>
       </div>
+      {showHandbook && <PatientHandbookModal onClose={() => setShowHandbook(false)} />}
     </section>
   );
 }
+
+function PatientHandbookModal({ onClose }: { onClose: () => void }) {
+  const handbook = demoDischargeHandbook;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-sm" data-testid="modal-PATIENT-DISCHARGE-HANDBOOK"><section className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-slate-100 px-6 py-4"><div><p className="text-xs font-bold text-emerald-700">{handbook.handbookNo}</p><h2 className="mt-1 text-xl font-bold">我的出院康复手册</h2><p className="mt-1 text-xs text-slate-500">王医生已确认 · {formatDateTime(handbook.generatedAt)}</p></div><button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100"><X className="h-5 w-5" /></button></div><div className="overflow-y-auto p-6"><p className="rounded-2xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">{handbook.summary}</p><div className="mt-4 grid gap-3 sm:grid-cols-3">{handbook.improvements.map((item) => <div key={item.label} className="rounded-2xl border border-slate-100 p-4"><p className="text-xs font-bold text-slate-500">{item.label}</p><p className="mt-2 text-xs text-slate-400">基线 {item.baseline}</p><p className="mt-1 text-base font-bold text-emerald-700">当前 {item.current}</p></div>)}</div><div className="mt-4 grid gap-4 md:grid-cols-2"><PatientHandbookSection title="居家运动" items={handbook.exercisePlan} /><PatientHandbookSection title="用药提醒" items={handbook.medicationTips} /><PatientHandbookSection title="饮食与生活" items={handbook.nutritionTips} /><PatientHandbookSection title="1、3、6个月复查" items={handbook.reviewPlan} /><div className="md:col-span-2"><PatientHandbookSection title="以下情况立即停止运动并就医" items={handbook.warningSigns} warning /></div></div></div><div className="flex justify-end border-t border-slate-100 p-4"><button type="button" className="btn-primary patient-touch px-8" onClick={onClose}>我已了解</button></div></section></div>;
+}
+
+function PatientHandbookSection({ title, items, warning = false }: { title: string; items: string[]; warning?: boolean }) { return <section className={`rounded-2xl border p-4 ${warning ? "border-rose-100 bg-rose-50" : "border-slate-100"}`}><h3 className={`font-bold ${warning ? "text-rose-800" : "text-slate-900"}`}>{title}</h3><ul className="mt-3 space-y-2">{items.map((item) => <li key={item} className="flex gap-2 text-xs leading-5 text-slate-600"><CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${warning ? "text-rose-500" : "text-emerald-500"}`} />{item}</li>)}</ul></section>; }
 
 function VideoTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrainingVideo; onBack: () => void; onFinish: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);

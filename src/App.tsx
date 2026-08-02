@@ -210,6 +210,8 @@ export default function App() {
   function generateDraft(taskId: string) {
     const targetTask = prescriptionTasks.find((task) => task.id === taskId);
     if (!targetTask || (role === "DOCTOR" && targetTask.assignedDoctor !== currentAccount)) return;
+    const assessment = patientClinicalProfiles.find((profile) => profile.patientId === targetTask.patientId)?.rehabAssessment;
+    const assessmentTotal = assessment ? assessment.sppb.balanceScore + assessment.sppb.gaitScore + assessment.sppb.chairStandScore : 0;
     const generatedAt = "2026-07-30T10:46:00+08:00";
     setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? {
       ...task,
@@ -225,6 +227,9 @@ export default function App() {
           task.sourceLabel,
           task.previousVersionId ? `上一版处方 ${task.previousVersionId}` : "基线临床评估",
           "诊断、特殊用药与风险分层",
+          assessment?.status === "已复核"
+            ? `结构化康复评估：SPPB ${assessmentTotal}/12、6MWT ${assessment.sixMinuteWalk.distanceMeters ?? "待补"}m、峰值VO₂ ${assessment.cpet.peakVo2 ?? "待补"}`
+            : `结构化康复评估：${assessment?.status ?? "待补充"}`,
           ...(task.risk === "高危" ? ["高危患者人工复核要求"] : [])
         ],
         missingData: task.missingFields ?? [],

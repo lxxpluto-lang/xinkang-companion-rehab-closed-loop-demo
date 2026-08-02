@@ -1,7 +1,7 @@
 import type { ManagedPatient } from "./pages/PatientArchivePage";
 
 export type FollowUpStatus = "upcoming" | "due" | "overdue" | "rescheduled" | "completed";
-export type FollowUpMilestone = 1 | 3 | 5;
+export type FollowUpMilestone = 1 | 3 | 6;
 export type ContactResult = "reached" | "no_answer" | "refused" | "invalid_number";
 export type FollowUpDisposition = "continue_plan" | "early_visit" | "prescription_review" | "urgent_care";
 
@@ -142,7 +142,7 @@ function createTask(patient: ManagedPatient, milestoneMonth: FollowUpMilestone):
 
 export function createInitialFollowUpData(patients: ManagedPatient[]) {
   const tasks = patients.flatMap((patient) => patient.discharge_date
-    ? ([1, 3, 5] as FollowUpMilestone[]).map((milestone) => createTask(patient, milestone))
+    ? ([1, 3, 6] as FollowUpMilestone[]).map((milestone) => createTask(patient, milestone))
     : []);
   const completedTask = tasks.find((task) => task.patientId === "P-DEMO-003" && task.milestoneMonth === 1);
   const records: FollowUpRecord[] = [];
@@ -187,7 +187,7 @@ export function reconcilePatientFollowUps(
   const otherTasks = tasks.filter((task) => task.patientId !== patient.patient_demo_id);
   if (!patient.discharge_date) return [...otherTasks, ...existingPatientTasks.filter((task) => task.status === "completed")];
   const changedAt = new Date().toISOString();
-  const reconciled = ([1, 3, 5] as FollowUpMilestone[]).map((milestone) => {
+  const reconciled = ([1, 3, 6] as FollowUpMilestone[]).map((milestone) => {
     const existing = existingPatientTasks.find((task) => task.milestoneMonth === milestone);
     if (existing?.status === "completed") return existing;
     const nextDate = addCalendarMonths(patient.discharge_date, milestone);

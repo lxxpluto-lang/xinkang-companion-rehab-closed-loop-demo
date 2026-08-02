@@ -17,6 +17,37 @@ export type PatientClinicalProfile = {
   updatedBy: string;
   updatedAt: string;
   auditSummary?: string;
+  rehabAssessment: RehabAssessment;
+};
+
+export type RehabAssessment = {
+  assessmentId: string;
+  assessedAt: string;
+  assessor: string;
+  source: "结构化录入" | "纸质评估单识别";
+  status: "待补充" | "待复核" | "已复核";
+  sppb: {
+    balanceScore: number;
+    gaitScore: number;
+    chairStandScore: number;
+  };
+  sixMinuteWalk: {
+    distanceMeters: number | null;
+    baselineMeters: number | null;
+    startHeartRate: number | null;
+    endHeartRate: number | null;
+  };
+  cpet: {
+    peakVo2: number | null;
+    anaerobicThreshold: number | null;
+    contraindication: string;
+  };
+  restingVitals: {
+    heartRate: number | null;
+    systolic: number | null;
+    diastolic: number | null;
+    spo2: number | null;
+  };
 };
 
 export type ClinicalNarrativeContent = {
@@ -77,16 +108,27 @@ const baseProfile = {
   sixMinuteWalk: "486 m",
   restingVitals: "HR 72 bpm · BP 126/78 mmHg · SpO₂ 98%",
   updatedBy: "王医生",
-  updatedAt: "2026-07-29T10:20:00+08:00"
+  updatedAt: "2026-07-29T10:20:00+08:00",
+  rehabAssessment: {
+    assessmentId: "RA-20260729-0001",
+    assessedAt: "2026-07-29T09:40:00+08:00",
+    assessor: "王医生",
+    source: "结构化录入" as const,
+    status: "已复核" as const,
+    sppb: { balanceScore: 3, gaitScore: 3, chairStandScore: 2 },
+    sixMinuteWalk: { distanceMeters: 486, baselineMeters: 438, startHeartRate: 72, endHeartRate: 105 },
+    cpet: { peakVo2: 18.6, anaerobicThreshold: 13.2, contraindication: "未发现运动禁忌证" },
+    restingVitals: { heartRate: 72, systolic: 126, diastolic: 78, spo2: 98 }
+  }
 };
 
 export const initialPatientClinicalProfiles: PatientClinicalProfile[] = [
   { ...baseProfile, patientId: "P-DEMO-001", patientNo: "000001", name: "陈女士", sex: "女", age: 59, riskLevel: "中危", rehabStage: "Ⅱ期 · 第4周", medicalHistory: "冠心病 PCI 术后 6 周，高血压病史 8 年；训练中偶有轻微胸闷。" },
   { ...baseProfile, patientId: "P-DEMO-002", patientNo: "000002", name: "李先生", sex: "男", age: 58, riskLevel: "低危", rehabStage: "Ⅱ期 · 第2周", idNumberMasked: "3702********4826", contact: "136****1938", cpet: "峰值 VO₂ 20.1 ml/kg/min", sixMinuteWalk: "512 m" },
   { ...baseProfile, patientId: "P-DEMO-003", patientNo: "000003", name: "王先生", sex: "男", age: 66, riskLevel: "中危", rehabStage: "Ⅱ期 · 第3周", idNumberMasked: "3702********7714", contact: "159****2850" },
-  { ...baseProfile, patientId: "P-DEMO-004", patientNo: "000004", name: "赵女士", sex: "女", age: 60, riskLevel: "高危", rehabStage: "首次评估", idNumberMasked: "3702********3409", contact: "137****8246", cpet: "待医生复核", sixMinuteWalk: "待补充" },
+  { ...baseProfile, patientId: "P-DEMO-004", patientNo: "000004", name: "赵女士", sex: "女", age: 60, riskLevel: "高危", rehabStage: "首次评估", idNumberMasked: "3702********3409", contact: "137****8246", cpet: "待医生复核", sixMinuteWalk: "待补充", rehabAssessment: { ...baseProfile.rehabAssessment, assessmentId: "RA-20260730-0004", status: "待复核", sppb: { balanceScore: 2, gaitScore: 2, chairStandScore: 1 }, sixMinuteWalk: { distanceMeters: null, baselineMeters: null, startHeartRate: null, endHeartRate: null }, cpet: { peakVo2: 12.8, anaerobicThreshold: null, contraindication: "需医生复核运动诱发缺血风险" } } },
   { ...baseProfile, patientId: "P-DEMO-005", patientNo: "000005", name: "周先生", sex: "男", age: 55, riskLevel: "低危", rehabStage: "Ⅱ期 · 第6周", idNumberMasked: "3702********2218", contact: "135****6016" },
-  { ...baseProfile, patientId: "P-DEMO-006", patientNo: "000006", name: "孙女士", sex: "女", age: 64, riskLevel: "中危", rehabStage: "首次评估", idNumberMasked: "3702********3902", contact: "158****1705", cpet: "待补充", sixMinuteWalk: "待补充" }
+  { ...baseProfile, patientId: "P-DEMO-006", patientNo: "000006", name: "孙女士", sex: "女", age: 64, riskLevel: "中危", rehabStage: "首次评估", idNumberMasked: "3702********3902", contact: "158****1705", cpet: "待补充", sixMinuteWalk: "待补充", rehabAssessment: { ...baseProfile.rehabAssessment, assessmentId: "RA-20260730-0006", status: "待补充", sppb: { balanceScore: 0, gaitScore: 0, chairStandScore: 0 }, sixMinuteWalk: { distanceMeters: null, baselineMeters: null, startHeartRate: null, endHeartRate: null }, cpet: { peakVo2: null, anaerobicThreshold: null, contraindication: "待评估" }, restingVitals: { heartRate: null, systolic: null, diastolic: null, spo2: null } } }
 ];
 
 export const initialClinicalNarratives: ClinicalNarrativeRecord[] = [

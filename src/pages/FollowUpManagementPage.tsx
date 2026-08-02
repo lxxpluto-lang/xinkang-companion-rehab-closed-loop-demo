@@ -114,7 +114,7 @@ export function FollowUpManagementPage({
   const selectedRecord = selectedTask ? [...records].filter((record) => record.taskId === selectedTask.id).sort((left, right) => right.contactedAt.localeCompare(left.contactedAt))[0] : undefined;
 
   return <section data-testid="page-VIEW-FOLLOWUPS">
-    <PageHeader eyebrow="院后康复管理" title={role === "DOCTOR" ? "我的随访管理" : "全院随访管理"} description={role === "DOCTOR" ? `仅展示主管医生为${currentAccount}的患者；按出院后1、3、5个月生成随访任务。` : "管理员可查看全部医生的随访计划与完成记录，但不能代医生提交或改期。"} action={<StatusBadge tone={role === "DOCTOR" ? "blue" : "gray"}>{role === "DOCTOR" ? "本人患者" : "只读查看"}</StatusBadge>} />
+    <PageHeader eyebrow="院后康复管理" title={role === "DOCTOR" ? "我的随访管理" : "全院随访管理"} description={role === "DOCTOR" ? `仅展示主管医生为${currentAccount}的患者；按出院后1、3、6个月生成随访任务。` : "管理员可查看全部医生的随访计划与完成记录，但不能代医生提交或改期。"} action={<StatusBadge tone={role === "DOCTOR" ? "blue" : "gray"}>{role === "DOCTOR" ? "本人患者" : "只读查看"}</StatusBadge>} />
 
     <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Metric label="7天内待随访" value={counts.soon} tone="blue" icon={<CalendarClock className="h-4 w-4" />} />
@@ -130,7 +130,7 @@ export function FollowUpManagementPage({
         </div>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[1.3fr_0.65fr_0.8fr_0.8fr_0.8fr_auto]">
           <label className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} className="text-field pl-9" placeholder="患者姓名、档案编码或病案号" /></label>
-          <select aria-label="随访节点" value={milestone} onChange={(event) => setMilestone(event.target.value)} className="text-field"><option value="all">全部节点</option><option value="1">1个月</option><option value="3">3个月</option><option value="5">5个月</option></select>
+          <select aria-label="随访节点" value={milestone} onChange={(event) => setMilestone(event.target.value)} className="text-field"><option value="all">全部节点</option><option value="1">1个月</option><option value="3">3个月</option><option value="6">6个月</option></select>
           <select aria-label="随访状态" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-field"><option value="all">全部状态</option><option value="upcoming">待随访</option><option value="due">今日到期</option><option value="overdue">已逾期</option><option value="rescheduled">已改期</option><option value="completed">已完成</option></select>
           <input aria-label="计划日期开始" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="text-field" />
           <input aria-label="计划日期结束" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="text-field" />

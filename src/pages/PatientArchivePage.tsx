@@ -308,7 +308,7 @@ export function PatientArchivePage({
       const sensitiveChanged = original && ["name", "gender", "birth_date", "hospital_patient_no", "id_number"].some((key) => original[key as keyof ManagedPatient] !== normalized[key as keyof ManagedPatient]);
       if (sensitiveChanged && !window.confirm("姓名、性别、出生日期、病案号或证件号码已发生变化。确认保存并写入审计记录吗？")) return;
       if (original && original.discharge_date !== normalized.discharge_date) {
-        if (!window.confirm("出院日期变化会重新计算尚未完成的1、3、5个月随访节点，已完成记录保持不变。确认继续吗？")) return;
+        if (!window.confirm("出院日期变化会重新计算尚未完成的1、3、6个月随访节点，已完成记录保持不变。确认继续吗？")) return;
         dischargeChangeReason = window.prompt("请输入调整出院日期的原因，将写入随访审计记录。", original.discharge_date ? "更正出院日期" : "补录出院日期")?.trim() ?? "";
         if (!dischargeChangeReason) {
           setFormError("修改出院日期必须填写变更原因。");
@@ -546,9 +546,9 @@ function NarrativesTab({ records }: { records: ClinicalNarrativeRecord[] }) {
 }
 
 function FollowUpsTab({ patient, tasks, records, canEdit, onEditPatient, onOpenFollowUp }: { patient: ManagedPatient; tasks: FollowUpTask[]; records: FollowUpRecord[]; canEdit: boolean; onEditPatient: () => void; onOpenFollowUp: (taskId: string) => void }) {
-  if (!patient.discharge_date) return <section className="card p-5"><SectionHeader title="随访计划" description="随访节点以出院日期为计算起点。" /><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4"><div className="flex gap-3"><AlertTriangle className="h-5 w-5 text-amber-600" /><div><b className="text-xs text-amber-900">尚未生成随访计划</b><p className="mt-1 text-xs text-amber-700">请先补录出院日期，系统将自动生成1、3、5个月随访节点。</p></div></div>{canEdit && <button type="button" onClick={onEditPatient} className="btn-secondary">补录出院日期</button>}</div></section>;
+  if (!patient.discharge_date) return <section className="card p-5"><SectionHeader title="随访计划" description="随访节点以出院日期为计算起点。" /><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4"><div className="flex gap-3"><AlertTriangle className="h-5 w-5 text-amber-600" /><div><b className="text-xs text-amber-900">尚未生成随访计划</b><p className="mt-1 text-xs text-amber-700">请先补录出院日期，系统将自动生成1、3、6个月随访节点。</p></div></div>{canEdit && <button type="button" onClick={onEditPatient} className="btn-secondary">补录出院日期</button>}</div></section>;
   const sortedTasks = [...tasks].sort((left, right) => left.milestoneMonth - right.milestoneMonth);
-  return <div className="space-y-4"><section className="card p-5"><SectionHeader title="1、3、5个月随访计划" description={`出院日期 ${patient.discharge_date} · 提前7天进入医生待办。`} /><div className="grid gap-3 md:grid-cols-3">{sortedTasks.map((task) => {
+  return <div className="space-y-4"><section className="card p-5"><SectionHeader title="1、3、6个月随访计划" description={`出院日期 ${patient.discharge_date} · 提前7天进入医生待办。`} /><div className="grid gap-3 md:grid-cols-3">{sortedTasks.map((task) => {
     const status = effectiveFollowUpStatus(task);
     const tone = status === "completed" ? "green" : status === "overdue" ? "red" : status === "due" ? "orange" : status === "rescheduled" ? "blue" : "gray";
     return <div key={task.id} className="rounded-xl border border-slate-100 p-4"><div className="flex items-center justify-between"><b className="text-sm text-slate-900">出院后 {task.milestoneMonth} 个月</b><StatusBadge tone={tone}>{followUpStatusLabels[status]}</StatusBadge></div><p className="mt-3 text-xs text-slate-500">原计划：{task.originalPlannedDate}</p><p className="mt-1 text-xs font-bold text-slate-800">当前日期：{task.currentDueDate}</p>{canEdit && status !== "completed" && <button type="button" onClick={() => onOpenFollowUp(task.id)} className="mt-4 text-xs font-bold text-blue-700">去随访<ArrowRight className="ml-1 inline h-3.5 w-3.5" /></button>}</div>;
