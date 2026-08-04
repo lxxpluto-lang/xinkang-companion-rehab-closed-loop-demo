@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleStop,
-  ClipboardCheck,
   Clock3,
   Dumbbell,
   FileText,
@@ -31,13 +30,14 @@ import {
   ThermometerSun,
   TrendingUp,
   UserRound,
-  UserRoundPlus,
   Volume2,
   Waves,
   Wifi,
   X
 } from "lucide-react";
 import type { TrainingState } from "../types";
+import { effectiveFollowUpStatus, followUpStatusLabels, type FollowUpTask } from "../followUpData";
+import type { RehabReport } from "../dischargeHandbookData";
 import type { PublishedTrainingVideo } from "../pages/VideoLibraryPage";
 import {
   announceHeartRateAlert,
@@ -59,11 +59,12 @@ type PatientAppProps = {
   anomaly: boolean;
   setAnomaly: (value: boolean) => void;
   publishedTrainingVideos: PublishedTrainingVideo[];
+  followUpTasks: FollowUpTask[];
+  rehabReports?: RehabReport[];
 };
 
 type View =
   | "login"
-  | "record"
   | "home"
   | "calendar"
   | "report"
@@ -141,6 +142,8 @@ export function PatientApp({
   anomaly,
   setAnomaly,
   publishedTrainingVideos
+  ,followUpTasks
+  ,rehabReports = []
 }: PatientAppProps) {
   const [view, setView] = useState<View>("login");
   const [authenticatedPatientId, setAuthenticatedPatientId] = useState<string | null>(null);
@@ -167,6 +170,7 @@ export function PatientApp({
   const [bikeTrainingVideos, setBikeTrainingVideos] = useState<LocalBikeVideo[]>([]);
   const [selectedBikeVideo, setSelectedBikeVideo] = useState<LocalBikeVideo | null>(null);
   const selectedTrainingVideo = publishedTrainingVideos.find((video) => video.subtype === exerciseVideoSubtypes[exercise]) ?? null;
+  const nextFollowUpTask = [...followUpTasks].sort((left, right) => left.currentDueDate.localeCompare(right.currentDueDate))[0];
 
   const totalMinutes = warmup + mainMinutes * repeats + cooldown;
   useEffect(() => {
@@ -265,11 +269,7 @@ export function PatientApp({
   }
 
   if (view === "login") {
-    return <LoginScreen onExit={onExit} onLogin={(patientId) => { setAuthenticatedPatientId(patientId); setView("home"); }} onCreate={() => setView("record")} />;
-  }
-
-  if (view === "record") {
-    return <RecordScreen onBack={() => setView("login")} onSaved={() => setView("home")} />;
+    return <LoginScreen onExit={onExit} onLogin={(patientId) => { setAuthenticatedPatientId(patientId); setView("home"); }} />;
   }
 
   const mainView = view === "home" || view === "calendar" || view === "report" || view === "profile";
@@ -295,10 +295,11 @@ export function PatientApp({
               onChoose={setExercise}
               onStart={() => setView(exercise === "bike" ? "prescription" : "videoTraining")}
               publishedTrainingVideos={publishedTrainingVideos}
+              nextFollowUpTask={nextFollowUpTask}
             />
           )}
           {view === "calendar" && <CalendarScreen onBack={() => setView("home")} />}
-          {view === "report" && <ReportScreen onStart={() => setView("prescription")} initialSingleReportId={reportToOpen} />}
+          {view === "report" && <ReportScreen onStart={() => setView("prescription")} initialSingleReportId={reportToOpen} rehabReport={rehabReports.find((report) => report.patientId === "P-DEMO-001" && report.status === "published")} />}
           {view === "profile" && <ProfileScreen onBack={() => setView("home")} />}
           {view === "prescription" && (
             <PrescriptionScreen
@@ -415,8 +416,10 @@ export function PatientApp({
   );
 }
 
-function LoginScreen({ onExit, onLogin, onCreate }: { onExit: () => void; onLogin: (patientId: string) => void; onCreate: () => void }) {
+function LoginScreen({ onExit, onLogin }: { onExit: () => void; onLogin: (patientId: string) => void }) {
   const [patientNo, setPatientNo] = useState(patientMasterChen.patientNo);
+  const [verificationCode, setVerificationCode] = useState("123456");
+  const [verificationSent, setVerificationSent] = useState(false);
   const [error, setError] = useState("");
   const normalizedPatientNo = patientNo.trim();
   const validFormat = /^\d{6}$/.test(normalizedPatientNo);
@@ -440,6 +443,15 @@ function LoginScreen({ onExit, onLogin, onCreate }: { onExit: () => void; onLogi
     }
     if (normalizedPatientNo !== patientMasterChen.patientNo) {
       setError("未找到该患者号，请核对后重试。");
+      return;
+    }
+    if (!verificationSent) {
+      setVerificationSent(true);
+      setError("验证码已发送至患者登记手机号（演示验证码：123456）。");
+      return;
+    }
+    if (verificationCode.trim() !== "123456") {
+      setError("验证码不正确，请重新输入。");
       return;
     }
     setError("");
@@ -469,72 +481,24 @@ function LoginScreen({ onExit, onLogin, onCreate }: { onExit: () => void; onLogi
           </div>
         </div>
         <div className="flex min-h-[650px] flex-col justify-center p-12">
-          <p className="text-sm font-bold text-medical-700">患者号快捷登录</p>
+          <p className="text-sm font-bold text-medical-700">患者号 + 一次性验证码登录</p>
           <h2 className="mt-2 text-3xl font-bold text-slate-950">欢迎回来</h2>
-          <p className="mt-2 text-sm text-slate-500">无需密码，输入康复中心发放的患者号即可进入。</p>
+          <p className="mt-2 text-sm text-slate-500">输入康复中心发放的患者号，再用登记手机号接收一次性验证码。</p>
           <label className="mt-8 text-sm font-bold text-slate-700" htmlFor="patient-no">患者号</label>
           <div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-medical-400 focus-within:ring-4 focus-within:ring-medical-50">
             <IdCard className="h-5 w-5 text-slate-400" />
-            <input id="patient-no" value={patientNo} onChange={(event) => { setPatientNo(event.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") login(); }} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} aria-invalid={Boolean(error)} aria-describedby="patient-login-help" autoComplete="username" className="h-14 flex-1 bg-transparent px-3 font-mono text-base font-semibold text-slate-800 outline-none" />
-            <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">免密码</span>
+            <input id="patient-no" value={patientNo} onChange={(event) => { setPatientNo(event.target.value.replace(/\D/g, "").slice(0, 6)); setVerificationSent(false); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") login(); }} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} aria-invalid={Boolean(error)} aria-describedby="patient-login-help" autoComplete="username" className="h-14 flex-1 bg-transparent px-3 font-mono text-base font-semibold text-slate-800 outline-none" />
+            <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">身份核验</span>
           </div>
+          {verificationSent && <div className="mt-4 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4"><ShieldCheck className="h-5 w-5 text-emerald-600" /><input value={verificationCode} onChange={(event) => { setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }} inputMode="numeric" maxLength={6} className="h-12 flex-1 bg-transparent px-3 font-mono text-base font-semibold outline-none" placeholder="输入6位验证码" /><span className="text-[10px] font-bold text-slate-400">演示 123456</span></div>}
           <div id="patient-login-help" className={`mt-3 rounded-xl border px-3 py-2 text-xs leading-5 ${error ? "border-red-200 bg-red-50 text-red-700" : "border-amber-100 bg-amber-50 text-amber-800"}`}>
-            {error || "演示患者号：000001。当前原型无需密码，输入患者号即可直接登录。"}
+            {error || "演示患者号：000001。首次点击登录会发送一次性验证码。"}
           </div>
           <button type="button" onClick={login} disabled={!patientNo.trim()} className="patient-touch mt-7 flex items-center justify-center gap-2 rounded-2xl bg-medical-600 px-5 font-bold text-white shadow-lg shadow-medical-100 hover:bg-medical-700 disabled:bg-slate-300">
             登录患者端 <ArrowRight className="h-5 w-5" />
           </button>
-          <button type="button" onClick={onCreate} className="patient-touch mt-3 flex items-center justify-center gap-2 rounded-2xl border border-medical-200 bg-medical-50 px-5 font-bold text-medical-800 hover:bg-medical-100">
-            <UserRoundPlus className="h-5 w-5" /> 首次使用，创建康复档案
-          </button>
+          <p className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-center text-xs leading-5 text-blue-800">如未建立档案，请联系医生在医护端新建患者基本信息。</p>
           <button type="button" onClick={onExit} className="mt-7 text-sm font-semibold text-slate-500 hover:text-slate-800">返回系统入口</button>
-        </div>
-      </section>
-    </main>
-  );
-}
-
-function RecordScreen({ onBack, onSaved }: { onBack: () => void; onSaved: () => void }) {
-  const fields = [
-    ["姓名", patientMasterChen.name],
-    ["性别", patientMasterChen.sex],
-    ["出生日期 / 年龄", "1966-03-18 / 59 岁"],
-    ["身高 / 体重", `162 cm / ${patientMasterChen.weightKg} kg`],
-    ["康复分组", patientMasterChen.rehabGroup],
-    ["康复阶段 / 风险", `${patientMasterChen.rehabStage} / ${patientMasterChen.clinicalSnapshot.riskLevel}`],
-    ["静息心率", `${patientMasterChen.restingHr} bpm`],
-    ["计划训练次数", `${patientMasterChen.planSessions} 次`]
-  ];
-  return (
-    <main className="ipad-stage min-h-screen p-5" data-testid="page-VIEW-PATIENT-RECORD">
-      <section className="mx-auto max-w-[1180px] rounded-[28px] border border-white bg-white p-7 shadow-float">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-5">
-          <div>
-            <p className="text-sm font-bold text-medical-700">首次登录 · 步骤 1 / 1</p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-950">建立个人康复档案</h1>
-            <p className="mt-1 text-sm text-slate-500">基础信息由患者确认，临床分组与处方由医护审核。</p>
-          </div>
-          <span className="rounded-full bg-amber-50 px-4 py-2 text-xs font-bold text-amber-700">演示预填数据</span>
-        </div>
-        <div className="mt-6 grid grid-cols-2 gap-4">
-          {fields.map(([label, value]) => (
-            <label key={label} className="block rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <span className="text-xs font-bold text-slate-500">{label}</span>
-              <input defaultValue={value} className="mt-2 w-full bg-transparent text-base font-bold text-slate-800 outline-none" />
-            </label>
-          ))}
-        </div>
-        <div className="mt-5 rounded-2xl border border-medical-100 bg-medical-50 p-5">
-          <div className="flex items-center gap-2 font-bold text-medical-900"><ClipboardCheck className="h-5 w-5" /> 上一次医生处方 · 结构化提取</div>
-          <div className="mt-4 grid grid-cols-5 gap-3 text-sm">
-            {[["训练方式", activePrescription.exerciseProject], ["目标心率", `${activePrescription.targetHr[0]}–${activePrescription.targetHr[1]} bpm`], ["阶段时长", `${activePrescription.warmupMinutes} + ${activePrescription.trainingMinutes} + ${activePrescription.cooldownMinutes} 分`], ["训练频次", `每周 ${activePrescription.weeklyFrequency} 次`], ["总计划", `${patientMasterChen.planSessions} 次`]].map(([label, value]) => (
-              <div className="rounded-xl bg-white p-3" key={label}><p className="text-xs text-slate-500">{label}</p><p className="mt-1 font-bold text-slate-800">{value}</p></div>
-            ))}
-          </div>
-        </div>
-        <div className="mt-6 flex justify-between">
-          <button type="button" onClick={onBack} className="btn-secondary patient-touch"><ArrowLeft className="h-4 w-4" /> 返回登录</button>
-          <button type="button" onClick={onSaved} className="btn-primary patient-touch px-8"><Check className="h-5 w-5" /> 保存并进入首页</button>
         </div>
       </section>
     </main>
@@ -614,7 +578,7 @@ function FlowBar({ view }: { view: View }) {
   );
 }
 
-function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos }: { exercise: Exercise; onChoose: (value: Exercise) => void; onStart: () => void; publishedTrainingVideos: PublishedTrainingVideo[] }) {
+function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos, nextFollowUpTask }: { exercise: Exercise; onChoose: (value: Exercise) => void; onStart: () => void; publishedTrainingVideos: PublishedTrainingVideo[]; nextFollowUpTask?: FollowUpTask }) {
   const [showHandbook, setShowHandbook] = useState(false);
   const exerciseNames: Record<Exercise, string> = {
     diaphragmatic: "腹式呼吸",
@@ -708,10 +672,10 @@ function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos }: { 
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full w-[31%] rounded-full bg-medical-500" /></div>
             <p className="mt-2 text-[11px] text-slate-500">本月已完成 8 次</p>
           </article>
-          <article className="flex flex-col rounded-3xl border border-medical-100 bg-medical-50 p-5">
+          <div className="flex flex-col rounded-3xl border border-medical-100 bg-medical-50 p-5 text-left">
             <div className="flex items-center justify-between"><p className="text-sm font-bold text-medical-900">下次随访</p><CalendarDays className="h-5 w-5 text-medical-600" /></div>
-            <div className="mt-auto"><p className="text-3xl font-bold text-slate-950">8 月 6 日</p><p className="mt-1 text-lg font-bold text-medical-800">14:30</p><p className="mt-3 text-xs text-slate-500">心脏康复门诊 · 王医生</p></div>
-          </article>
+            <div className="mt-auto"><p className="text-3xl font-bold text-slate-950">{nextFollowUpTask ? `${Number(nextFollowUpTask.currentDueDate.slice(5, 7))} 月 ${Number(nextFollowUpTask.currentDueDate.slice(8, 10))} 日` : "暂无计划"}</p><p className="mt-1 text-lg font-bold text-medical-800">{nextFollowUpTask ? followUpStatusLabels[effectiveFollowUpStatus(nextFollowUpTask)] : ""}</p><p className="mt-3 text-xs text-slate-500">康复师将通过电话联系您，您只需口述近期情况。</p></div>
+          </div>
           <button type="button" data-action="ACT-PATIENT-OPEN-HANDBOOK" onClick={() => setShowHandbook(true)} className="flex flex-col rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-left transition hover:border-emerald-300 hover:shadow-card"><div className="flex items-center justify-between"><p className="text-sm font-bold text-emerald-900">我的出院康复手册</p><FileText className="h-5 w-5 text-emerald-600" /></div><p className="mt-auto text-xs leading-5 text-slate-600">查看居家运动、用药、饮食和1/3/6个月复查计划</p><span className="mt-2 flex items-center gap-1 text-xs font-bold text-emerald-700">已由王医生确认 <ChevronRight className="h-4 w-4" /></span></button>
         </aside>
       </div>
@@ -1196,12 +1160,14 @@ function CalendarScreen({ onBack }: { onBack: () => void }) {
 
 function ReportScreen({
   onStart,
-  initialSingleReportId
+  initialSingleReportId,
+  rehabReport
 }: {
   onStart: () => void;
   initialSingleReportId?: string | null;
+  rehabReport?: RehabReport;
 }) {
-  const [reportTab, setReportTab] = useState<"single" | "stage">("single");
+  const [reportTab, setReportTab] = useState<"single" | "stage" | "discharge">("single");
   const [selectedSingleReport, setSelectedSingleReport] = useState<string | null>(initialSingleReportId ?? null);
   return (
     <section className="space-y-4 pb-2" data-testid="page-VIEW-PATIENT-REPORT">
@@ -1213,15 +1179,24 @@ function ReportScreen({
         <div className="flex rounded-2xl bg-slate-100 p-1" role="tablist" aria-label="报告类型">
           <button type="button" role="tab" aria-selected={reportTab === "single"} onClick={() => { setReportTab("single"); setSelectedSingleReport(null); }} className={`min-h-10 rounded-xl px-6 text-sm font-bold ${reportTab === "single" ? "bg-white text-medical-800 shadow-sm" : "text-slate-500"}`}>单次报告</button>
           <button type="button" role="tab" aria-selected={reportTab === "stage"} onClick={() => setReportTab("stage")} className={`min-h-10 rounded-xl px-6 text-sm font-bold ${reportTab === "stage" ? "bg-white text-medical-800 shadow-sm" : "text-slate-500"}`}>阶段性报告</button>
+          <button type="button" role="tab" aria-selected={reportTab === "discharge"} onClick={() => setReportTab("discharge")} className={`min-h-10 rounded-xl px-6 text-sm font-bold ${reportTab === "discharge" ? "bg-white text-medical-800 shadow-sm" : "text-slate-500"}`}>康复出院报告</button>
         </div>
       </header>
-      {reportTab === "single" ? (
+      {reportTab === "discharge" ? (
+        rehabReport ? <PatientRehabReport report={rehabReport} /> : <article className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center"><FileText className="mx-auto h-8 w-8 text-amber-600" /><h2 className="mt-3 text-lg font-bold text-amber-950">康复出院报告尚未发布</h2><p className="mt-2 text-xs text-amber-800">医生完成治疗部分填写、康复数据确认和最终发布后，患者可在此查看。</p></article>
+      ) : reportTab === "single" ? (
         selectedSingleReport
           ? <SingleTrainingReport reportId={selectedSingleReport} onBack={() => setSelectedSingleReport(null)} />
           : <SingleReportList onSelect={setSelectedSingleReport} />
       ) : <StageTrainingReport onStart={onStart} />}
     </section>
   );
+}
+
+function PatientRehabReport({ report }: { report: RehabReport }) {
+  const medicalItems = [["入院诊断", report.medicalSection.diagnosis], ["住院治疗经过", report.medicalSection.treatmentCourse], ["手术/介入情况", report.medicalSection.procedure], ["药物及注意事项", report.medicalSection.medications], ["医学复诊要求", report.medicalSection.followUpRequirements], ["临床结论", report.medicalSection.clinicalConclusion]];
+  const rehabItems = [["评估结果", report.rehabSection.assessmentSummary], ["训练数据", report.rehabSection.trainingSummary], ["依从性", report.rehabSection.adherenceSummary], ["随访", report.rehabSection.followUpSummary], ["改善趋势", report.rehabSection.improvementSummary]];
+  return <div className="space-y-4" data-testid="page-VIEW-PATIENT-REHAB-REPORT"><article className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 shadow-card"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-emerald-700">医生已确认 · {report.publishedAt ? new Date(report.publishedAt).toLocaleDateString("zh-CN") : "已发布"}</p><h2 className="mt-1 text-2xl font-bold text-emerald-950">康复出院报告</h2></div><span className="rounded-full bg-white px-4 py-2 text-xs font-bold text-emerald-700">可查看</span></div><p className="mt-3 text-xs leading-5 text-emerald-900">本报告包含医生填写的治疗信息、系统汇总的康复数据和医生确认后的居家建议。</p></article><section className="grid gap-4 xl:grid-cols-2"><article className="rounded-3xl border border-blue-100 bg-blue-50 p-5 shadow-card"><h3 className="text-sm font-bold text-blue-950">医生治疗部分</h3><div className="mt-4 space-y-3">{medicalItems.map(([label, value]) => <div key={label} className="rounded-2xl bg-white p-4"><p className="text-[11px] font-bold text-blue-600">{label}</p><p className="mt-1 text-xs leading-5 text-slate-700">{value || "未填写"}</p></div>)}</div></article><article className="rounded-3xl border border-teal-100 bg-teal-50 p-5 shadow-card"><h3 className="text-sm font-bold text-teal-950">康复数据</h3><div className="mt-4 space-y-3">{rehabItems.map(([label, value]) => <div key={label} className="rounded-2xl bg-white p-4"><p className="text-[11px] font-bold text-teal-600">{label}</p><p className="mt-1 text-xs leading-5 text-slate-700">{value}</p></div>)}</div></article></section><article className="rounded-3xl border border-violet-100 bg-violet-50 p-6 shadow-card"><h3 className="text-sm font-bold text-violet-950">居家康复与后续建议</h3><p className="mt-4 whitespace-pre-line text-sm leading-7 text-violet-950">{report.recommendationDraft}</p><p className="mt-4 text-[11px] text-violet-700">如症状加重、持续胸痛、晕厥或发生急诊/再住院，请及时联系医生或就医。</p></article></div>;
 }
 
 function SingleReportList({ onSelect }: { onSelect: (reportId: string) => void }) {

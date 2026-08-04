@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Copy,
+  ClipboardList,
   FileText,
   HeartPulse,
   MessageSquareText,
@@ -36,11 +37,12 @@ import type { PrescriptionTask } from "../prescriptionData";
 import { prescriptionStatusLabels } from "../prescriptionData";
 import type { PatientClinicalProfile } from "../prescriptionWorkspaceData";
 import type { ClinicalNarrativeRecord } from "../prescriptionWorkspaceData";
+import type { AssessmentRecord } from "../assessmentData";
 import { contactResultLabels, dispositionLabels, effectiveFollowUpStatus, followUpStatusLabels, type FollowUpRecord, type FollowUpTask } from "../followUpData";
 import { stageReportData } from "../patient/stageReportData";
 import { formatDate, formatDateTime, formatTime } from "../utils/dateTime";
 
-type PatientWorkspaceTab = "profile" | "narratives" | "followups" | "prescriptions" | "sessions" | "reports";
+type PatientWorkspaceTab = "profile" | "assessments" | "narratives" | "followups" | "prescriptions" | "sessions" | "reports";
 
 export type ManagedPatient = {
   patient_demo_id: string;
@@ -181,6 +183,7 @@ export function PatientArchivePage({
   followUpTasks = [],
   followUpRecords = [],
   clinicalNarratives = [],
+  assessmentRecords = [],
   initialPatientId,
   initialTab = "profile",
   clinicalProfiles = [],
@@ -188,6 +191,7 @@ export function PatientArchivePage({
   onUpdatePatient,
   onOpenPrescription,
   onOpenFollowUp,
+  onOpenAssessment,
   onBackToPrescription
 }: {
   role: Exclude<Role, "PATIENT">;
@@ -197,6 +201,7 @@ export function PatientArchivePage({
   followUpTasks?: FollowUpTask[];
   followUpRecords?: FollowUpRecord[];
   clinicalNarratives?: ClinicalNarrativeRecord[];
+  assessmentRecords?: AssessmentRecord[];
   initialPatientId?: string | null;
   initialTab?: PatientWorkspaceTab;
   clinicalProfiles?: PatientClinicalProfile[];
@@ -204,6 +209,7 @@ export function PatientArchivePage({
   onUpdatePatient: (patient: ManagedPatient) => void;
   onOpenPrescription: (taskId: string) => void;
   onOpenFollowUp: (taskId: string) => void;
+  onOpenAssessment: (patientId?: string) => void;
   onBackToPrescription?: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(initialPatientId ?? null);
@@ -220,6 +226,7 @@ export function PatientArchivePage({
   const doctorName = currentAccount ?? "王医生";
   const canCreate = role === "DOCTOR";
   const canEditClinical = role === "DOCTOR";
+  const canCollectAssessment = role !== "ADMIN";
   const scopedPatients = useMemo(() => role === "DOCTOR" ? patients.filter((patient) => patient.assigned_doctor === doctorName) : patients, [doctorName, patients, role]);
   const selected = selectedId ? scopedPatients.find((patient) => patient.patient_demo_id === selectedId) ?? null : null;
   const selectedClinicalProfile = selected ? clinicalProfiles.find((profile) => profile.patientId === selected.patient_demo_id) : undefined;
@@ -421,14 +428,17 @@ export function PatientArchivePage({
           followUpTasks={followUpTasks.filter((task) => task.patientId === selected.patient_demo_id)}
           followUpRecords={followUpRecords.filter((record) => record.patientId === selected.patient_demo_id)}
           clinicalNarratives={clinicalNarratives.filter((record) => record.patientId === selected.patient_demo_id)}
+          assessmentRecords={assessmentRecords.filter((record) => record.patientId === selected.patient_demo_id)}
           onBack={() => { setSelectedId(null); setActiveTab("profile"); }}
           onBackToPrescription={onBackToPrescription}
           onEdit={() => openEdit(selected)}
           canEdit={canEditClinical}
+          canCollectAssessment={canCollectAssessment}
           justCreated={canEditClinical && justCreatedId === selected.patient_demo_id}
           onStartAssessment={() => startFirstAssessment(selected.patient_demo_id)}
           onOpenPrescription={onOpenPrescription}
           onOpenFollowUp={onOpenFollowUp}
+          onOpenAssessment={onOpenAssessment}
         />
       ) : (
         <>
@@ -465,7 +475,7 @@ export function PatientArchivePage({
   );
 }
 
-function PatientDetail({ patient, clinicalProfile, activeTab, setActiveTab, tasks, followUpTasks, followUpRecords, clinicalNarratives, onBack, onBackToPrescription, onEdit, canEdit, justCreated, onStartAssessment, onOpenPrescription, onOpenFollowUp }: {
+function PatientDetail({ patient, clinicalProfile, activeTab, setActiveTab, tasks, followUpTasks, followUpRecords, clinicalNarratives, assessmentRecords, onBack, onBackToPrescription, onEdit, canEdit, canCollectAssessment, justCreated, onStartAssessment, onOpenPrescription, onOpenFollowUp, onOpenAssessment }: {
   patient: ManagedPatient;
   clinicalProfile?: PatientClinicalProfile;
   activeTab: PatientWorkspaceTab;
@@ -474,17 +484,21 @@ function PatientDetail({ patient, clinicalProfile, activeTab, setActiveTab, task
   followUpTasks: FollowUpTask[];
   followUpRecords: FollowUpRecord[];
   clinicalNarratives: ClinicalNarrativeRecord[];
+  assessmentRecords: AssessmentRecord[];
   onBack: () => void;
   onBackToPrescription?: () => void;
   onEdit: () => void;
   canEdit: boolean;
+  canCollectAssessment: boolean;
   justCreated: boolean;
   onStartAssessment: () => void;
   onOpenPrescription: (taskId: string) => void;
   onOpenFollowUp: (taskId: string) => void;
+  onOpenAssessment: (patientId?: string) => void;
 }) {
   const tabs: { key: PatientWorkspaceTab; label: string; icon: typeof UserRound }[] = [
     { key: "profile", label: "基础档案", icon: UserRound },
+    { key: "assessments", label: "体能评估", icon: ClipboardList },
     { key: "narratives", label: "历史口述", icon: MessageSquareText },
     { key: "followups", label: "随访记录", icon: CalendarClock },
     { key: "prescriptions", label: "历次处方", icon: FileText },
@@ -504,10 +518,12 @@ function PatientDetail({ patient, clinicalProfile, activeTab, setActiveTab, task
           {canEdit && <button type="button" onClick={onEdit} className="btn-secondary"><Pencil className="h-4 w-4" />编辑信息</button>}
         </div>
       </section>
+      <DataChain patient={patient} clinicalProfile={clinicalProfile} tasks={tasks} followUpTasks={followUpTasks} clinicalNarratives={clinicalNarratives} assessmentRecords={assessmentRecords} />
       <nav className="card flex gap-1 p-1.5" aria-label="患者详情栏目">
         {tabs.map(({ key, label, icon: Icon }) => <button key={key} type="button" onClick={() => setActiveTab(key)} className={`flex min-h-9 flex-1 items-center justify-center gap-2 rounded-lg text-xs font-bold ${activeTab === key ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}><Icon className="h-4 w-4" />{label}</button>)}
       </nav>
       {activeTab === "profile" && <ProfileTab patient={patient} clinicalProfile={clinicalProfile} />}
+      {activeTab === "assessments" && <AssessmentTab records={assessmentRecords} canEdit={canCollectAssessment} onOpenAssessment={onOpenAssessment} />}
       {activeTab === "narratives" && <NarrativesTab records={clinicalNarratives} />}
       {activeTab === "followups" && <FollowUpsTab patient={patient} tasks={followUpTasks} records={followUpRecords} canEdit={canEdit} onEditPatient={onEdit} onOpenFollowUp={onOpenFollowUp} />}
       {activeTab === "prescriptions" && <PrescriptionsTab tasks={tasks} onOpen={onOpenPrescription} />}
@@ -515,6 +531,24 @@ function PatientDetail({ patient, clinicalProfile, activeTab, setActiveTab, task
       {activeTab === "reports" && <ReportsTab patientId={patient.patient_demo_id} onOpenPrescription={onOpenPrescription} tasks={tasks} />}
     </div>
   );
+}
+
+function DataChain({ patient, clinicalProfile, tasks, followUpTasks, clinicalNarratives, assessmentRecords }: { patient: ManagedPatient; clinicalProfile?: PatientClinicalProfile; tasks: PrescriptionTask[]; followUpTasks: FollowUpTask[]; clinicalNarratives: ClinicalNarrativeRecord[]; assessmentRecords: AssessmentRecord[] }) {
+  const completedFollowUps = followUpTasks.filter((task) => effectiveFollowUpStatus(task) === "completed").length;
+  const nodes = [
+    { label: "患者档案", detail: patient.record_status, ready: Boolean(patient.patient_code) },
+    { label: "康复评估", detail: assessmentRecords.length ? `${assessmentRecords.length}次 · ${assessmentRecords.some((record) => record.status === "doctor_reviewed") ? "已复核" : "待复核"}` : clinicalProfile?.rehabAssessment.status ?? "待补充", ready: assessmentRecords.some((record) => record.status === "doctor_reviewed") || clinicalProfile?.rehabAssessment.status === "已复核" },
+    { label: "医生处方", detail: tasks.length ? `${tasks.length} 条记录` : "待生成", ready: tasks.some((task) => task.status === "completed") },
+    { label: "训练记录", detail: patient.training_status || "待开始", ready: patient.training_status !== "尚未开始" },
+    { label: "阶段报告", detail: patient.report_status || "待生成", ready: patient.report_status !== "尚未开始" },
+    { label: "随访记录", detail: `${completedFollowUps}/${followUpTasks.length} 完成`, ready: completedFollowUps > 0 },
+    { label: "下一阶段处方", detail: clinicalNarratives.length ? "可基于最新沟通调整" : "待随访后生成", ready: false }
+  ];
+  return <section className="card p-5"><SectionHeader title="统一患者数据链" description="档案 → 评估 → 处方 → 训练 → 阶段报告 → 随访 → 下一阶段处方；现场评估由康复师人工录入。" /><div className="mt-4 grid gap-2 md:grid-cols-7">{nodes.map((node, index) => <div key={node.label} className="relative rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">{index < nodes.length - 1 && <span className="absolute -right-3 top-1/2 z-10 hidden h-px w-4 bg-slate-300 md:block" />}<span className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${node.ready ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{node.ready ? "✓" : "·"}</span><p className="mt-2 text-[11px] font-bold text-slate-800">{node.label}</p><p className="mt-1 text-[10px] leading-4 text-slate-500">{node.detail}</p></div>)}</div></section>;
+}
+
+function AssessmentTab({ records, canEdit, onOpenAssessment }: { records: AssessmentRecord[]; canEdit: boolean; onOpenAssessment: (patientId?: string) => void }) {
+  return <section className="card overflow-hidden"><div className="flex items-start justify-between gap-3 px-5 pt-5"><SectionHeader title="体能评估记录" description="SPPB 原始值、计算分数和复核状态均可追溯。" />{canEdit && <button type="button" onClick={() => onOpenAssessment(records[0]?.patientId)} className="btn-primary"><ClipboardList className="h-4 w-4" />进入评估采集</button>}</div><div className="mt-3 grid grid-cols-[1.1fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>评估编号</span><span>类型/次数</span><span>测试时间</span><span>SPPB</span><span>来源</span><span>状态</span></div>{records.map((record) => <div key={record.assessmentId} className="grid grid-cols-[1.1fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] items-center border-t border-slate-100 px-5 py-3 text-xs"><span className="font-mono text-[10px] text-slate-500">{record.assessmentId}</span><span>{record.assessmentType} · 第{record.attemptNo}次</span><span>{record.assessedAt.slice(0, 10)}</span><b className="text-blue-700">{record.sppb.totalScore}/12</b><span>{record.source === "ocr" ? "纸质表/OCR" : "人工录入"}</span><StatusBadge tone={record.status === "doctor_reviewed" ? "green" : record.status === "therapist_confirmed" ? "orange" : "gray"}>{record.status === "doctor_reviewed" ? "医生已复核" : record.status === "therapist_confirmed" ? "康复师已确认" : "草稿"}</StatusBadge></div>)}{!records.length && <EmptyState text="暂无体能评估记录，请从评估采集工作台新建。" />}</section>;
 }
 
 function ProfileTab({ patient, clinicalProfile }: { patient: ManagedPatient; clinicalProfile?: PatientClinicalProfile }) {

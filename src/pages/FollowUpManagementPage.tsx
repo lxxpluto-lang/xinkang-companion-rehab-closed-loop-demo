@@ -7,6 +7,7 @@ import {
   dispositionLabels,
   effectiveFollowUpStatus,
   followUpStatusLabels,
+  followUpFieldConfig,
   todayDate,
   type ContactResult,
   type FollowUpDisposition,
@@ -18,13 +19,14 @@ import type { ManagedPatient } from "./PatientArchivePage";
 
 export type FollowUpView = "pending" | "overdue" | "completed";
 
-const symptomOptions = ["无明显不适", "胸闷", "持续胸痛", "气促", "心悸", "头晕", "晕厥", "下肢水肿"];
+const symptomOptions = followUpFieldConfig.symptoms;
 
 function statusTone(status: FollowUpStatus): "gray" | "blue" | "orange" | "red" | "green" {
   if (status === "completed") return "green";
   if (status === "overdue") return "red";
   if (status === "due") return "orange";
   if (status === "rescheduled") return "blue";
+  if (status === "review_required") return "red";
   return "gray";
 }
 
@@ -52,7 +54,7 @@ export function FollowUpManagementPage({
   onSaveRecord,
   onOpenPatient
 }: {
-  role: "ADMIN" | "DOCTOR";
+  role: "ADMIN" | "DOCTOR" | "REHAB_EXECUTION";
   currentAccount: string;
   patients: ManagedPatient[];
   tasks: FollowUpTask[];
@@ -102,7 +104,7 @@ export function FollowUpManagementPage({
     }).sort((left, right) => {
       const leftPatient = patientMap.get(left.patientId);
       const rightPatient = patientMap.get(right.patientId);
-      const statusOrder = { overdue: 0, due: 1, rescheduled: 2, upcoming: 3, completed: 4 };
+      const statusOrder: Record<FollowUpStatus, number> = { review_required: 0, overdue: 1, due: 2, rescheduled: 3, upcoming: 4, completed: 5 };
       return statusOrder[effectiveFollowUpStatus(left)] - statusOrder[effectiveFollowUpStatus(right)]
         || (riskPriority[leftPatient?.risk_level ?? "待评估"] - riskPriority[rightPatient?.risk_level ?? "待评估"])
         || left.currentDueDate.localeCompare(right.currentDueDate);
@@ -112,9 +114,10 @@ export function FollowUpManagementPage({
   const selectedTask = selectedTaskId ? scopedTasks.find((task) => task.id === selectedTaskId) : undefined;
   const selectedPatient = selectedTask ? patientMap.get(selectedTask.patientId) : undefined;
   const selectedRecord = selectedTask ? [...records].filter((record) => record.taskId === selectedTask.id).sort((left, right) => right.contactedAt.localeCompare(left.contactedAt))[0] : undefined;
+  const roleLabel = role === "DOCTOR" ? "我的随访管理" : role === "REHAB_EXECUTION" ? "康复执行随访" : "全院随访管理";
 
   return <section data-testid="page-VIEW-FOLLOWUPS">
-    <PageHeader eyebrow="院后康复管理" title={role === "DOCTOR" ? "我的随访管理" : "全院随访管理"} description={role === "DOCTOR" ? `仅展示主管医生为${currentAccount}的患者；按出院后1、3、6个月生成随访任务。` : "管理员可查看全部医生的随访计划与完成记录，但不能代医生提交或改期。"} action={<StatusBadge tone={role === "DOCTOR" ? "blue" : "gray"}>{role === "DOCTOR" ? "本人患者" : "只读查看"}</StatusBadge>} />
+    <PageHeader eyebrow="院后康复管理" title={roleLabel} description={role === "DOCTOR" ? `仅展示主管医生为${currentAccount}的患者；按出院后1、3、6个月生成电话随访任务。` : role === "REHAB_EXECUTION" ? "康复师通过电话联系患者并代为记录口述情况；发现高风险时提交医生复核。" : "管理员可查看全部医生的电话随访计划与完成记录，但不能代医护完成随访。"} action={<StatusBadge tone={role === "DOCTOR" ? "blue" : role === "REHAB_EXECUTION" ? "orange" : "gray"}>{role === "DOCTOR" ? "本人患者" : role === "REHAB_EXECUTION" ? "电话执行与升级" : "只读查看"}</StatusBadge>} />
 
     <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Metric label="7天内待随访" value={counts.soon} tone="blue" icon={<CalendarClock className="h-4 w-4" />} />
@@ -131,7 +134,7 @@ export function FollowUpManagementPage({
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[1.3fr_0.65fr_0.8fr_0.8fr_0.8fr_auto]">
           <label className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} className="text-field pl-9" placeholder="患者姓名、档案编码或病案号" /></label>
           <select aria-label="随访节点" value={milestone} onChange={(event) => setMilestone(event.target.value)} className="text-field"><option value="all">全部节点</option><option value="1">1个月</option><option value="3">3个月</option><option value="6">6个月</option></select>
-          <select aria-label="随访状态" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-field"><option value="all">全部状态</option><option value="upcoming">待随访</option><option value="due">今日到期</option><option value="overdue">已逾期</option><option value="rescheduled">已改期</option><option value="completed">已完成</option></select>
+          <select aria-label="随访状态" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-field"><option value="all">全部状态</option><option value="upcoming">待随访</option><option value="due">今日到期</option><option value="overdue">已逾期</option><option value="rescheduled">已改期</option><option value="review_required">待医生复核</option><option value="completed">已完成</option></select>
           <input aria-label="计划日期开始" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="text-field" />
           <input aria-label="计划日期结束" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="text-field" />
           <button type="button" onClick={() => { setKeyword(""); setMilestone("all"); setStatusFilter("all"); setDateFrom(""); setDateTo(""); }} className="btn-secondary">重置</button>
@@ -142,13 +145,13 @@ export function FollowUpManagementPage({
         {visibleTasks.map((task) => {
           const patient = patientMap.get(task.patientId)!;
           const status = effectiveFollowUpStatus(task);
-          return <div key={task.id} className="grid grid-cols-[0.9fr_1fr_0.65fr_0.8fr_0.8fr_0.65fr_0.8fr_0.6fr] items-center border-t border-slate-100 px-5 py-3 text-xs hover:bg-blue-50"><button type="button" onClick={() => onOpenPatient(patient.patient_demo_id)} className="text-left"><b className="text-blue-700">{patient.name}</b><span className="mt-1 block text-[10px] text-slate-400">{patient.assigned_doctor} · {patient.risk_level}</span></button><span className="font-mono text-[10px] text-slate-500">{patient.patient_code}</span><b>{task.milestoneMonth}个月</b><span>{task.originalPlannedDate}</span><span>{task.currentDueDate}</span><StatusBadge tone={statusTone(status)}>{status === "completed" ? "已完成" : distanceLabel(task)}</StatusBadge><span>{task.lastContactResult ? contactResultLabels[task.lastContactResult] : "尚未联系"}</span><button type="button" onClick={() => setSelectedTaskId(task.id)} className="font-bold text-blue-700">{role === "DOCTOR" && status !== "completed" ? "去随访" : "查看详情"}</button></div>;
+          return <div key={task.id} className="grid grid-cols-[0.9fr_1fr_0.65fr_0.8fr_0.8fr_0.65fr_0.8fr_0.6fr] items-center border-t border-slate-100 px-5 py-3 text-xs hover:bg-blue-50"><button type="button" onClick={() => onOpenPatient(patient.patient_demo_id)} className="text-left"><b className="text-blue-700">{patient.name}</b><span className="mt-1 block text-[10px] text-slate-400">{patient.assigned_doctor} · {patient.risk_level}</span></button><span className="font-mono text-[10px] text-slate-500">{patient.patient_code}</span><b>{task.milestoneMonth}个月</b><span>{task.originalPlannedDate}</span><span>{task.currentDueDate}</span><StatusBadge tone={statusTone(status)}>{status === "completed" || status === "review_required" ? followUpStatusLabels[status] : distanceLabel(task)}</StatusBadge><span>{task.lastContactResult ? contactResultLabels[task.lastContactResult] : "尚未联系"}</span><button type="button" onClick={() => setSelectedTaskId(task.id)} className="font-bold text-blue-700">{role !== "ADMIN" && status !== "completed" ? "电话随访" : "查看详情"}</button></div>;
         })}
         {!visibleTasks.length && <div className="py-14 text-center text-xs text-slate-400">当前筛选条件下没有随访任务</div>}
       </div></div>
     </section>
 
-    {selectedTask && selectedPatient && <FollowUpModal task={selectedTask} patient={selectedPatient} record={role === "ADMIN" || effectiveFollowUpStatus(selectedTask) === "completed" ? selectedRecord : undefined} readOnly={role === "ADMIN" || effectiveFollowUpStatus(selectedTask) === "completed"} currentAccount={currentAccount} onClose={() => setSelectedTaskId(null)} onSave={(record) => { onSaveRecord(record); setSelectedTaskId(null); }} />}
+    {selectedTask && selectedPatient && <FollowUpModal task={selectedTask} patient={selectedPatient} record={role === "ADMIN" || effectiveFollowUpStatus(selectedTask) === "completed" || effectiveFollowUpStatus(selectedTask) === "review_required" ? selectedRecord : undefined} readOnly={role === "ADMIN" || effectiveFollowUpStatus(selectedTask) === "completed" || (role === "REHAB_EXECUTION" && effectiveFollowUpStatus(selectedTask) === "review_required")} currentAccount={currentAccount} role={role} onClose={() => setSelectedTaskId(null)} onSave={(record) => { onSaveRecord(record); setSelectedTaskId(null); }} />}
   </section>;
 }
 
@@ -157,23 +160,49 @@ function Metric({ label, value, tone, icon }: { label: string; value: number; to
   return <div className="card flex items-center justify-between p-4"><div><p className="text-[10px] font-bold text-slate-400">{label}</p><p className="mt-1 text-2xl font-bold text-slate-900">{value}</p></div><span className={`rounded-lg p-2.5 ${colors}`}>{icon}</span></div>;
 }
 
-function FollowUpModal({ task, patient, record, readOnly, currentAccount, onClose, onSave }: { task: FollowUpTask; patient: ManagedPatient; record?: FollowUpRecord; readOnly: boolean; currentAccount: string; onClose: () => void; onSave: (record: FollowUpRecord) => void }) {
+function FollowUpModal({ task, patient, record, readOnly, currentAccount, role, onClose, onSave }: { task: FollowUpTask; patient: ManagedPatient; record?: FollowUpRecord; readOnly: boolean; currentAccount: string; role: "ADMIN" | "DOCTOR" | "REHAB_EXECUTION"; onClose: () => void; onSave: (record: FollowUpRecord) => void }) {
   const [contactResult, setContactResult] = useState<ContactResult>(record?.contactResult ?? "reached");
   const [communicationMethod, setCommunicationMethod] = useState<FollowUpRecord["communicationMethod"]>(record?.communicationMethod ?? "phone");
   const [contactedAt, setContactedAt] = useState(record?.contactedAt?.slice(0, 16) ?? nowForInput());
   const [symptoms, setSymptoms] = useState<string[]>(record?.symptoms ?? []);
   const [medicationAdherence, setMedicationAdherence] = useState(record?.medicationAdherence ?? "良好");
   const [exerciseAdherence, setExerciseAdherence] = useState(record?.exerciseAdherence ?? "基本按计划完成");
+  const [trainingFrequency, setTrainingFrequency] = useState(record?.trainingFrequency ?? "");
+  const [trainingDuration, setTrainingDuration] = useState(record?.trainingDuration ?? "");
   const [recentHospitalization, setRecentHospitalization] = useState(record?.recentEmergencyOrHospitalization ?? false);
   const [vitalSigns, setVitalSigns] = useState(record?.vitalSigns ?? "");
+  const [patientDifficulty, setPatientDifficulty] = useState(record?.patientDifficulty ?? "");
+  const [therapistAdvice, setTherapistAdvice] = useState(record?.therapistAdvice ?? "");
   const [assessment, setAssessment] = useState(record?.clinicalAssessment ?? "");
   const [disposition, setDisposition] = useState<FollowUpDisposition | "">(record?.disposition ?? "");
   const [notes, setNotes] = useState(record?.notes ?? "");
   const [nextContactDate, setNextContactDate] = useState(record?.nextContactDate ?? "");
+  const [sourceText, setSourceText] = useState(record?.sourceText ?? "");
+  const [aiDraftText, setAiDraftText] = useState(record?.aiDraft?.summary ?? "");
+  const [aiGeneratedAt, setAiGeneratedAt] = useState(record?.aiDraft?.generatedAt ?? "");
+  const [aiConfirmed, setAiConfirmed] = useState(Boolean(record?.aiDraft?.acceptedAt));
   const [error, setError] = useState("");
   const reached = contactResult === "reached";
   const highRisk = symptoms.includes("持续胸痛") || symptoms.includes("晕厥") || recentHospitalization;
   const callablePhone = /^1\d{10}$/.test(patient.phone);
+
+  function generateAiDraft() {
+    const source = [
+      symptoms.length ? `症状：${symptoms.join("、")}` : "症状：未报告明显不适",
+      `用药依从性：${medicationAdherence}`,
+      `运动依从性：${exerciseAdherence}`,
+      trainingFrequency.trim() ? `训练频率：${trainingFrequency.trim()}` : "训练频率：未提供",
+      trainingDuration.trim() ? `训练时长：${trainingDuration.trim()}` : "训练时长：未提供",
+      vitalSigns.trim() ? `生命体征：${vitalSigns.trim()}` : "生命体征：未提供",
+      patientDifficulty.trim() ? `患者困难：${patientDifficulty.trim()}` : "患者困难：未报告",
+      recentHospitalization ? "近期有急诊就诊或再次住院" : "近期无急诊或再住院",
+      notes.trim() ? `沟通备注：${notes.trim()}` : "沟通备注：无"
+    ].join("；");
+    setSourceText(source);
+    setAiDraftText(`${source}。建议${highRisk ? "提交医生复核并结合风险信息安排进一步处置" : "继续当前康复计划并按节点完成下一次随访"}。该内容仅为草稿，需由临床人员确认。`);
+    setAiGeneratedAt(new Date().toISOString());
+    setAiConfirmed(false);
+  }
 
   function submit() {
     setError("");
@@ -181,6 +210,7 @@ function FollowUpModal({ task, patient, record, readOnly, currentAccount, onClos
     if (reached && !disposition) return setError("已接通随访必须选择后续处理措施。");
     if (reached && !assessment.trim()) return setError("请填写本次临床判断后再完成随访。");
     if (highRisk && disposition === "continue_plan") return setError("存在高风险信息，不能仅选择继续原计划；请明确复诊、处方评估或紧急就医措施。");
+    if (aiDraftText.trim() && !aiConfirmed) return setError("已生成 AI 摘要草稿，请先核对并勾选确认。");
     if (!reached && (!nextContactDate || !notes.trim())) return setError("联系未成功时必须填写下次联系日期和情况说明。");
     if (!reached && nextContactDate <= todayDate()) return setError("下次联系日期必须晚于今天。");
     const createdAt = new Date().toISOString();
@@ -195,14 +225,28 @@ function FollowUpModal({ task, patient, record, readOnly, currentAccount, onClos
       symptoms,
       medicationAdherence,
       exerciseAdherence,
+      trainingFrequency: trainingFrequency.trim(),
+      trainingDuration: trainingDuration.trim(),
       recentEmergencyOrHospitalization: recentHospitalization,
       vitalSigns: vitalSigns.trim(),
+      patientDifficulty: patientDifficulty.trim(),
+      therapistAdvice: therapistAdvice.trim(),
       clinicalAssessment: assessment.trim(),
       disposition: disposition || undefined,
       notes: notes.trim(),
       nextContactDate: reached ? undefined : nextContactDate,
       operator: currentAccount,
       createdAt
+      ,sourceText: sourceText || undefined
+      ,aiDraft: aiDraftText.trim() ? {
+        draftId: record?.aiDraft?.draftId ?? `FU-AI-${Date.now()}`,
+        generatedAt: aiGeneratedAt || createdAt,
+        summary: aiDraftText.trim(),
+        modelVersion: "FollowUp-Summary-Demo-1.0",
+        status: record?.aiDraft?.summary === aiDraftText.trim() ? "accepted" : "edited",
+        acceptedBy: currentAccount,
+        acceptedAt: createdAt
+      } : undefined
     });
   }
 
@@ -212,17 +256,20 @@ function FollowUpModal({ task, patient, record, readOnly, currentAccount, onClos
       <section className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 sm:grid-cols-2 lg:grid-cols-4"><Info label="患者联系电话" value={patient.phone || "未录入"} /><Info label="随访节点" value={`出院后${task.milestoneMonth}个月`} /><Info label="当前联系日期" value={task.currentDueDate} /><Info label="任务状态" value={followUpStatusLabels[effectiveFollowUpStatus(task)]} /></section>
       <div className="mt-4 flex flex-wrap items-center gap-2">{callablePhone && !readOnly ? <a href={`tel:${patient.phone}`} className="btn-primary"><Phone className="h-4 w-4" />拨打患者电话</a> : <span className="btn-secondary cursor-not-allowed opacity-60"><Phone className="h-4 w-4" />{callablePhone ? "只读查看" : "演示号码已脱敏"}</span>}<p className="text-[10px] text-slate-400">电话入口仅发起系统拨号，不代表已经联系成功。</p></div>
 
+      <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs leading-5 text-blue-900"><b>电话随访记录</b><p className="mt-1">患者不在患者端填写随访表。本页由康复师在电话沟通过程中，根据患者口述情况代为记录；医生仅处理高风险升级事项。</p></div>
+
       {readOnly && !record ? <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-6 text-center"><CalendarClock className="mx-auto h-7 w-7 text-slate-400" /><p className="mt-3 text-xs font-bold text-slate-700">该节点尚无沟通记录</p><p className="mt-1 text-[10px] text-slate-400">管理员仅可查看计划，不能代医生发起或完成随访。</p></div> : <>
       <section className="mt-5"><SectionHeader title={readOnly ? "随访记录" : "本次沟通结果"} /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><label><span className="field-label">联系结果</span><select disabled={readOnly} value={contactResult} onChange={(event) => setContactResult(event.target.value as ContactResult)} className="text-field disabled:bg-slate-50"><option value="reached">已接通</option><option value="no_answer">无人接听</option><option value="refused">拒绝沟通</option><option value="invalid_number">号码异常</option></select></label><label><span className="field-label">沟通方式</span><select disabled={readOnly} value={communicationMethod} onChange={(event) => setCommunicationMethod(event.target.value as FollowUpRecord["communicationMethod"])} className="text-field disabled:bg-slate-50"><option value="phone">电话</option><option value="outpatient">门诊沟通</option><option value="other">其他</option></select></label><label><span className="field-label">实际沟通时间</span><input disabled={readOnly} type="datetime-local" value={contactedAt} onChange={(event) => setContactedAt(event.target.value)} className="text-field disabled:bg-slate-50" /></label></div></section>
 
-      {reached ? <div className="space-y-5 pt-5"><section><SectionHeader title="症状与事件" /><div className="flex flex-wrap gap-2">{symptomOptions.map((symptom) => <label key={symptom} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${symptoms.includes(symptom) ? "border-blue-300 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600"}`}><input disabled={readOnly} type="checkbox" checked={symptoms.includes(symptom)} onChange={(event) => setSymptoms((items) => event.target.checked ? [...items, symptom] : items.filter((item) => item !== symptom))} />{symptom}</label>)}</div><label className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800"><input disabled={readOnly} type="checkbox" checked={recentHospitalization} onChange={(event) => setRecentHospitalization(event.target.checked)} />近期有急诊就诊或再次住院</label></section><section><SectionHeader title="依从性与临床判断" /><div className="grid gap-4 sm:grid-cols-2"><label><span className="field-label">用药依从性</span><select disabled={readOnly} value={medicationAdherence} onChange={(event) => setMedicationAdherence(event.target.value)} className="text-field disabled:bg-slate-50"><option>良好</option><option>偶有漏服</option><option>较差</option><option>无法判断</option></select></label><label><span className="field-label">运动依从性</span><select disabled={readOnly} value={exerciseAdherence} onChange={(event) => setExerciseAdherence(event.target.value)} className="text-field disabled:bg-slate-50"><option>基本按计划完成</option><option>部分完成</option><option>未执行</option><option>无法判断</option></select></label><label><span className="field-label">患者自报生命体征</span><input disabled={readOnly} value={vitalSigns} onChange={(event) => setVitalSigns(event.target.value)} className="text-field disabled:bg-slate-50" placeholder="选填，如家庭血压、心率" /></label><label><span className="field-label">处理措施 *</span><select disabled={readOnly} value={disposition} onChange={(event) => setDisposition(event.target.value as FollowUpDisposition)} className="text-field disabled:bg-slate-50"><option value="">请选择</option>{Object.entries(dispositionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="sm:col-span-2"><span className="field-label">临床判断 *</span><textarea disabled={readOnly} value={assessment} onChange={(event) => setAssessment(event.target.value)} className="text-field min-h-20 py-2 disabled:bg-slate-50" /></label><label className="sm:col-span-2"><span className="field-label">沟通备注</span><textarea disabled={readOnly} value={notes} onChange={(event) => setNotes(event.target.value)} className="text-field min-h-16 py-2 disabled:bg-slate-50" /></label></div></section></div> : <section className="mt-5"><SectionHeader title="再次联系安排" description="联系失败不算完成，原计划日期和本次尝试会继续保留。" /><div className="grid gap-4 sm:grid-cols-2"><label><span className="field-label">下次联系日期 *</span><input disabled={readOnly} type="date" min={new Date().toISOString().slice(0, 10)} value={nextContactDate} onChange={(event) => setNextContactDate(event.target.value)} className="text-field disabled:bg-slate-50" /></label><label><span className="field-label">情况说明 *</span><textarea disabled={readOnly} value={notes} onChange={(event) => setNotes(event.target.value)} className="text-field min-h-20 py-2 disabled:bg-slate-50" /></label></div></section>}
+      {reached ? <div className="space-y-5 pt-5"><section><SectionHeader title="症状与事件" /><div className="flex flex-wrap gap-2">{symptomOptions.map((symptom) => <label key={symptom} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${symptoms.includes(symptom) ? "border-blue-300 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600"}`}><input disabled={readOnly} type="checkbox" checked={symptoms.includes(symptom)} onChange={(event) => setSymptoms((items) => event.target.checked ? [...items, symptom] : items.filter((item) => item !== symptom))} />{symptom}</label>)}</div><label className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800"><input disabled={readOnly} type="checkbox" checked={recentHospitalization} onChange={(event) => setRecentHospitalization(event.target.checked)} />近期有急诊就诊或再次住院</label></section><section><SectionHeader title="依从性与训练执行" /><div className="grid gap-4 sm:grid-cols-2"><label><span className="field-label">用药依从性</span><select disabled={readOnly} value={medicationAdherence} onChange={(event) => setMedicationAdherence(event.target.value)} className="text-field disabled:bg-slate-50">{followUpFieldConfig.medicationAdherence.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className="field-label">运动依从性</span><select disabled={readOnly} value={exerciseAdherence} onChange={(event) => setExerciseAdherence(event.target.value)} className="text-field disabled:bg-slate-50">{followUpFieldConfig.exerciseAdherence.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className="field-label">训练频率</span><input disabled={readOnly} value={trainingFrequency} onChange={(event) => setTrainingFrequency(event.target.value)} className="text-field disabled:bg-slate-50" placeholder="如：每周 3 次" /></label><label><span className="field-label">单次训练时长</span><input disabled={readOnly} value={trainingDuration} onChange={(event) => setTrainingDuration(event.target.value)} className="text-field disabled:bg-slate-50" placeholder="如：每次 30 分钟" /></label><label><span className="field-label">患者自报生命体征</span><input disabled={readOnly} value={vitalSigns} onChange={(event) => setVitalSigns(event.target.value)} className="text-field disabled:bg-slate-50" placeholder="选填，如家庭血压、心率" /></label><label><span className="field-label">患者遇到的困难</span><input disabled={readOnly} value={patientDifficulty} onChange={(event) => setPatientDifficulty(event.target.value)} className="text-field disabled:bg-slate-50" placeholder="如：时间安排、动作不熟悉" /></label><label><span className="field-label">处理措施 *</span><select disabled={readOnly} value={disposition} onChange={(event) => setDisposition(event.target.value as FollowUpDisposition)} className="text-field disabled:bg-slate-50"><option value="">请选择</option>{Object.entries(dispositionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="sm:col-span-2"><span className="field-label">康复师建议</span><textarea disabled={readOnly} value={therapistAdvice} onChange={(event) => setTherapistAdvice(event.target.value)} className="text-field min-h-16 py-2 disabled:bg-slate-50" placeholder="记录本次沟通后的训练或宣教建议" /></label><label className="sm:col-span-2"><span className="field-label">临床判断 *</span><textarea disabled={readOnly} value={assessment} onChange={(event) => setAssessment(event.target.value)} className="text-field min-h-20 py-2 disabled:bg-slate-50" /></label><label className="sm:col-span-2"><span className="field-label">沟通备注</span><textarea disabled={readOnly} value={notes} onChange={(event) => setNotes(event.target.value)} className="text-field min-h-16 py-2 disabled:bg-slate-50" /></label></div></section></div> : <section className="mt-5"><SectionHeader title="再次联系安排" description="联系失败不算完成，原计划日期和本次尝试会继续保留。" /><div className="grid gap-4 sm:grid-cols-2"><label><span className="field-label">下次联系日期 *</span><input disabled={readOnly} type="date" min={new Date().toISOString().slice(0, 10)} value={nextContactDate} onChange={(event) => setNextContactDate(event.target.value)} className="text-field disabled:bg-slate-50" /></label><label><span className="field-label">情况说明 *</span><textarea disabled={readOnly} value={notes} onChange={(event) => setNotes(event.target.value)} className="text-field min-h-20 py-2 disabled:bg-slate-50" /></label></div></section>}
 
       {highRisk && <div className="mt-5 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-xs leading-5 text-red-800"><AlertTriangle className="h-5 w-5 shrink-0" /><div><b>发现高风险信息</b><p className="mt-1">请明确提前复诊、处方调整评估或紧急就医措施。本系统不替代医生诊断及急救处置。</p></div></div>}
+      {!readOnly && reached && <section className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4"><SectionHeader title="AI 摘要草稿（需人工确认）" description="保留原始信息、草稿、修改内容、确认人和时间；AI 不自动诊断或发布处方。" /><div className="flex flex-wrap gap-2"><button type="button" onClick={generateAiDraft} className="btn-secondary">生成 AI 摘要草稿</button>{aiGeneratedAt && <span className="self-center text-[10px] text-slate-400">生成于 {new Date(aiGeneratedAt).toLocaleString("zh-CN")}</span>}</div>{sourceText && <p className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-[11px] leading-5 text-slate-600"><b>原始信息：</b>{sourceText}</p>}<textarea value={aiDraftText} onChange={(event) => { setAiDraftText(event.target.value); setAiConfirmed(false); }} disabled={readOnly} className="text-field mt-3 min-h-20 py-2 disabled:bg-white" placeholder="点击生成草稿，或手工补充摘要" />{aiDraftText.trim() && <label className="mt-3 flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={aiConfirmed} onChange={(event) => setAiConfirmed(event.target.checked)} />我已核对并确认 AI 摘要</label>}</section>}
       {error && <div className="mt-4 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700"><AlertTriangle className="h-4 w-4 shrink-0" />{error}</div>}
       </>}
       {!!task.rescheduleHistory.length && <section className="mt-5"><SectionHeader title="改期记录" /><div className="space-y-2">{task.rescheduleHistory.map((item, index) => <div key={`${item.changedAt}-${index}`} className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">{item.fromDate} → {item.toDate} · {item.reason} · {item.changedBy}</div>)}</div></section>}
     </div>
-    <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4 sm:px-6"><button type="button" onClick={onClose} className="btn-secondary">{readOnly ? "关闭" : "取消"}</button>{!readOnly && <button type="button" onClick={submit} className="btn-primary"><Save className="h-4 w-4" />{reached ? "完成随访" : "保存联系结果"}</button>}</div>
+    <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4 sm:px-6"><button type="button" onClick={onClose} className="btn-secondary">{readOnly ? "关闭" : "取消"}</button>{!readOnly && <button type="button" onClick={submit} className="btn-primary"><Save className="h-4 w-4" />{reached && highRisk && role === "REHAB_EXECUTION" ? "提交医生复核" : reached ? "完成随访" : "保存联系结果"}</button>}</div>
   </div></div>;
 }
 

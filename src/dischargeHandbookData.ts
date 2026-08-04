@@ -13,6 +13,35 @@ export type DischargeHandbook = {
   warningSigns: string[];
 };
 
+export type RehabReportStatus = "draft" | "doctor_confirmed" | "published";
+
+export type RehabReport = {
+  reportId: string;
+  patientId: string;
+  generatedAt: string;
+  status: RehabReportStatus;
+  medicalSection: {
+    diagnosis: string;
+    treatmentCourse: string;
+    procedure: string;
+    medications: string;
+    followUpRequirements: string;
+    clinicalConclusion: string;
+  };
+  rehabSection: {
+    assessmentSummary: string;
+    trainingSummary: string;
+    adherenceSummary: string;
+    followUpSummary: string;
+    improvementSummary: string;
+  };
+  recommendationDraft: string;
+  sourceRefs: string[];
+  confirmedBy?: string;
+  confirmedAt?: string;
+  publishedAt?: string;
+};
+
 export const demoDischargeHandbook: DischargeHandbook = {
   handbookNo: "CRH-DH-20260802-0001",
   patientId: "P-DEMO-001",

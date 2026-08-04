@@ -1,9 +1,19 @@
 import type { ManagedPatient } from "./pages/PatientArchivePage";
 
-export type FollowUpStatus = "upcoming" | "due" | "overdue" | "rescheduled" | "completed";
+export type FollowUpStatus = "upcoming" | "due" | "overdue" | "rescheduled" | "review_required" | "completed";
 export type FollowUpMilestone = 1 | 3 | 6;
 export type ContactResult = "reached" | "no_answer" | "refused" | "invalid_number";
 export type FollowUpDisposition = "continue_plan" | "early_visit" | "prescription_review" | "urgent_care";
+
+export type FollowUpAiDraft = {
+  draftId: string;
+  generatedAt: string;
+  summary: string;
+  modelVersion: string;
+  status: "generated" | "accepted" | "edited";
+  acceptedBy?: string;
+  acceptedAt?: string;
+};
 
 export type FollowUpReschedule = {
   fromDate: string;
@@ -27,6 +37,8 @@ export type FollowUpTask = {
   completedAt?: string;
   completedBy?: string;
   recordId?: string;
+  reviewRequiredAt?: string;
+  reviewRequiredBy?: string;
   rescheduleHistory: FollowUpReschedule[];
 };
 
@@ -41,14 +53,20 @@ export type FollowUpRecord = {
   symptoms: string[];
   medicationAdherence: string;
   exerciseAdherence: string;
+  trainingFrequency: string;
+  trainingDuration: string;
   recentEmergencyOrHospitalization: boolean;
   vitalSigns: string;
+  patientDifficulty: string;
+  therapistAdvice: string;
   clinicalAssessment: string;
   disposition?: FollowUpDisposition;
   notes: string;
   nextContactDate?: string;
   operator: string;
   createdAt: string;
+  sourceText?: string;
+  aiDraft?: FollowUpAiDraft;
 };
 
 export const followUpStatusLabels: Record<FollowUpStatus, string> = {
@@ -56,6 +74,7 @@ export const followUpStatusLabels: Record<FollowUpStatus, string> = {
   due: "今日到期",
   overdue: "已逾期",
   rescheduled: "已改期",
+  review_required: "待医生复核",
   completed: "已完成"
 };
 
@@ -72,6 +91,16 @@ export const dispositionLabels: Record<FollowUpDisposition, string> = {
   prescription_review: "进入处方调整评估",
   urgent_care: "建议紧急就医"
 };
+
+/** 首期随访字段配置：后续访谈确认后可直接调整选项和必填规则。 */
+export const followUpFieldConfig = {
+  symptoms: ["无明显不适", "胸闷", "持续胸痛", "气促", "心悸", "头晕", "晕厥", "下肢水肿"],
+  medicationAdherence: ["良好", "偶有漏服", "较差", "无法判断"],
+  exerciseAdherence: ["基本按计划完成", "部分完成", "未执行", "无法判断"],
+  requiredForReached: ["contactedAt", "disposition", "clinicalAssessment"],
+  highRiskSymptoms: ["持续胸痛", "晕厥"],
+  highRiskEvents: ["急诊", "再住院"]
+} as const;
 
 function toDateParts(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -112,6 +141,7 @@ export function daysUntil(value: string, referenceDate = todayDate()) {
 
 export function effectiveFollowUpStatus(task: FollowUpTask, referenceDate = todayDate()): FollowUpStatus {
   if (task.status === "completed") return "completed";
+  if (task.status === "review_required") return "review_required";
   const distance = daysUntil(task.currentDueDate, referenceDate);
   if (distance < 0) return "overdue";
   if (distance === 0) return "due";
@@ -164,8 +194,12 @@ export function createInitialFollowUpData(patients: ManagedPatient[]) {
       symptoms: ["无明显不适"],
       medicationAdherence: "良好",
       exerciseAdherence: "基本按计划完成",
+      trainingFrequency: "每周 3 次",
+      trainingDuration: "每次 30 分钟",
       recentEmergencyOrHospitalization: false,
       vitalSigns: "家庭血压 126/78 mmHg",
+      patientDifficulty: "暂无明显困难",
+      therapistAdvice: "继续按当前处方训练，注意训练前后监测心率。",
       clinicalAssessment: "恢复稳定，继续现阶段康复计划。",
       disposition: "continue_plan",
       notes: "已提醒按计划复诊。",

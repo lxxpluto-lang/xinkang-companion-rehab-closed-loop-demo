@@ -13,7 +13,7 @@ import { roleActions, roleMeta } from "../accessControl";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { DoctorPageKey, PermissionAction, Role } from "../types";
 
-type AdminConsolePageKey = Exclude<DoctorPageKey, "dashboard" | "patients" | "report" | "prescriptions" | "training" | "videoConfig">;
+type AdminConsolePageKey = Exclude<DoctorPageKey, "dashboard" | "patients" | "assessments" | "report" | "prescriptions" | "training" | "videoConfig">;
 type OrgPermissionSheet = "organization" | "permissions";
 
 const actionLabels: Record<PermissionAction, string> = {

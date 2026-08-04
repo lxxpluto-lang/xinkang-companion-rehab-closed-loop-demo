@@ -7,7 +7,7 @@ import { roleMeta } from "../accessControl";
 import { clinicalSnapshotChen, getPrescriptionVersionDetail, getSingleTrainingReportDetail, minimalSafetyEvents } from "../clinicalSharedData";
 import { stageReportData } from "../patient/stageReportData";
 import { formatDateTime, formatSignedDateTime, formatTime } from "../utils/dateTime";
-import { daysUntil, effectiveFollowUpStatus, isFollowUpVisibleInPending, type FollowUpTask } from "../followUpData";
+import { daysUntil, effectiveFollowUpStatus, isFollowUpVisibleInPending, type FollowUpStatus, type FollowUpTask } from "../followUpData";
 import type { ManagedPatient } from "./PatientArchivePage";
 import type { FollowUpView } from "./FollowUpManagementPage";
 
@@ -347,7 +347,7 @@ function FollowUpReminderCard({ patients, tasks, onViewAll, onOpen }: { patients
   const riskPriority: Record<string, number> = { 高危: 0, 中危: 1, 低危: 2, 待评估: 3 };
   const actionableTasks = tasks.filter((task) => isFollowUpVisibleInPending(task));
   const visibleTasks = [...actionableTasks].sort((left, right) => {
-    const statusOrder = { overdue: 0, due: 1, rescheduled: 2, upcoming: 3, completed: 4 };
+    const statusOrder: Record<FollowUpStatus, number> = { review_required: 0, overdue: 1, due: 2, rescheduled: 3, upcoming: 4, completed: 5 };
     const leftPatient = patientMap.get(left.patientId);
     const rightPatient = patientMap.get(right.patientId);
     return statusOrder[effectiveFollowUpStatus(left)] - statusOrder[effectiveFollowUpStatus(right)]
