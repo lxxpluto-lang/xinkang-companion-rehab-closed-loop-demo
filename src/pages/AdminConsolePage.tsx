@@ -13,7 +13,7 @@ import { roleActions, roleMeta } from "../accessControl";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { DoctorPageKey, PermissionAction, Role } from "../types";
 
-type AdminConsolePageKey = Exclude<DoctorPageKey, "dashboard" | "patients" | "assessments" | "report" | "prescriptions" | "training" | "videoConfig">;
+type AdminConsolePageKey = Exclude<DoctorPageKey, "dashboard" | "patients" | "followups" | "report" | "prescriptions" | "training" | "videoConfig">;
 type OrgPermissionSheet = "organization" | "permissions";
 
 const actionLabels: Record<PermissionAction, string> = {
@@ -37,7 +37,7 @@ const documentRows = [
   { name: "单次报告模板", detail: "指标、趋势、异常、结论", status: "已生效", owner: "康复医学科" },
   { name: "阶段报告模板", detail: "四版本处方演变", status: "已生效", owner: "康复医学科" },
   { name: "王医生数字签名", detail: "证书有效至 2027-07-01", status: "有效", owner: "王医生" },
-  { name: "管理员临床签署授权", detail: "高风险操作需二次确认", status: "有效", owner: "林管理员" }
+  { name: "签署二次确认规则", detail: "高风险处方签署需本人确认", status: "有效", owner: "医务科" }
 ];
 
 export function AdminConsolePage({ page }: { page: AdminConsolePageKey }) {
@@ -175,7 +175,7 @@ function PermissionSheet() {
             {[
               ["菜单范围", selectedRole === "ADMIN" ? "核心业务 + 4 个后台菜单" : "核心业务 + 授权后台菜单"],
               ["数据范围", roleMeta[selectedRole].scope === "ALL" ? "全部验证数据" : roleMeta[selectedRole].scope === "TEAM" ? "医疗团队" : "当前康复中心"],
-              ["患者档案", selectedRole === "DOCTOR" ? "仅本人患者可查看、建档和维护" : selectedRole === "ADMIN" ? "全部患者只读查看" : "中心患者只读查看"],
+              ["患者档案", selectedRole === "DOCTOR" ? "团队患者共享查看；本人主管患者可建档和维护" : selectedRole === "ADMIN" ? "全部患者只读查看" : "中心患者基础资料与训练记录可维护"],
               ["随访管理", selectedRole === "DOCTOR" ? "仅本人患者可沟通、改期和完成" : selectedRole === "ADMIN" ? "全院随访只读查看" : "无随访管理入口"],
               ["视频资源", selectedRole === "ADMIN" ? "发布、下架、删除" : "草稿、编辑、提交发布"],
               ["签署动作", selectedRole === "DOCTOR" || selectedRole === "ADMIN" ? "可签署本人任务" : "不可签署"]

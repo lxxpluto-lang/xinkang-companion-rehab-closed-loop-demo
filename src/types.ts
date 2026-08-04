@@ -1,7 +1,6 @@
 export type DoctorPageKey =
   | "dashboard"
   | "patients"
-  | "assessments"
   | "followups"
   | "report"
   | "prescriptions"
@@ -36,6 +35,10 @@ export type PermissionAction =
   | "GRANT";
 
 export type ContentStatus = "DRAFT" | "PENDING" | "PUBLISHED" | "OFFLINE" | "RECYCLED";
+
+export type PatientRecordStatus = "draft" | "saved" | "incomplete" | "pending_review" | "confirmed" | "archived";
+
+export type FieldCollectionStatus = "not_collected" | "saved" | "pending_review" | "confirmed" | "completed";
 
 export type TrainingState =
   | "ready"

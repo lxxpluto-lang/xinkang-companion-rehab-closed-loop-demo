@@ -470,6 +470,19 @@ textarea:focus-visible {
   }
 }
 
+.report-stage { display:flex; align-items:center; gap:.45rem; min-width:0; color:#64748b; font-size:.65rem; white-space:nowrap; }
+.report-stage span { display:flex; align-items:center; justify-content:center; width:1.65rem; height:1.65rem; border-radius:9999px; background:#e2e8f0; color:#64748b; font-size:.7rem; font-weight:800; }
+.report-stage b { font-weight:700; }
+.report-stage.is-complete { color:#047857; }
+.report-stage.is-complete span { background:#10b981; color:white; animation: report-pop .55s ease both; }
+.report-line { height:2px; flex:1; margin:0 .55rem; background:#dbe5e1; transition:background .5s ease; }
+.report-line.is-complete { background:#6ee7b7; }
+.report-stat { display:flex; align-items:center; justify-content:space-between; border:1px solid rgba(255,255,255,.8); border-radius:.8rem; background:rgba(255,255,255,.8); padding:.65rem .8rem; font-size:.68rem; color:#64748b; }
+.report-stat b { color:#0f766e; }
+@keyframes report-pop { 0% { transform:scale(.75); opacity:.3; } 70% { transform:scale(1.08); } 100% { transform:scale(1); opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .report-stage.is-complete span { animation:none; } .report-line { transition:none; } }
+@media print { .report-journey { background:#fff !important; border-color:#cbd5e1 !important; } .report-stage.is-complete span { animation:none; } }
+
 .clinical-table tbody tr {
   transition: background-color 140ms ease;
 }

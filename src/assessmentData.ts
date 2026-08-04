@@ -1,7 +1,7 @@
 import type { ManagedPatient } from "./pages/PatientArchivePage";
 
 export type AssessmentStatus = "draft" | "therapist_confirmed" | "doctor_reviewed";
-export type AssessmentSource = "manual" | "ocr";
+export type AssessmentSource = "manual" | "device";
 
 export type SPPBAssessment = {
   balance: {
@@ -39,8 +39,6 @@ export type AssessmentRecord = {
   assessedAt: string;
   source: AssessmentSource;
   status: AssessmentStatus;
-  rawImageName?: string;
-  ocrText?: string;
   sourceNote: string;
   patientSnapshot: { name: string; gender: string; age: number; hospitalPatientNo: string; diagnosis: string };
   weightKg: number | null;

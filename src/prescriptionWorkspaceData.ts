@@ -24,7 +24,7 @@ export type RehabAssessment = {
   assessmentId: string;
   assessedAt: string;
   assessor: string;
-  source: "结构化录入" | "纸质评估单识别";
+  source: "结构化录入" | "设备采集";
   status: "待补充" | "待复核" | "已复核";
   sppb: {
     balanceScore: number;
@@ -95,6 +95,13 @@ export type PrescriptionContent = {
   flexibilityFrequency: string;
   flexibilityTime: string;
   remark: string;
+  diagnosisAdvice: string;
+  medicationAdvice: string;
+  dietCautions: string;
+  exerciseCautions: string;
+  rehabContraindications: string;
+  stopConditions: string;
+  patientInstruction: string;
   inheritedFields: string[];
 };
 
@@ -181,6 +188,13 @@ export const defaultPrescriptionContent: PrescriptionContent = {
   flexibilityFrequency: "每次有氧或抗阻训练后",
   flexibilityTime: "每次拉伸15–30秒",
   remark: "根据训练反馈适时进阶；如出现胸痛、持续胸闷、明显气促、头晕或心悸，应立即停止并呼叫医护。",
+  diagnosisAdvice: "当前以改善运动耐量和观察训练反应为主，暂不自动推断新的诊断。",
+  medicationAdvice: "继续按医生确认的用药方案执行，训练前由医护核对当日用药情况。",
+  dietCautions: "训练前避免过饱，控制盐分和高脂食物，运动后适量补水。",
+  exerciseCautions: "按照热身、训练、放松顺序完成，不憋气，不在明显疲劳时加量。",
+  rehabContraindications: "静息胸痛、发热、明显乏力或血压异常时，先联系医护再训练。",
+  stopConditions: "出现持续胸痛、明显胸闷、气促、头晕、晕厥或心悸，立即停止运动并呼叫医护。",
+  patientInstruction: "请按今日处方顺序完成训练；有疑问时先询问护士或康复师，不自行调整强度。",
   inheritedFields: []
 };
 

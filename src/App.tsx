@@ -8,9 +8,8 @@ import { AdminConsolePage } from "./pages/AdminConsolePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { NurseStationPage } from "./pages/NurseStationPage";
 import { FollowUpManagementPage, type FollowUpView } from "./pages/FollowUpManagementPage";
-import { AssessmentWorkspacePage } from "./pages/AssessmentWorkspacePage";
 import { RehabDischargeReportPage } from "./pages/RehabDischargeReportPage";
-import { initialPatients, PatientArchivePage, type ManagedPatient } from "./pages/PatientArchivePage";
+import { initialPatients, PatientArchivePage, type ManagedPatient, type PatientWorkspaceTab } from "./pages/PatientArchivePage";
 import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
 import { PrescriptionWorkspacePage, type PrescriptionWorkspaceTab } from "./pages/PrescriptionWorkspacePage";
 import { initialTrainingVideos, VideoLibraryPage, type TrainingVideo } from "./pages/VideoLibraryPage";
@@ -51,6 +50,7 @@ export default function App() {
   const [doctorPage, setDoctorPage] = useState<DoctorPageKey>("dashboard");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [patientInitialTab, setPatientInitialTab] = useState<PatientWorkspaceTab>("profile");
   const [prescriptionEntryStatus, setPrescriptionEntryStatus] = useState<PrescriptionListStatusFilter>("all");
   const [prescriptionTasks, setPrescriptionTasks] = useState<PrescriptionTask[]>(initialPrescriptionTasks);
   const [prescriptionWorkspaceTab, setPrescriptionWorkspaceTab] = useState<PrescriptionWorkspaceTab>("narrative");
@@ -61,7 +61,6 @@ export default function App() {
   const [followUpTasks, setFollowUpTasks] = useState<FollowUpTask[]>(seededFollowUpData.tasks);
   const [followUpRecords, setFollowUpRecords] = useState<FollowUpRecord[]>(seededFollowUpData.records);
   const [assessmentRecords, setAssessmentRecords] = useState<AssessmentRecord[]>(seededAssessmentRecords);
-  const [selectedAssessmentPatientId, setSelectedAssessmentPatientId] = useState<string | null>(null);
   const [rehabReports, setRehabReports] = useState<RehabReport[]>([]);
   const [followUpEntryView, setFollowUpEntryView] = useState<FollowUpView>("pending");
   const [selectedFollowUpTaskId, setSelectedFollowUpTaskId] = useState<string | null>(null);
@@ -94,8 +93,7 @@ export default function App() {
       setFollowUpEntryView("pending");
       setSelectedFollowUpTaskId(null);
     }
-    if (page === "assessments") setSelectedAssessmentPatientId(null);
-    if (page === "patients") setSelectedPatientId(null);
+    if (page === "patients") { setSelectedPatientId(null); setPatientInitialTab("profile"); }
     setDoctorPage(page);
     resetViewScroll();
   }
@@ -125,13 +123,14 @@ export default function App() {
 
   function openPatient(patientId: string) {
     setSelectedPatientId(patientId);
+    setPatientInitialTab("profile");
     setDoctorPage("patients");
     resetViewScroll();
   }
 
   function openAssessment(patientId?: string) {
-    setSelectedAssessmentPatientId(patientId ?? null);
-    setDoctorPage("assessments");
+    if (patientId) { setSelectedPatientId(patientId); setPatientInitialTab("assessments"); }
+    setDoctorPage("patients");
     resetViewScroll();
   }
 
@@ -347,7 +346,7 @@ export default function App() {
   }
 
   if (system === "patient") {
-    return <PatientApp onExit={() => setSystem("chooser")} trainingState={trainingState} setTrainingState={setTrainingState} anomaly={anomaly} setAnomaly={setAnomaly} publishedTrainingVideos={publishedTrainingVideos} followUpTasks={followUpTasks.filter((task) => task.patientId === "P-DEMO-001")} rehabReports={rehabReports.filter((report) => report.patientId === "P-DEMO-001")} />;
+    return <PatientApp onExit={() => setSystem("chooser")} trainingState={trainingState} setTrainingState={setTrainingState} anomaly={anomaly} setAnomaly={setAnomaly} publishedTrainingVideos={publishedTrainingVideos} followUpTasks={followUpTasks.filter((task) => task.patientId === "P-DEMO-001")} rehabReports={rehabReports.filter((report) => report.patientId === "P-DEMO-001")} patientPrescription={prescriptionContents["RX-TASK-001"]} />;
   }
 
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
@@ -355,8 +354,7 @@ export default function App() {
     prescriptions: selectedTask && selectedClinicalProfile
       ? <PrescriptionWorkspacePage task={selectedTask} profile={selectedClinicalProfile} narratives={clinicalNarratives} content={prescriptionContents[selectedTask.id]} initialTab={prescriptionWorkspaceTab} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onGenerate={generateDraft} onOpenPatient={openPatientFromPrescription} onSaveProfile={saveClinicalProfile} onSaveNarrative={saveClinicalNarrative} onSaveContent={savePrescriptionContent} />
       : <PrescriptionManagementPage key={role} role={role as "ADMIN" | "DOCTOR"} currentDoctor={currentAccount} tasks={scopedPrescriptionTasks} initialStatusFilter={prescriptionEntryStatus} onOpen={openTask} onGenerate={generateDraft} />,
-    patients: <PatientArchivePage role={role} currentAccount={currentAccount} patients={patients} tasks={prescriptionTasks} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} initialPatientId={selectedPatientId} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenPrescription={openTask} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onBackToPrescription={selectedTaskId ? returnToSelectedPrescription : undefined} />,
-    assessments: <AssessmentWorkspacePage key={`${role}-${selectedAssessmentPatientId ?? "all"}`} role={role} currentAccount={currentAccount} patients={patients} records={assessmentRecords} initialPatientId={selectedAssessmentPatientId} onSave={saveAssessmentRecord} />,
+    patients: <PatientArchivePage key={`${role}-${selectedPatientId ?? "list"}-${patientInitialTab}`} role={role} currentAccount={currentAccount} patients={patients} tasks={prescriptionTasks} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} initialPatientId={selectedPatientId} initialTab={patientInitialTab} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenPrescription={openTask} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onBackToPrescription={selectedTaskId ? returnToSelectedPrescription : undefined} />,
     report: <RehabDischargeReportPage role={role} currentAccount={currentAccount} patients={patients} assessments={assessmentRecords} tasks={prescriptionTasks} followUps={followUpTasks} followUpRecords={followUpRecords} reports={rehabReports} onSave={saveRehabReport} />,
     followups: <FollowUpManagementPage key={`${role}-${followUpEntryView}-${selectedFollowUpTaskId ?? "list"}`} role={role} currentAccount={currentAccount} patients={patients} tasks={followUpTasks} records={followUpRecords} initialView={followUpEntryView} initialTaskId={selectedFollowUpTaskId} onSaveRecord={saveFollowUpRecord} onOpenPatient={openPatient} />,
     training: <NurseStationPage role={role} />,
@@ -364,7 +362,7 @@ export default function App() {
   };
 
   for (const page of adminConsolePages) {
-    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "assessments" | "followups" | "report" | "prescriptions" | "training" | "videoConfig">} />;
+    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "followups" | "report" | "prescriptions" | "training" | "videoConfig">} />;
   }
 
   return (
