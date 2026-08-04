@@ -24,10 +24,9 @@ const clinicalRoles: Role[] = ["ADMIN", "DOCTOR", "REHAB_EXECUTION"];
 
 export const navItems: NavItem[] = [
   { key: "dashboard", label: "今日工作台", icon: LayoutDashboard, group: "business", roles: clinicalRoles },
-  { key: "prescriptions", label: "处方管理", icon: ClipboardList, group: "business", roles: ["ADMIN", "DOCTOR"] },
   { key: "patients", label: "患者档案", icon: UsersRound, group: "business", roles: clinicalRoles },
+  { key: "prescriptions", label: "处方管理", icon: ClipboardList, group: "business", roles: ["ADMIN", "DOCTOR"] },
   { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: clinicalRoles },
-  { key: "report", label: "康复报告", icon: FileSignature, group: "business", roles: clinicalRoles },
   { key: "training", label: "训练工作台", icon: MonitorUp, group: "business", roles: clinicalRoles },
   { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: ["ADMIN", "DOCTOR", "REHAB_EXECUTION"] },
   { key: "orgPermissions", label: "组织权限", icon: Building2, group: "admin", roles: ["ADMIN"] },

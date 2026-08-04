@@ -425,8 +425,6 @@ export function PatientApp({
 
 function LoginScreen({ onExit, onLogin }: { onExit: () => void; onLogin: (patientId: string) => void }) {
   const [patientNo, setPatientNo] = useState(patientMasterChen.patientNo);
-  const [verificationCode, setVerificationCode] = useState("123456");
-  const [verificationSent, setVerificationSent] = useState(false);
   const [error, setError] = useState("");
   const normalizedPatientNo = patientNo.trim();
   const validFormat = /^\d{6}$/.test(normalizedPatientNo);
@@ -452,15 +450,6 @@ function LoginScreen({ onExit, onLogin }: { onExit: () => void; onLogin: (patien
       setError("未找到该患者号，请核对后重试。");
       return;
     }
-    if (!verificationSent) {
-      setVerificationSent(true);
-      setError("验证码已发送至患者登记手机号（演示验证码：123456）。");
-      return;
-    }
-    if (verificationCode.trim() !== "123456") {
-      setError("验证码不正确，请重新输入。");
-      return;
-    }
     setError("");
     onLogin(patientMasterChen.patientId);
   }
@@ -479,7 +468,7 @@ function LoginScreen({ onExit, onLogin }: { onExit: () => void; onLogin: (patien
             <p className="mt-5 max-w-md text-base leading-7 text-teal-50/80">围绕处方、设备、心理准备和训练监测，陪您安全完成每一次运动康复。</p>
           </div>
           <div className="absolute bottom-12 left-12 right-12 grid grid-cols-3 gap-3">
-            {[["36", "计划训练"], ["11", "已完成"], ["专业", "医护陪同"]].map(([value, label]) => (
+            {[["4", "本阶段处方"], ["4", "已完成训练"], ["专业", "医护陪同"]].map(([value, label]) => (
               <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10" key={label}>
                 <p className="text-2xl font-bold">{value}</p>
                 <p className="mt-1 text-xs text-teal-100/75">{label}</p>
@@ -488,18 +477,17 @@ function LoginScreen({ onExit, onLogin }: { onExit: () => void; onLogin: (patien
           </div>
         </div>
         <div className="flex min-h-[650px] flex-col justify-center p-12">
-          <p className="text-sm font-bold text-medical-700">患者号 + 一次性验证码登录</p>
+          <p className="text-sm font-bold text-medical-700">患者号登录</p>
           <h2 className="mt-2 text-3xl font-bold text-slate-950">欢迎回来</h2>
-          <p className="mt-2 text-sm text-slate-500">输入康复中心发放的患者号，再用登记手机号接收一次性验证码。</p>
+          <p className="mt-2 text-sm text-slate-500">输入医生建档后生成的 6 位患者号，即可进入个人训练端。</p>
           <label className="mt-8 text-sm font-bold text-slate-700" htmlFor="patient-no">患者号</label>
           <div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-medical-400 focus-within:ring-4 focus-within:ring-medical-50">
             <IdCard className="h-5 w-5 text-slate-400" />
-            <input id="patient-no" value={patientNo} onChange={(event) => { setPatientNo(event.target.value.replace(/\D/g, "").slice(0, 6)); setVerificationSent(false); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") login(); }} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} aria-invalid={Boolean(error)} aria-describedby="patient-login-help" autoComplete="username" className="h-14 flex-1 bg-transparent px-3 font-mono text-base font-semibold text-slate-800 outline-none" />
+            <input id="patient-no" value={patientNo} onChange={(event) => { setPatientNo(event.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") login(); }} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} aria-invalid={Boolean(error)} aria-describedby="patient-login-help" autoComplete="username" className="h-14 flex-1 bg-transparent px-3 font-mono text-base font-semibold text-slate-800 outline-none" />
             <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">身份核验</span>
           </div>
-          {verificationSent && <div className="mt-4 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4"><ShieldCheck className="h-5 w-5 text-emerald-600" /><input value={verificationCode} onChange={(event) => { setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }} inputMode="numeric" maxLength={6} className="h-12 flex-1 bg-transparent px-3 font-mono text-base font-semibold outline-none" placeholder="输入6位验证码" /><span className="text-[10px] font-bold text-slate-400">演示 123456</span></div>}
           <div id="patient-login-help" className={`mt-3 rounded-xl border px-3 py-2 text-xs leading-5 ${error ? "border-red-200 bg-red-50 text-red-700" : "border-amber-100 bg-amber-50 text-amber-800"}`}>
-            {error || "演示患者号：000001。首次点击登录会发送一次性验证码。"}
+            {error || "演示患者号：000001。患者号由医生建档后自动生成，患者端不能自行建档。"}
           </div>
           <button type="button" onClick={login} disabled={!patientNo.trim()} className="patient-touch mt-7 flex items-center justify-center gap-2 rounded-2xl bg-medical-600 px-5 font-bold text-white shadow-lg shadow-medical-100 hover:bg-medical-700 disabled:bg-slate-300">
             登录患者端 <ArrowRight className="h-5 w-5" />
@@ -718,6 +706,8 @@ function VideoTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrai
   }, [started]);
 
   const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  const liveHeartRate = 86 + (seconds % 5);
+  const liveOxygen = 97 + (seconds % 2);
   const openFullscreen = () => playerRef.current?.requestFullscreen?.();
 
   return (
@@ -729,8 +719,9 @@ function VideoTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrai
         </div>
         <div className="relative min-h-0 flex-1 bg-black">
           {video.source === "link" ? <iframe title={video.title} src={video.url} className="absolute inset-0 h-full w-full border-0" allow="autoplay; fullscreen" /> : <video title={video.title} src={video.url} className="absolute inset-0 h-full w-full object-contain" controls playsInline />}
+          {showMonitoring && <div className="absolute inset-x-4 bottom-4 z-10 grid grid-cols-4 gap-2 rounded-2xl bg-slate-950/75 p-3 text-white backdrop-blur-md"><div className="col-span-2 rounded-xl bg-white/10 p-3"><div className="flex items-center gap-2"><HeartPulse className="h-4 w-4 text-rose-300" /><span className="text-[10px] font-bold">实时心率</span></div><p className="mt-1 text-2xl font-bold">{liveHeartRate}<span className="ml-1 text-[9px] text-white/60">bpm</span></p></div><div className="rounded-xl bg-white/10 p-3"><p className="text-[9px] text-white/60">血氧</p><p className="mt-2 text-xl font-bold">{liveOxygen}<span className="ml-1 text-[9px] text-white/60">%</span></p></div><div className="rounded-xl bg-white/10 p-3"><p className="text-[9px] text-white/60">跟练时间</p><p className="mt-2 text-xl font-bold tabular-nums">{time}</p></div></div>}
         </div>
-        {showMonitoring && <div className="flex items-center gap-5 border-t border-white/10 bg-[#102c3b] px-5 py-3 text-xs text-white"><span className="font-bold text-teal-200">可选监测</span><span>心率 <b className="ml-1 text-base">86 bpm</b></span><span>血氧 <b className="ml-1 text-base">97%</b></span><span className="flex-1 text-slate-300">心电波形需连接背包后显示；当前Demo不覆盖在视频画面上。</span></div>}
+        {showMonitoring && <div className="flex items-center gap-5 border-t border-white/10 bg-[#102c3b] px-5 py-3 text-xs text-white"><span className="font-bold text-teal-200">可选监测</span><span>心率 <b className="ml-1 text-base">{liveHeartRate} bpm</b></span><span>血氧 <b className="ml-1 text-base">{liveOxygen}%</b></span><span className="flex-1 text-slate-300">监测指标已悬浮在视频上，进入全屏后仍保持可见。</span></div>}
       </article>
       <aside className="flex flex-col gap-4">
         <article className="rounded-3xl border border-white bg-white p-5 shadow-card">
@@ -788,8 +779,6 @@ function PrescriptionScreen(props: {
   const adjustedHrRange = [targetHr - 8, targetHr + 8];
   const adjustments: { label: string; prescribed: string; adjusted: string }[] = [];
 
-  const currentTrainingType = trainingType === "continuous" ? "连续训练" : "间歇训练";
-  if (currentTrainingType !== prescription.trainingType) adjustments.push({ label: "训练模式", prescribed: prescription.trainingType, adjusted: currentTrainingType });
   if (targetHr !== prescribedTargetHr) adjustments.push({ label: "靶心率区间", prescribed: `${prescription.targetHr.join("–")} bpm`, adjusted: `${adjustedHrRange.join("–")} bpm` });
   if (targetPowerMin !== prescription.targetPower[0] || targetPowerMax !== prescription.targetPower[1]) adjustments.push({ label: "目标功率", prescribed: `${prescription.targetPower.join("–")} W`, adjusted: `${targetPowerMin}–${targetPowerMax} W` });
   if (warmup !== prescription.warmupMinutes) adjustments.push({ label: "热身时间", prescribed: `${prescription.warmupMinutes} 分钟`, adjusted: `${warmup} 分钟` });
@@ -848,7 +837,7 @@ function PrescriptionScreen(props: {
         </div>
         <div className="mt-5 grid grid-cols-2 gap-4">
           <ReadOnlyPrescriptionItem label="训练方式" value={exercise === "bike" ? prescription.exerciseProject : "视频跟练"} />
-          <label className="rounded-2xl border border-slate-200 p-4"><span className="text-xs font-bold text-slate-500">训练模式</span><select value={trainingType} onChange={(event) => setTrainingType(event.target.value as TrainingType)} className="mt-3 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 font-bold text-slate-800 outline-none"><option value="continuous">连续训练</option><option value="interval">间歇训练</option></select></label>
+          <ReadOnlyPrescriptionItem label="执行模式" value="按医生处方执行" />
           <NumberControl label="靶心率中心值" value={targetHr} unit="bpm" onMinus={() => setTargetHr(Math.max(80, targetHr - 1))} onPlus={() => setTargetHr(Math.min(150, targetHr + 1))} />
           <div className="rounded-2xl border border-slate-200 p-4">
             <p className="text-xs font-bold text-slate-500">目标功率范围</p>
@@ -927,19 +916,12 @@ function DeviceCard({ icon: Icon, title, code, details, connected, onConnect }: 
 }
 
 function PsychScreen({ answers, setAnswer, onBack, onContinue }: { answers: Record<string, string>; setAnswer: (key: string, value: string) => void; onBack: () => void; onContinue: () => void }) {
-  const questions = [
-    ["mood", "此刻整体心情如何？", ["轻松", "一般", "紧张"]],
-    ["confidence", "对完成今天训练有信心吗？", ["有信心", "不确定", "没有信心"]],
-    ["discomfort", "目前是否有明显不适或担忧？", ["没有", "轻微", "明显"]]
-  ];
+  const score = Number(answers.moodScore ?? 5);
   return (
     <section className="flex h-full min-h-[560px] flex-col rounded-3xl border border-white bg-white p-7 shadow-card" data-testid="page-VIEW-PATIENT-PSYCH">
-      <div className="flex items-center gap-4"><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><SmilePlus className="h-7 w-7" /></span><div><p className="text-xs font-bold text-violet-600">训练前准备 · 第 2 项</p><h1 className="mt-1 text-2xl font-bold text-slate-950">心理与主观感受评估</h1><p className="mt-1 text-sm text-slate-500">用于判断训练准备度；出现明显不适时应由医护进一步确认。</p></div></div>
-      <div className="mt-7 grid flex-1 grid-cols-3 gap-4">
-        {questions.map(([key, title, options]) => <article key={key as string} className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><p className="text-xs font-bold text-slate-400">必答</p><h2 className="mt-3 min-h-[52px] text-lg font-bold text-slate-900">{title}</h2><div className="mt-5 space-y-3">{(options as string[]).map((option) => <button type="button" key={option} onClick={() => setAnswer(key as string, option)} className={`patient-touch flex w-full items-center justify-between rounded-2xl border px-4 font-bold ${answers[key as string] === option ? "border-violet-400 bg-violet-50 text-violet-800 ring-2 ring-violet-100" : "border-slate-200 bg-white text-slate-600"}`}>{option}{answers[key as string] === option && <CheckCircle2 className="h-5 w-5" />}</button>)}</div></article>)}
-      </div>
-      {answers.discomfort === "明显" && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">已提示：存在明显不适，请护士确认后再继续。本 Demo 仍允许继续以便调研异常流程。</div>}
-      <div className="mt-6 flex justify-between"><button type="button" onClick={onBack} className="btn-secondary patient-touch"><ArrowLeft className="h-4 w-4" /> 返回设备</button><button type="button" disabled={Object.keys(answers).length !== 3} onClick={onContinue} className="btn-primary patient-touch px-8">评估完成，选择血压模式 <ArrowRight className="h-5 w-5" /></button></div>
+      <div className="flex items-center gap-4"><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><SmilePlus className="h-7 w-7" /></span><div><p className="text-xs font-bold text-violet-600">训练前准备 · 第 2 项</p><h1 className="mt-1 text-2xl font-bold text-slate-950">心理与主观感受评估</h1><p className="mt-1 text-sm text-slate-500">只记录一个整体分值；不替代护士对症状和生命体征的判断。</p></div></div>
+      <article className="mt-8 flex flex-1 flex-col justify-center rounded-3xl border border-violet-100 bg-violet-50/60 p-8 text-center"><p className="text-sm font-bold text-violet-700">今天的训练感受如何？</p><p className="mt-3 text-6xl font-bold tabular-nums text-violet-950">{score}<span className="ml-2 text-lg font-medium text-violet-500">/ 10</span></p><input aria-label="今日训练感受评分" type="range" min="0" max="10" step="1" value={score} onChange={(event) => setAnswer("moodScore", event.target.value)} className="mx-auto mt-8 h-3 w-full max-w-2xl accent-violet-600" /><div className="mx-auto mt-3 flex w-full max-w-2xl justify-between text-xs font-bold text-violet-500"><span>很不舒服</span><span>一般</span><span>状态很好</span></div><p className="mx-auto mt-8 max-w-2xl rounded-2xl bg-white p-4 text-sm leading-6 text-slate-600">如果有胸闷、胸痛、明显气促、头晕或心悸，请把分值调低并立即告诉护士；分值只作辅助记录。</p></article>
+      <div className="mt-6 flex justify-between"><button type="button" onClick={onBack} className="btn-secondary patient-touch"><ArrowLeft className="h-4 w-4" /> 返回设备</button><button type="button" disabled={!answers.moodScore} onClick={onContinue} className="btn-primary patient-touch px-8">评估完成，选择血压模式 <ArrowRight className="h-5 w-5" /></button></div>
     </section>
   );
 }
@@ -1079,6 +1061,11 @@ function TrainingScreen(props: {
                   <p className="mt-1 text-[10px] text-slate-500">请将 MP4、MOV、WebM 或 M4V 放入 Bilibili下载目录</p>
                 </div>
               )}
+              <div className="absolute left-4 top-16 z-10 w-52 rounded-2xl border border-white/20 bg-slate-950/70 p-3 text-white shadow-xl backdrop-blur-md">
+                <div className="flex items-center gap-2"><HeartPulse className="h-5 w-5 text-rose-300" /><span className="text-xs font-bold">实时心率</span><span className="ml-auto text-[9px] text-emerald-300">动态</span></div>
+                <p className="mt-1 text-3xl font-bold tabular-nums">{hr}<span className="ml-1 text-[10px] font-medium text-white/70">bpm</span></p>
+                <p className="mt-1 text-[10px] text-white/75">目标 {targetHr - 8}–{targetHr + 8} bpm · {hrStatus}</p>
+              </div>
               <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-slate-950/75 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur-md">
                 <span className={`h-2 w-2 rounded-full ${paused ? "bg-amber-400" : "metric-live-dot bg-emerald-400"}`} />{paused ? "训练视频已暂停" : `${phaseLabels[phase]}跟练中`}
               </div>
@@ -1086,6 +1073,9 @@ function TrainingScreen(props: {
               <button type="button" onClick={() => trainingVideoPanelRef.current?.requestFullscreen?.()} className="absolute right-3 top-3 flex h-9 items-center gap-2 rounded-xl bg-slate-950/75 px-3 text-[10px] font-bold text-white shadow-lg backdrop-blur-md hover:bg-slate-950/90"><Maximize2 className="h-4 w-4" />全屏跟练</button>
               {paused && <div className="absolute inset-0 flex items-center justify-center"><div className="rounded-2xl bg-white/95 px-8 py-5 text-center shadow-xl"><Pause className="mx-auto h-8 w-8 text-medical-700" /><p className="mt-2 font-bold text-slate-900">训练已暂停</p><p className="mt-1 text-[10px] text-slate-500">点击“继续训练”恢复</p></div></div>}
               {anomaly && !paused && <div className="absolute inset-0 flex items-center justify-center bg-red-950/20"><div className="rounded-2xl border border-red-200 bg-red-50/95 px-8 py-5 text-center text-red-800 shadow-xl"><AlertTriangle className="mx-auto h-8 w-8 animate-pulse text-red-600" /><p className="mt-2 text-base font-bold">请降低踏频并等待医护确认</p><p className="mt-1 text-xs text-red-600">心率已高于目标控制区间</p></div></div>}
+              <div className="absolute inset-x-3 bottom-20 z-10 grid grid-cols-6 gap-1.5 rounded-2xl bg-slate-950/70 p-2 text-white backdrop-blur-md">
+                {[["速度", speed.toFixed(1), "km/h"], ["距离", (elapsed * (phase === "training" ? 21.8 : 16.0) / 3600).toFixed(2), "km"], ["功率", String(currentPower), "W"], ["血氧", String(oxygen), "%"], ["血压", bpMode === "none" ? "—/—" : measuredBp, ""], ["RPE", String(rpe), "/20"]].map(([label, value, unit]) => <div className="rounded-xl bg-white/10 px-2 py-2 text-center" key={label}><p className="text-[9px] text-white/65">{label}</p><p className="mt-1 text-sm font-bold tabular-nums">{value}<span className="ml-0.5 text-[8px] text-white/60">{unit}</span></p></div>)}
+              </div>
               <div className="absolute inset-x-3 bottom-3 z-20 grid grid-cols-3 gap-2 rounded-2xl bg-slate-950/65 p-2 backdrop-blur-md">
                 <button type="button" onClick={() => setPaused(!paused)} className="patient-touch flex items-center justify-center gap-2 rounded-xl bg-white/95 font-bold text-medical-800 shadow-sm">{paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}{paused ? "继续训练" : "暂停训练"}</button>
                 <button type="button" onClick={nextPhase} className="patient-touch flex items-center justify-center gap-2 rounded-xl bg-medical-600 font-bold text-white shadow-lg">{phase === "cooldown" ? <CircleStop className="h-5 w-5" /> : <ArrowRight className="h-5 w-5" />}{phase === "cooldown" ? "结束训练" : "下一阶段"}</button>
@@ -1169,7 +1159,7 @@ function ResultScreen({
 
 function CalendarScreen({ onBack }: { onBack: () => void }) {
   const days = Array.from({ length: 31 }, (_, index) => index + 1);
-  return <section className="rounded-3xl border border-white bg-white p-7 shadow-card"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-medical-600">训练记录</p><h1 className="mt-1 text-2xl font-bold text-slate-950">2026 年 7 月打卡日历</h1></div><button type="button" onClick={onBack} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> 返回首页</button></div><div className="mt-7 grid grid-cols-7 gap-3">{["一", "二", "三", "四", "五", "六", "日"].map((day) => <p key={day} className="text-center text-xs font-bold text-slate-400">周{day}</p>)}{days.map((day) => { const done = [2, 4, 7, 9, 11, 14, 16, 18, 22, 23, 25].includes(day); return <div key={day} className={`flex h-16 items-center justify-center rounded-2xl text-sm font-bold ${day === 26 ? "bg-medical-600 text-white ring-4 ring-medical-100" : done ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-500"}`}>{done ? <span className="text-center"><Check className="mx-auto h-4 w-4" /><small className="text-[9px]">已训练</small></span> : day}</div>; })}</div></section>;
+  return <section className="rounded-3xl border border-white bg-white p-7 shadow-card"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-medical-600">训练记录</p><h1 className="mt-1 text-2xl font-bold text-slate-950">2026 年 7 月打卡日历</h1><p className="mt-2 text-xs text-slate-500">每天凌晨根据处方项目完成情况自动更新：全部完成为“已训练”，部分完成为“部分完成”。</p></div><button type="button" onClick={onBack} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> 返回首页</button></div><div className="mt-7 grid grid-cols-7 gap-3">{["一", "二", "三", "四", "五", "六", "日"].map((day) => <p key={day} className="text-center text-xs font-bold text-slate-400">周{day}</p>)}{days.map((day) => { const done = [2, 4, 7, 9, 11, 14, 16, 18, 22, 23, 25].includes(day); const partial = [26, 28].includes(day); return <div key={day} className={`flex h-16 items-center justify-center rounded-2xl text-sm font-bold ${done ? "bg-emerald-50 text-emerald-700" : partial ? "bg-amber-50 text-amber-700" : "bg-slate-50 text-slate-500"}`}>{done ? <span className="text-center"><Check className="mx-auto h-4 w-4" /><small className="text-[9px]">已训练</small></span> : partial ? <span className="text-center"><span className="mx-auto block h-2.5 w-2.5 rounded-full bg-amber-500" /><small className="text-[9px]">部分完成</small></span> : day}</div>; })}</div><div className="mt-5 flex gap-4 text-xs font-bold text-slate-500"><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />全部完成</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-amber-500" />部分完成</span></div></section>;
 }
 
 function ReportScreen({
@@ -1236,6 +1226,7 @@ function SingleReportList({ onSelect }: { onSelect: (reportId: string) => void }
 
 function SingleTrainingReport({ reportId, onBack }: { reportId: string; onBack: () => void }) {
   const report = getSingleTrainingReportDetail(reportId);
+  const previousReport = [...singleTrainingReportDetails].filter((item) => item.patientId === report.patientId && item.actualStartAt < report.actualStartAt).sort((left, right) => right.actualStartAt.localeCompare(left.actualStartAt))[0];
   const prescriptionDetail = getPrescriptionVersionDetail(report.prescriptionVersionId);
   const isDemoData = report.dataMode === "demo" || !report.sampleSeries?.length;
   const patientInfo = [
@@ -1267,6 +1258,8 @@ function SingleTrainingReport({ reportId, onBack }: { reportId: string; onBack: 
         </div>
         <div className="mt-5 border-t border-slate-100 pt-5"><p className="text-sm font-bold text-slate-900">运动处方参数</p><div className="mt-3 grid grid-cols-4 gap-3">{prescription.map(([label, value]) => <div key={label} className="rounded-2xl border border-medical-100 bg-medical-50 p-3.5"><p className="text-[11px] font-bold text-medical-600">{label}</p><p className="mt-1.5 text-base font-bold text-medical-900">{value}</p></div>)}</div></div>
       </article>
+
+      {previousReport && <article className="rounded-3xl border border-sky-100 bg-sky-50 p-5 shadow-card"><div className="flex items-center gap-2 text-sm font-bold text-sky-900"><TrendingUp className="h-4 w-4" />与上一次训练对比</div><p className="mt-1 text-xs text-slate-500">仅在存在上一条训练记录时展示，帮助患者理解本次变化。</p><div className="mt-4 grid grid-cols-3 gap-3"><div className="rounded-2xl bg-white p-3"><p className="text-[10px] text-slate-400">平均心率</p><p className="mt-1 font-bold text-slate-900">{previousReport.hrStats.average} → {report.hrStats.average} bpm</p><p className="mt-1 text-[10px] font-bold text-emerald-700">{report.hrStats.average <= previousReport.hrStats.average ? "较上次下降" : "较上次上升"}</p></div><div className="rounded-2xl bg-white p-3"><p className="text-[10px] text-slate-400">靶区时间</p><p className="mt-1 font-bold text-slate-900">{previousReport.targetZoneMinutes} → {report.targetZoneMinutes} 分钟</p><p className="mt-1 text-[10px] font-bold text-sky-700">{report.targetZoneMinutes >= previousReport.targetZoneMinutes ? "目标时间增加" : "目标时间减少"}</p></div><div className="rounded-2xl bg-white p-3"><p className="text-[10px] text-slate-400">血氧摘要</p><p className="mt-1 font-bold text-slate-900">{previousReport.spo2Summary} → {report.spo2Summary}</p><p className="mt-1 text-[10px] font-bold text-slate-500">请结合实际测量时间理解</p></div></div></article>}
 
       <article className="rounded-3xl border border-white bg-white p-6 shadow-card">
         <div><p className="text-xs font-bold text-medical-600">处方执行情况</p><h2 className="mt-1 text-xl font-bold text-slate-950">训练时间与分期生命体征</h2></div>

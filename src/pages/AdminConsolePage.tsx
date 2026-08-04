@@ -7,7 +7,8 @@ import {
   Plus,
   Save,
   ShieldCheck,
-  UserCog
+  UserCog,
+  X
 } from "lucide-react";
 import { roleActions, roleMeta } from "../accessControl";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
@@ -193,6 +194,9 @@ function PermissionSheet() {
 }
 
 function DocumentConfigPage() {
+  const [activeConfig, setActiveConfig] = useState<string | null>(null);
+  const [signatureFile, setSignatureFile] = useState("王医生-签名.png");
+  const [saved, setSaved] = useState(false);
   return (
     <section data-testid="page-VIEW-DOCUMENTCONFIG">
       <PageHeader
@@ -217,12 +221,13 @@ function DocumentConfigPage() {
                 <td className="px-5 py-4 text-slate-500">{row.detail}</td>
                 <td className="px-5 py-4 text-slate-500">{row.owner}</td>
                 <td className="px-5 py-4"><StatusBadge tone={row.status.includes("待") ? "orange" : "green"}>{row.status}</StatusBadge></td>
-                <td className="px-5 py-4"><button className="text-xs font-bold text-blue-700">配置</button></td>
+                <td className="px-5 py-4">{row.name === "单次报告模板" || row.name === "阶段报告模板" ? <span className="text-xs text-slate-400">验证版暂不开放</span> : <button type="button" onClick={() => { setActiveConfig(row.name); setSaved(false); }} className="text-xs font-bold text-blue-700">配置</button>}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </section>
+      {activeConfig && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm"><section className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold text-blue-600">后台配置</p><h2 className="mt-1 text-xl font-bold text-slate-950">{activeConfig}</h2></div><button type="button" onClick={() => setActiveConfig(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100" aria-label="关闭配置"><X className="h-4 w-4" /></button></div>{activeConfig === "王医生数字签名" ? <div className="mt-5 space-y-4"><div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-900">处方签署时只允许本人使用已配置签名；管理员可以配置模板，但不能代替医生签署。</div><label className="block"><span className="field-label">上传签名图片</span><input type="file" accept="image/png,image/jpeg" onChange={(event) => setSignatureFile(event.target.files?.[0]?.name ?? signatureFile)} className="mt-2 block w-full rounded-xl border border-slate-200 p-3 text-xs" /></label><div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3"><div className="flex h-16 w-28 items-center justify-center rounded-lg bg-white text-2xl italic text-slate-700 shadow-sm">王医生</div><div><p className="text-xs font-bold text-slate-800">当前文件</p><p className="mt-1 text-[10px] text-slate-500">{signatureFile}</p></div></div></div> : <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900"><b>康复报告模板预览</b><p className="mt-2">网页预览使用成长进度、生命体征前后对照和阶段勋章等轻量动画；打印/PDF 输出静态、清晰的医疗文书。</p></div>}<div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setActiveConfig(null)} className="btn-secondary">取消</button><button type="button" onClick={() => setSaved(true)} className="btn-primary"><Save className="h-4 w-4" />保存配置</button>{saved && <span className="self-center text-xs font-bold text-emerald-600">已保存</span>}</div></section></div>}
     </section>
   );
 }

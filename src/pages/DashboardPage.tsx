@@ -99,13 +99,12 @@ export function DashboardPage({
 
       {role === "DOCTOR" ? (
         <>
-          <div className="mb-4 grid items-stretch gap-4 lg:grid-cols-[0.9fr_0.9fr_1.2fr]">
+          <div className="mb-4 grid items-stretch gap-4 lg:grid-cols-[0.9fr_1.1fr]">
             <TodayAppointmentCard appointments={visibleAppointments} compact onOpen={(taskId) => {
               const task = tasks.find((item) => item.id === taskId);
               if (!task) return;
               task.status === "pending_generation" ? onGenerate(task.id) : onOpen(task.id);
             }} />
-            <RankingCard items={taskRankings} compact />
             <TrendCard values={trend} compact />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
@@ -416,7 +415,7 @@ function TodayAppointmentCard({ appointments, onOpen, compact = false }: { appoi
       <div className={compact ? "px-4 pt-4" : "px-5 pt-5"}>
         <SectionHeader
           title="今日预约患者"
-          description="按预约时间展示今日患者，点击可进入对应处方任务。"
+          description="当前仅展示演示排班；正式版本需与实际预约/排班来源确认后再开放完成状态。"
           action={hasMore
             ? <button type="button" onClick={() => setShowAll((current) => !current)} className="text-xs font-bold text-medical-700">{showAll ? "收起" : `查看全部（${appointments.length}）`}</button>
             : <span className="text-xs font-bold text-slate-400">共 {appointments.length} 人</span>}

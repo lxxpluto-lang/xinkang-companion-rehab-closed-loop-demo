@@ -34,9 +34,9 @@ function createReport(patient: ManagedPatient, assessments: AssessmentRecord[], 
   };
 }
 
-export function RehabDischargeReportPage({ role, currentAccount, patients, assessments, tasks, followUps, followUpRecords, reports, onSave }: { role: ReportRole; currentAccount: string; patients: ManagedPatient[]; assessments: AssessmentRecord[]; tasks: PrescriptionTask[]; followUps: FollowUpTask[]; followUpRecords: FollowUpRecord[]; reports: RehabReport[]; onSave: (report: RehabReport) => void }) {
+export function RehabDischargeReportPage({ role, currentAccount, patients, assessments, tasks, followUps, followUpRecords, reports, initialPatientId, onSave }: { role: ReportRole; currentAccount: string; patients: ManagedPatient[]; assessments: AssessmentRecord[]; tasks: PrescriptionTask[]; followUps: FollowUpTask[]; followUpRecords: FollowUpRecord[]; reports: RehabReport[]; initialPatientId?: string | null; onSave: (report: RehabReport) => void }) {
   const scopedPatients = role === "DOCTOR" ? patients.filter((patient) => patient.assigned_doctor === currentAccount) : patients;
-  const [patientId, setPatientId] = useState(scopedPatients[0]?.patient_demo_id ?? "");
+  const [patientId, setPatientId] = useState(initialPatientId && scopedPatients.some((item) => item.patient_demo_id === initialPatientId) ? initialPatientId : scopedPatients[0]?.patient_demo_id ?? "");
   const patient = scopedPatients.find((item) => item.patient_demo_id === patientId) ?? scopedPatients[0];
   const existing = reports.find((report) => report.patientId === patient?.patient_demo_id);
   const [report, setReport] = useState<RehabReport | null>(existing ?? (patient ? createReport(patient, assessments, tasks, followUps.filter((task) => task.patientId === patient.patient_demo_id), followUpRecords) : null));

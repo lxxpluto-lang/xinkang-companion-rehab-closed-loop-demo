@@ -54,7 +54,7 @@ export type AssessmentRecord = {
   ruleVersion: string;
 };
 
-export const sppbRuleVersion = "FTYY-SPPB-2026.08";
+export const sppbRuleVersion = "CRH-SPPB-2026.08";
 
 function scoreBalance(value: number | null, type: "side" | "semi" | "tandem") {
   if (value === null) return 0;

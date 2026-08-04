@@ -145,8 +145,8 @@ export const patientMasterChen = {
   bmi: clinicalSnapshotChen.bmi,
   rehabGroup: "运动康复 A 组",
   rehabStage: "Ⅱ期院内康复",
-  planSessions: 36,
-  completedSessions: 11,
+  planSessions: 4,
+  completedSessions: 4,
   restingHr: 72,
   latestFollowUp: "2026-08-06",
   clinicalSnapshot: clinicalSnapshotChen
