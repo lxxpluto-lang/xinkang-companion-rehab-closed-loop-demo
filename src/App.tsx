@@ -5,6 +5,7 @@ import { StaffLogin } from "./components/StaffLogin";
 import { SystemChooser } from "./components/SystemChooser";
 import { PatientApp } from "./patient/PatientApp";
 import { AdminConsolePage } from "./pages/AdminConsolePage";
+import { AssessmentWorkspacePage } from "./pages/AssessmentWorkspacePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { NurseStationPage } from "./pages/NurseStationPage";
 import { FollowUpManagementPage, type FollowUpView } from "./pages/FollowUpManagementPage";
@@ -129,7 +130,14 @@ export default function App() {
   }
 
   function openAssessment(patientId?: string) {
-    if (patientId) { setSelectedPatientId(patientId); setPatientInitialTab("assessments"); }
+    if (patientId) setSelectedPatientId(patientId);
+    setPatientInitialTab("assessments");
+    setDoctorPage("assessment");
+    resetViewScroll();
+  }
+
+  function closeAssessment() {
+    setPatientInitialTab("assessments");
     setDoctorPage("patients");
     resetViewScroll();
   }
@@ -361,6 +369,7 @@ export default function App() {
       ? <PrescriptionWorkspacePage task={selectedTask} profile={selectedClinicalProfile} narratives={clinicalNarratives} content={prescriptionContents[selectedTask.id]} initialTab={prescriptionWorkspaceTab} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onGenerate={generateDraft} onOpenPatient={openPatientFromPrescription} onSaveProfile={saveClinicalProfile} onSaveNarrative={saveClinicalNarrative} onSaveContent={savePrescriptionContent} />
       : <PrescriptionManagementPage key={role} role={role as "ADMIN" | "DOCTOR"} currentDoctor={currentAccount} tasks={scopedPrescriptionTasks} initialStatusFilter={prescriptionEntryStatus} onOpen={openTask} onGenerate={generateDraft} />,
     patients: <PatientArchivePage key={`${role}-${selectedPatientId ?? "list"}-${patientInitialTab}`} role={role} currentAccount={currentAccount} patients={patients} tasks={prescriptionTasks} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} initialPatientId={selectedPatientId} initialTab={patientInitialTab} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenPrescription={openTask} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onOpenDischargeReport={openDischargeReport} onBackToPrescription={selectedTaskId ? returnToSelectedPrescription : undefined} />,
+    assessment: <AssessmentWorkspacePage key={`${role}-${selectedPatientId ?? "all"}`} role={role} currentAccount={currentAccount} patients={patients} records={assessmentRecords} initialPatientId={selectedPatientId} onSave={saveAssessmentRecord} onBack={closeAssessment} />,
     report: <RehabDischargeReportPage role={role} currentAccount={currentAccount} patients={patients} assessments={assessmentRecords} tasks={prescriptionTasks} followUps={followUpTasks} followUpRecords={followUpRecords} reports={rehabReports} initialPatientId={selectedPatientId} onSave={saveRehabReport} />,
     followups: <FollowUpManagementPage key={`${role}-${followUpEntryView}-${selectedFollowUpTaskId ?? "list"}`} role={role} currentAccount={currentAccount} patients={patients} tasks={followUpTasks} records={followUpRecords} initialView={followUpEntryView} initialTaskId={selectedFollowUpTaskId} onSaveRecord={saveFollowUpRecord} onOpenPatient={openPatient} />,
     training: <NurseStationPage role={role} />,
@@ -368,7 +377,7 @@ export default function App() {
   };
 
   for (const page of adminConsolePages) {
-    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "followups" | "report" | "prescriptions" | "training" | "videoConfig">} />;
+    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "assessment" | "followups" | "report" | "prescriptions" | "training" | "videoConfig">} />;
   }
 
   return (

@@ -20,6 +20,7 @@ export function DoctorLayout({
 }) {
   const [clock, setClock] = useState(new Date());
   const allowedItems = useMemo(() => navItems.filter((item) => item.roles.includes(role)), [role]);
+  const visibleItems = useMemo(() => allowedItems.filter((item) => !item.hidden), [allowedItems]);
   const currentItem = allowedItems.find((item) => item.key === page) ?? allowedItems[0];
 
   useEffect(() => {
@@ -45,14 +46,14 @@ export function DoctorLayout({
         <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 py-3" aria-label="主导航">
           <NavGroup
             title="业务工作"
-            items={allowedItems.filter((item) => item.group === "business")}
+            items={visibleItems.filter((item) => item.group === "business")}
             page={page}
             onNavigate={onNavigate}
           />
-          {allowedItems.some((item) => item.group === "admin") && (
+          {visibleItems.some((item) => item.group === "admin") && (
             <NavGroup
               title="后台管理"
-              items={allowedItems.filter((item) => item.group === "admin")}
+              items={visibleItems.filter((item) => item.group === "admin")}
               page={page}
               onNavigate={onNavigate}
             />
@@ -139,7 +140,7 @@ function NavGroup({
       <div className="space-y-1">
         {items.map((item) => {
           const Icon = item.icon;
-          const active = item.key === page;
+          const active = item.key === page || (page === "assessment" && item.key === "patients");
           return (
             <button
               key={item.key}

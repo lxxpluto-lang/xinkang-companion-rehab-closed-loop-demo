@@ -1,7 +1,7 @@
 import type { ManagedPatient } from "./pages/PatientArchivePage";
 
 export type AssessmentStatus = "draft" | "therapist_confirmed" | "doctor_reviewed";
-export type AssessmentSource = "manual" | "device";
+export type AssessmentSource = "manual" | "ocr" | "device";
 
 export type SPPBAssessment = {
   balance: {
