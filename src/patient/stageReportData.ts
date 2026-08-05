@@ -24,6 +24,8 @@ export type PrescriptionVersion = {
 export type TrainingSession = {
   id: string;
   prescriptionVersionId: PrescriptionVersion["id"];
+  exerciseType: "功率车" | "八段锦" | "腹式呼吸";
+  trainingMode: string;
   date: string;
   completed: boolean;
   totalMinutes: number;
@@ -159,6 +161,8 @@ const session = (
 ): TrainingSession => ({
   id,
   prescriptionVersionId,
+  exerciseType: "功率车",
+  trainingMode: "连续训练",
   date,
   completed: true,
   totalMinutes: 30,
@@ -209,8 +213,8 @@ export const stageReportData: StageReportData = {
     session("S-V2-03", "V2", "07-04", { totalMinutes: 28, activeMinutes: 23, targetZoneMinutes: 17, avgHr: 100, peakHr: 109, avgPower: 48, peakPower: 58, distanceKm: 7, caloriesKcal: 98, rpe: 11 }),
     session("S-V3-01", "V3", "07-08", { activeMinutes: 24, targetZoneMinutes: 18, avgHr: 106, peakHr: 117, avgPower: 54, peakPower: 66, distanceKm: 7.8, caloriesKcal: 111, rpe: 13 }),
     session("S-V3-02", "V3", "07-12", { activeMinutes: 22, targetZoneMinutes: 15, avgHr: 108, peakHr: 121, avgPower: 55, peakPower: 69, distanceKm: 7.3, caloriesKcal: 108, rpe: 13, symptom: "轻微胸闷", pauses: 1, postBp: "158/92", dataCompleteness: 92 }),
-    session("S-V3-03", "V3", "07-16", { activeMinutes: 25, targetZoneMinutes: 20, avgHr: 104, peakHr: 115, avgPower: 56, peakPower: 68, distanceKm: 8.2, caloriesKcal: 118, rpe: 12 }),
-    session("S-V4-01", "V4", "07-22", { activeMinutes: 25, targetZoneMinutes: 21, avgHr: 103, peakHr: 114, avgPower: 58, peakPower: 70, distanceKm: 8.5, caloriesKcal: 123, rpe: 11, postBp: null, dataCompleteness: 88 }),
+    session("S-V3-03", "V3", "07-16", { exerciseType: "八段锦", trainingMode: "视频跟练", totalMinutes: 18, activeMinutes: 16, targetZoneMinutes: 0, avgHr: 91, peakHr: 102, avgPower: 0, peakPower: 0, distanceKm: 0, caloriesKcal: 62, rpe: 9 }),
+    session("S-V4-01", "V4", "07-22", { exerciseType: "腹式呼吸", trainingMode: "视频跟练", totalMinutes: 12, activeMinutes: 10, targetZoneMinutes: 0, avgHr: 78, peakHr: 86, avgPower: 0, peakPower: 0, distanceKm: 0, caloriesKcal: 24, rpe: 7, postBp: null, dataCompleteness: 88 }),
     session("S-V4-02", "V4", "07-25", { activeMinutes: 26, targetZoneMinutes: 22, avgHr: 102, peakHr: 113, avgPower: 59, peakPower: 71, distanceKm: 8.8, caloriesKcal: 126, rpe: 11 })
   ],
   safetyEvents: [
@@ -266,12 +270,12 @@ export const stageReportData: StageReportData = {
     { prescriptionVersionId: "V4", avgRpe: 11, confidence: 88, readiness: 90, adherence: 67 }
   ],
   patientStageConclusion: {
-    headline: "这段时间您的运动能力在变好，下一阶段先稳住当前强度。",
-    plainSummary: "这 4 次处方周期里，您大多数训练能按计划完成。和刚开始相比，现在能在相近心率和主观疲劳感下完成更高功率，说明身体对运动的耐受在提高。血氧总体稳定，血压有过一次运动后偏高，医生已复核，所以暂时不急着继续加量。",
+    headline: "本报告汇总了医生选中的实际训练记录。",
+    plainSummary: "报告按运动类型分别汇总实际时长、心率、血氧、血压、工作量和异常。由于尚未获得可靠的处方计划次数，本报告不计算处方完成率或剩余次数；阶段变化由医生结合可比记录确认。",
     toleranceChange: {
-      label: "运动耐量约提升 18%",
-      value: "约 +18%",
-      basis: "按 V1 到 V4 的平均功率变化估算；同时参考平均心率接近、RPE未升高。若后续接入真实采样，会用设备时序重新计算。"
+      label: "等待医生确认",
+      value: "待确认",
+      basis: "只有同一运动类型、相近训练模式且至少有两条有效记录时才观察趋势；系统不根据训练次数自动生成改善结论。"
     },
     vitalsStability: {
       bp: "需关注",
@@ -301,11 +305,11 @@ export const stageReportData: StageReportData = {
     ]
   },
   clinicalConclusion: {
-    summary: "运动耐量提高，较高工作量下平均心率与RPE下降；生命体征总体平稳，建议维持V4强度并补齐训练后血压。",
-    achievedGoals: ["完成11/12次计划训练", "靶区达标率持续提高", "6分钟步行距离增加55米"],
-    pendingGoals: ["V4仍有1次计划训练未完成", "1次训练后血压未采集", "阶段末VO₂peak尚未复测"],
-    nextPrescription: "维持功率48–62W、靶心率100–116 bpm、主训练20分钟，每周3次；连续稳定3次后再评估上调。",
-    reassessment: "建议完成剩余训练并补测运动后血压；下次随访评估是否复查CPET。",
+    summary: "本报告纳入医生所选实际训练记录，分项目展示心率、血氧、血压、工作量与异常；是否改善及下一步安排需医生结合原始记录确认。",
+    achievedGoals: ["已完成所选训练记录的数据汇总", "单次异常及处置可追溯", "6分钟步行已有两个评估时间点"],
+    pendingGoals: ["正式处方目标与计划次数未获取", "1次训练后血压未采集", "阶段末VO₂peak尚未复测"],
+    nextPrescription: "本系统不生成或调整正式处方；如需调整，由医生回到医院正式流程完成。",
+    reassessment: "建议补测缺失的运动后血压，并由医生选择可比训练记录后判断是否需要复查CPET。",
     confirmedBy: "王医生",
     confirmedAt: "2026-07-26 10:30",
     nextFollowUp: "2026-08-06 14:30"

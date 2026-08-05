@@ -11,6 +11,12 @@ import type { ManagedPatient } from "./PatientArchivePage";
 type ReportRole = "ADMIN" | "DOCTOR" | "REHAB_EXECUTION";
 type ReportSheet = "stage" | "discharge";
 
+const fullSessionDate = (date: string) => date.length === 5 ? `2026-${date}` : date;
+const groupSessionsByExercise = (sessions: typeof stageReportData.sessions) => sessions.reduce<Record<string, typeof stageReportData.sessions>>((groups, session) => {
+  groups[session.exerciseType] = [...(groups[session.exerciseType] ?? []), session];
+  return groups;
+}, {});
+
 function createReport(patient: ManagedPatient, assessments: AssessmentRecord[], followUps: FollowUpTask[], followUpRecords: FollowUpRecord[], selectedSessionIds: string[], episodeNo = 1): RehabReport {
   const reviewed = assessments.filter((record) => record.status === "doctor_reviewed");
   const completedFollowUps = followUps.filter((task) => effectiveFollowUpStatus(task) === "completed").length;
@@ -28,7 +34,7 @@ function createReport(patient: ManagedPatient, assessments: AssessmentRecord[], 
     rehabSection: {
       assessmentSummary: latest ? `已复核 ${reviewed.length} 次体能评估；最近一次SPPB ${latest.sppb.totalScore}/12。` : "暂无已复核阶段末评估，不生成能力提升结论。",
       trainingSummary: selectedSessionIds.length ? `已纳入 ${selectedSessionIds.length} 次已完成训练记录，逐次比较心率、血氧、血压、功率、RPE与异常。` : "尚未选择训练记录。",
-      adherenceSummary: patientRecords.length ? `运动依从性：${patientRecords.at(-1)?.exerciseAdherence ?? "待确认"}；用药依从性：${patientRecords.at(-1)?.medicationAdherence ?? "待确认"}。` : "尚无已确认随访记录。",
+      adherenceSummary: patientRecords.length ? `训练参与情况：${patientRecords.at(-1)?.exerciseAdherence ?? "待确认"}；用药执行情况：${patientRecords.at(-1)?.medicationAdherence ?? "待确认"}。` : "尚无已确认随访记录。",
       followUpSummary: `当前 ${followUps.length} 个随访节点，已完成 ${completedFollowUps} 个。`,
       improvementSummary: reviewed.length >= 2 ? "具备基线与阶段末评估，可结合原始记录形成变化结论。" : "缺少两个有效评估时间点，仅展示当前值。"
     },
@@ -54,7 +60,9 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
   const patient = scopedPatients.find((item) => item.patient_demo_id === patientId) ?? scopedPatients[0];
   const availableSessions = patient?.patient_demo_id === "P-DEMO-001" ? stageReportData.sessions.filter((session) => session.completed) : [];
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>(availableSessions.slice(-4).map((session) => session.id));
-  const [stageReport, setStageReport] = useState<StageReport>({ reportId: "STAGE-DRAFT-001", patientId: patient?.patient_demo_id ?? "", selectedSessionIds, generatedSummary: "", status: "draft" });
+  const initialDates = availableSessions.slice(-4).map((session) => fullSessionDate(session.date)).sort();
+  const [stageReport, setStageReport] = useState<StageReport>({ reportId: "STAGE-DRAFT-001", patientId: patient?.patient_demo_id ?? "", selectedSessionIds, periodStart: initialDates[0] ?? "", periodEnd: initialDates.at(-1) ?? "", generatedSummary: "", status: "draft" });
+  const [confirmedStageReports, setConfirmedStageReports] = useState<StageReport[]>([]);
   const patientReports = reports.filter((item) => item.patientId === patient?.patient_demo_id).sort((a, b) => (b.episodeNo ?? 1) - (a.episodeNo ?? 1));
   const patientFollowUps = useMemo(() => followUps.filter((task) => task.patientId === patient?.patient_demo_id), [followUps, patient?.patient_demo_id]);
   const [report, setReport] = useState<RehabReport | null>(() => patient ? patientReports[0] ?? createReport(patient, assessments.filter((item) => item.patientId === patient.patient_demo_id), patientFollowUps, followUpRecords, selectedSessionIds) : null);
@@ -66,12 +74,15 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
     const selection = sessions.slice(-4).map((session) => session.id);
     setPatientId(nextId);
     setSelectedSessionIds(selection);
-    setStageReport({ reportId: `STAGE-${nextId}-DRAFT`, patientId: nextId, selectedSessionIds: selection, generatedSummary: "", status: "draft" });
+    const dates = sessions.filter((session) => selection.includes(session.id)).map((session) => fullSessionDate(session.date)).sort();
+    setStageReport({ reportId: `STAGE-${nextId}-DRAFT`, patientId: nextId, selectedSessionIds: selection, periodStart: dates[0] ?? "", periodEnd: dates.at(-1) ?? "", generatedSummary: "", status: "draft" });
+    setConfirmedStageReports([]);
     const existing = reports.filter((item) => item.patientId === nextId).sort((a, b) => (b.episodeNo ?? 1) - (a.episodeNo ?? 1))[0];
     setReport(existing ?? createReport(next, assessments.filter((item) => item.patientId === nextId), followUps.filter((item) => item.patientId === nextId), followUpRecords, selection));
   }
 
   function toggleSession(sessionId: string) {
+    if (stageReport.status === "confirmed") return;
     setSelectedSessionIds((current) => current.includes(sessionId) ? current.filter((id) => id !== sessionId) : [...current, sessionId]);
     setStageReport((current) => ({ ...current, generatedSummary: "", status: "draft" }));
   }
@@ -79,15 +90,28 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
   function generateStageDraft() {
     if (selectedSessionIds.length < 2 || !patient) return;
     const selected = availableSessions.filter((session) => selectedSessionIds.includes(session.id));
-    const averageHr = Math.round(selected.reduce((sum, item) => sum + item.avgHr, 0) / selected.length);
-    const minimumSpo2 = Math.min(...selected.map((item) => item.minSpo2 ?? 100));
     const abnormalCount = selected.filter((item) => item.symptom !== "无明显不适" || item.pauses > 0 || item.terminatedEarly).length;
-    setStageReport({ reportId: `STAGE-${patient.patient_demo_id}-${Date.now()}`, patientId: patient.patient_demo_id, selectedSessionIds: [...selectedSessionIds], generatedSummary: `已联合分析${selected.length}次训练：平均心率约${averageHr} bpm，最低血氧${minimumSpo2}%，记录${abnormalCount}次症状或暂停。以上为AI汇总草稿，需医生查看原始记录后确认。`, status: "pending_doctor_review" });
+    const dates = selected.map((session) => fullSessionDate(session.date)).sort();
+    const projectSummary = Object.entries(groupSessionsByExercise(selected)).map(([exercise, valid]) => {
+      const avgHr = Math.round(valid.reduce((sum, item) => sum + item.avgHr, 0) / valid.length);
+      const comparable = valid.length >= 2 && new Set(valid.map((item) => item.trainingMode)).size === 1;
+      return `${exercise}${valid.length}次（平均心率${avgHr} bpm；${comparable ? "可在同模式下观察趋势" : "记录不可直接比较"}）`;
+    }).join("；");
+    setStageReport({ reportId: `STAGE-${patient.patient_demo_id}-${Date.now()}`, patientId: patient.patient_demo_id, selectedSessionIds: [...selectedSessionIds], periodStart: dates[0] ?? "", periodEnd: dates.at(-1) ?? "", generatedSummary: `本报告纳入${selected.length}次实际训练：${projectSummary}。共记录${abnormalCount}次症状、暂停或中断。AI仅汇总实际记录，不推断处方完成情况；需医生核对来源后确认。`, status: "pending_doctor_review" });
   }
 
   function confirmStageReport() {
     if (role !== "DOCTOR" || stageReport.status !== "pending_doctor_review") return;
-    setStageReport((current) => ({ ...current, status: "confirmed", confirmedBy: currentAccount, confirmedAt: new Date().toISOString() }));
+    const confirmed = { ...stageReport, status: "confirmed" as const, confirmedBy: currentAccount, confirmedAt: new Date().toISOString() };
+    setStageReport(confirmed);
+    setConfirmedStageReports((items) => [confirmed, ...items.filter((item) => item.reportId !== confirmed.reportId)]);
+  }
+
+  function startNewStageReport() {
+    const selection = availableSessions.slice(-4).map((session) => session.id);
+    const dates = availableSessions.filter((session) => selection.includes(session.id)).map((session) => fullSessionDate(session.date)).sort();
+    setSelectedSessionIds(selection);
+    setStageReport({ reportId: `STAGE-${patient.patient_demo_id}-DRAFT-${Date.now()}`, patientId: patient.patient_demo_id, selectedSessionIds: selection, periodStart: dates[0] ?? "", periodEnd: dates.at(-1) ?? "", generatedSummary: "", status: "draft" });
   }
 
   function saveDischarge(status: RehabReport["status"]) {
@@ -108,18 +132,25 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
       <label className="flex items-center gap-2 text-xs font-bold text-slate-600">患者<select value={patient.patient_demo_id} onChange={(event) => switchPatient(event.target.value)} className="text-field min-w-64">{scopedPatients.map((item) => <option key={item.patient_demo_id} value={item.patient_demo_id}>{item.name} · {item.patient_code}</option>)}</select></label>
       <div className="ml-auto flex rounded-xl bg-slate-100 p-1"><button type="button" onClick={() => setSheet("stage")} className={`rounded-lg px-5 py-2 text-xs font-bold ${sheet === "stage" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>阶段报告</button><button type="button" onClick={() => setSheet("discharge")} className={`rounded-lg px-5 py-2 text-xs font-bold ${sheet === "discharge" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500"}`}>出院报告 / 康复手册</button></div>
     </div>
-    {sheet === "stage" ? <StageSheet sessions={availableSessions} selectedIds={selectedSessionIds} report={stageReport} role={role} onToggle={toggleSession} onGenerate={generateStageDraft} onConfirm={confirmStageReport} /> : <DischargeSheet report={report} setReport={setReport} role={role} missingMedical={missingMedical} onSave={saveDischarge} selectedSessionCount={selectedSessions.length} />}
+    {sheet === "stage" ? <StageSheet sessions={availableSessions} selectedIds={selectedSessionIds} report={stageReport} history={confirmedStageReports} role={role} onToggle={toggleSession} onGenerate={generateStageDraft} onConfirm={confirmStageReport} onNew={startNewStageReport} /> : <DischargeSheet report={report} setReport={setReport} role={role} missingMedical={missingMedical} onSave={saveDischarge} selectedSessionCount={selectedSessions.length} />}
   </section>;
 }
 
-function StageSheet({ sessions, selectedIds, report, role, onToggle, onGenerate, onConfirm }: { sessions: typeof stageReportData.sessions; selectedIds: string[]; report: StageReport; role: ReportRole; onToggle: (id: string) => void; onGenerate: () => void; onConfirm: () => void }) {
+function StageSheet({ sessions, selectedIds, report, history, role, onToggle, onGenerate, onConfirm, onNew }: { sessions: typeof stageReportData.sessions; selectedIds: string[]; report: StageReport; history: StageReport[]; role: ReportRole; onToggle: (id: string) => void; onGenerate: () => void; onConfirm: () => void; onNew: () => void }) {
   const selected = sessions.filter((session) => selectedIds.includes(session.id));
+  const totalMinutes = selected.reduce((sum, session) => sum + session.activeMinutes, 0);
+  const abnormalCount = selected.filter((session) => session.symptom !== "无明显不适" || session.pauses > 0 || session.terminatedEarly).length;
+  const completeness = selected.length ? Math.round(selected.reduce((sum, session) => sum + session.dataCompleteness, 0) / selected.length) : 0;
+  const groups = Object.entries(groupSessionsByExercise(selected));
   return <div className="space-y-4">
-    <section className="card p-5"><SectionHeader title="选择联合分析的训练记录" description="默认最近4次；可勾选任意已完成记录，报告保存具体训练ID而不是只保存次数。" action={<StatusBadge tone={selectedIds.length >= 2 ? "blue" : "orange"}>已选 {selectedIds.length} 次</StatusBadge>} />
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">{sessions.map((session, index) => <label key={session.id} className={`cursor-pointer rounded-xl border p-4 ${selectedIds.includes(session.id) ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white"}`}><div className="flex items-center justify-between"><input type="checkbox" checked={selectedIds.includes(session.id)} onChange={() => onToggle(session.id)} /><span className="font-mono text-[9px] text-slate-400">{session.id}</span></div><p className="mt-3 text-xs font-bold text-slate-900">第{index + 1}次 · {session.date}</p><p className="mt-2 text-[10px] leading-5 text-slate-500">平均/峰值心率 {session.avgHr}/{session.peakHr} bpm<br />血氧最低 {session.minSpo2 ?? "未采集"}% · RPE {session.rpe}<br />训练前后血压 {session.preBp ?? "未采集"} → {session.postBp ?? "未采集"}</p></label>)}</div>
-      <div className="mt-4 flex justify-end gap-2"><button type="button" disabled={selectedIds.length < 2} onClick={onGenerate} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300"><Sparkles className="h-4 w-4" />生成AI阶段草稿</button>{role === "DOCTOR" && <button type="button" disabled={report.status !== "pending_doctor_review"} onClick={onConfirm} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300"><CheckCircle2 className="h-4 w-4" />医生确认</button>}</div>
+    {history.length > 0 && <section className="card p-4"><SectionHeader title="已确认阶段报告" description="每份报告固定保存纳入记录与日期范围；如需改变范围，请新建报告。" />{history.map((item) => <div key={item.reportId} className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 p-3 text-xs"><div><b>{item.periodStart} 至 {item.periodEnd}</b><p className="mt-1 text-emerald-700">本报告纳入 {item.selectedSessionIds.length} 次实际训练</p></div><StatusBadge tone="green">医生已确认</StatusBadge></div>)}</section>}
+    <section className="card p-5"><SectionHeader title="选择联合分析的训练记录" description="默认建议最近4次，仅是系统建议，不代表处方阶段；可勾选任意已完成记录，至少选择2次。" action={<StatusBadge tone={selectedIds.length >= 2 ? "blue" : "orange"}>本报告纳入 {selectedIds.length} 次</StatusBadge>} />
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">{sessions.map((session) => <label key={session.id} className={`rounded-xl border p-4 ${report.status === "confirmed" ? "cursor-not-allowed opacity-75" : "cursor-pointer"} ${selectedIds.includes(session.id) ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white"}`}><div className="flex items-center justify-between"><input disabled={report.status === "confirmed"} type="checkbox" checked={selectedIds.includes(session.id)} onChange={() => onToggle(session.id)} /><span className="font-mono text-[9px] text-slate-400">{session.id}</span></div><p className="mt-3 text-xs font-bold text-slate-900">{session.exerciseType} · {session.date}</p><p className="mt-2 text-[10px] leading-5 text-slate-500">{session.trainingMode}<br />平均/峰值心率 {session.avgHr}/{session.peakHr} bpm<br />血氧最低 {session.minSpo2 ?? "未采集"}% · 数据完整率 {session.dataCompleteness}%</p></label>)}</div>
+      <div className="mt-4 flex justify-end gap-2">{report.status === "confirmed" && <button type="button" onClick={onNew} className="btn-secondary">新建另一份阶段报告</button>}<button type="button" disabled={selectedIds.length < 2 || report.status === "confirmed"} onClick={onGenerate} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300"><Sparkles className="h-4 w-4" />生成AI阶段草稿</button>{role === "DOCTOR" && <button type="button" disabled={report.status !== "pending_doctor_review"} onClick={onConfirm} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300"><CheckCircle2 className="h-4 w-4" />医生确认</button>}</div>
     </section>
-    <section className="card overflow-hidden"><div className="px-5 pt-5"><SectionHeader title="所选训练记录对比" description="血压为间歇测量点，不绘制连续曲线；缺失值不参与均值。" /></div><div className="grid grid-cols-8 bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>日期</span><span>平均心率</span><span>峰值心率</span><span>血压测量点</span><span>最低/平均血氧</span><span>功率</span><span>RPE</span><span>完整率</span></div>{selected.map((session) => <div key={session.id} className="grid grid-cols-8 items-center border-t border-slate-100 px-5 py-3 text-xs"><span>{session.date}</span><b>{session.avgHr} bpm</b><span>{session.peakHr} bpm</span><span>{session.preBp ?? "未采集"} → {session.postBp ?? "未采集"}</span><span>{session.minSpo2 ?? "未采集"}% / {session.avgSpo2 ?? "未采集"}%</span><span>{session.avgPower}/{session.peakPower} W</span><span>{session.rpe}</span><span>{session.dataCompleteness}%</span></div>)}</section>
+    <section className="grid grid-cols-4 gap-3">{[[selected.length, "本报告纳入次数"], [`${totalMinutes}分`, "总实际运动时间"], [abnormalCount, "异常/暂停/中断"], [`${completeness}%`, "设备数据完整率"]].map(([value, label]) => <div key={label} className="card p-4"><p className="text-xl font-bold text-slate-900">{value}</p><p className="mt-1 text-[10px] text-slate-500">{label}</p></div>)}</section>
+    <section className="card overflow-hidden"><div className="px-5 pt-5"><SectionHeader title="所选训练记录对比" description="不同运动类型不混算功率、速度或目标心率；血压为间歇测量点，缺失值不参与均值。" /></div><div className="grid grid-cols-8 bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>日期/项目</span><span>平均心率</span><span>峰值心率</span><span>血压测量点</span><span>最低/平均血氧</span><span>功率</span><span>RPE</span><span>完整率</span></div>{selected.map((session) => <div key={session.id} className="grid grid-cols-8 items-center border-t border-slate-100 px-5 py-3 text-xs"><span><b>{session.exerciseType}</b><br />{session.date}</span><b>{session.avgHr} bpm</b><span>{session.peakHr} bpm</span><span>{session.preBp ?? "未采集"} → {session.postBp ?? "未采集"}</span><span>{session.minSpo2 ?? "未采集"}% / {session.avgSpo2 ?? "未采集"}%</span><span>{session.exerciseType === "功率车" ? `${session.avgPower}/${session.peakPower} W` : "不适用"}</span><span>{session.rpe}</span><span>{session.dataCompleteness}%</span></div>)}</section>
+    <section className="grid gap-3 md:grid-cols-3">{groups.map(([exercise, valid]) => { const comparable = valid.length >= 2 && new Set(valid.map((item) => item.trainingMode)).size === 1; const avgHr = valid.length ? Math.round(valid.reduce((sum, item) => sum + item.avgHr, 0) / valid.length) : null; return <article key={exercise} className="card p-4"><div className="flex items-center justify-between"><b className="text-sm text-slate-900">{exercise}小结</b><StatusBadge tone={comparable ? "green" : "gray"}>{valid.length}次</StatusBadge></div><p className="mt-3 text-xs leading-6 text-slate-600">总实际运动 {valid.reduce((sum, item) => sum + item.activeMinutes, 0)} 分钟；平均心率 {avgHr ?? "未采集"} bpm；最低血氧 {valid.some((item) => item.minSpo2 !== null) ? Math.min(...valid.flatMap((item) => item.minSpo2 === null ? [] : [item.minSpo2])) : "未采集"}%{exercise === "功率车" ? `；平均功率 ${Math.round(valid.reduce((sum, item) => sum + item.avgPower, 0) / valid.length)} W` : ""}。</p><p className={`mt-3 text-[10px] font-bold ${comparable ? "text-emerald-700" : "text-amber-700"}`}>{comparable ? "同运动、同模式且不少于2条，可供医生观察趋势" : "记录不可直接比较"}</p></article>; })}</section>
     <section className={`card p-5 ${report.status === "confirmed" ? "border-emerald-200 bg-emerald-50" : ""}`}><SectionHeader title="阶段摘要" action={<StatusBadge tone={report.status === "confirmed" ? "green" : report.status === "pending_doctor_review" ? "orange" : "gray"}>{report.status === "confirmed" ? "医生已确认" : report.status === "pending_doctor_review" ? "待医生确认" : "尚未生成"}</StatusBadge>} /><p className="mt-3 text-sm leading-7 text-slate-700">{report.generatedSummary || "选择至少2次训练记录后生成草稿。AI不诊断、不调方，所有结论均需医生核对来源。"}</p>{report.confirmedBy && <p className="mt-3 text-xs font-bold text-emerald-700">{report.confirmedBy} · {report.confirmedAt}</p>}</section>
   </div>;
 }

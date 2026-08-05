@@ -113,13 +113,16 @@ export type DeviceMetricSummary = {
   dataCompleteness: number;
 };
 
+export type PlanReferenceStatus = "not_obtained" | "partial_reference" | "verified_reference";
+
+export type TrainingProjectSource = "rehab_on_site" | "patient_material" | "his_reference";
+
 export type TrainingExecutionRecord = {
   executionId: string;
   patientId: string;
   selectedExerciseIds: string[];
-  source: "paper_prescription" | "his_reference";
-  plannedSessionCount: number | null;
-  currentSessionNo: number | null;
+  source: TrainingProjectSource;
+  planReferenceStatus: PlanReferenceStatus;
   selectedBy: string;
   selectedAt: string;
 };
@@ -128,7 +131,10 @@ export type TrainingSessionRecord = {
   sessionId: string;
   executionId: string;
   patientId: string;
+  actualSessionSequence: number;
   exerciseItems: string[];
+  planReferenceStatus: PlanReferenceStatus;
+  actualDurationMinutes: number;
   preAssessment: VitalSnapshot;
   deviceMetrics: DeviceMetricSummary;
   postAssessment: VitalSnapshot;
@@ -142,6 +148,8 @@ export type StageReport = {
   reportId: string;
   patientId: string;
   selectedSessionIds: string[];
+  periodStart: string;
+  periodEnd: string;
   generatedSummary: string;
   status: "draft" | "pending_doctor_review" | "confirmed";
   confirmedBy?: string;

@@ -423,6 +423,42 @@ const expandedSingleTrainingReportSeeds: SingleTrainingReportSeed[] = [
     status: "已完成",
     hrStats: { ...singleTrainingReportSeeds[1].hrStats, resting: 74, average: 101, peak: 110, targetZoneMinutes: 15 },
     executionSummary: "V2 处方训练完成，保留训练前后血压和心率测量点。"
+  },
+  {
+    ...singleTrainingReportSeeds[1],
+    id: "TR-20260716-008",
+    taskId: "TRAINING-REFERENCE-001",
+    prescriptionVersionId: "V2",
+    dateTime: "2026-07-16 10:00",
+    exercise: "八段锦",
+    trainingType: "视频跟练",
+    totalMinutes: 18,
+    activeMinutes: 16,
+    invalidMinutes: 2,
+    targetZoneMinutes: 12,
+    targetZoneRate: 75,
+    status: "已完成",
+    hrStats: { ...singleTrainingReportSeeds[1].hrStats, resting: 70, average: 88, peak: 98, targetZoneMinutes: 12 },
+    safetySummary: "无异常",
+    executionSummary: "八段锦视频跟练完成，训练前后生命体征已记录。"
+  },
+  {
+    ...singleTrainingReportSeeds[1],
+    id: "TR-20260714-007",
+    taskId: "TRAINING-REFERENCE-001",
+    prescriptionVersionId: "V2",
+    dateTime: "2026-07-14 09:40",
+    exercise: "腹式呼吸",
+    trainingType: "呼吸训练",
+    totalMinutes: 12,
+    activeMinutes: 10,
+    invalidMinutes: 2,
+    targetZoneMinutes: 8,
+    targetZoneRate: 80,
+    status: "已完成",
+    hrStats: { ...singleTrainingReportSeeds[1].hrStats, resting: 72, average: 78, peak: 86, targetZoneMinutes: 8 },
+    safetySummary: "无异常",
+    executionSummary: "腹式呼吸训练完成，过程平稳。"
   }
 ];
 
