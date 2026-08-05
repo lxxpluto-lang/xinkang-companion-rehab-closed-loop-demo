@@ -391,7 +391,7 @@ export const doctorAppointments: DoctorAppointment[] = doctorAppointmentSeeds.ma
 });
 
 export const prescriptionStatusLabels: Record<PrescriptionStatus, string> = {
-  pending_generation: "待生成",
+  pending_generation: "待同步执行计划",
   pending_review: "待复核",
   pending_signature: "待签名",
   completed: "已完成"

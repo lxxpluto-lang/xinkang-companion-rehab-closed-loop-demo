@@ -220,7 +220,7 @@ function DoctorSingleReportDetail({ reportId, onBack, onCreatePrescription }: { 
         </section>
       </div>
 
-      <button type="button" onClick={() => onCreatePrescription(report.taskId)} className="btn-primary sticky bottom-4 z-10 w-full shadow-lg"><Sparkles className="h-4 w-4" />基于本报告生成 AI 处方草稿<ArrowRight className="h-4 w-4" /></button>
+      <button type="button" onClick={() => onCreatePrescription(report.taskId)} className="btn-primary sticky bottom-4 z-10 w-full shadow-lg"><ArrowRight className="h-4 w-4" />进入处方执行计划工作区</button>
     </div>
   );
 }
@@ -254,7 +254,7 @@ function StageReportPanel({ selected, onBack, onCreatePrescription, onOpenVersio
       {stageSafetyEvents.length > 0 && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-xs leading-5 text-red-800">
         <b>本阶段异常事件已纳入调方依据：</b>{stageSafetyEvents.map((event) => `${event.type}（${event.doctorReviewStatus}，${event.prescriptionImpact}）`).join("；")}
       </div>}
-      <button type="button" onClick={() => onCreatePrescription(selected.taskId)} className="btn-primary sticky bottom-4 z-10 mt-5 w-full shadow-lg"><Sparkles className="h-4 w-4" />基于本报告生成 AI 处方草稿<ArrowRight className="h-4 w-4" /></button>
+      <button type="button" onClick={() => onCreatePrescription(selected.taskId)} className="btn-primary sticky bottom-4 z-10 mt-5 w-full shadow-lg"><ArrowRight className="h-4 w-4" />进入处方执行计划工作区</button>
       <p className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-slate-400"><CheckCircle2 className="h-3.5 w-3.5" />处方必须经医生复核和数字签名后生效</p>
     </section>
   );

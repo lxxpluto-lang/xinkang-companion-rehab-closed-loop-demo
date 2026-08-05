@@ -13,9 +13,9 @@ import {
 
 const doctorFeatures = [
   { label: "角色权限登录", icon: ShieldCheck },
-  { label: "医生处方工作台", icon: Activity },
-  { label: "康复执行与随访", icon: UsersRound },
-  { label: "后台配置与审计", icon: FileCheck2 }
+  { label: "训练数据工作台", icon: Activity },
+  { label: "AI阶段报告", icon: BarChart3 },
+  { label: "OCR与随访", icon: FileCheck2 }
 ];
 
 const patientFeatures = [
@@ -59,7 +59,7 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
               更安全、更清晰。
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-500">
-              一个带角色权限的医护 Web 工作站与一个患者训练 Pad。医生、康复执行岗、管理员和患者在各自权限边界内协作。
+              聚合院内训练数据、OCR评估和阶段报告；病历与正式处方继续由医院现有系统管理，患者训练仅在院内 Pad/触控大屏执行。
             </p>
           </div>
 
@@ -81,9 +81,9 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
                     医护 Web 工作站
                   </span>
                 </div>
-                <h3 className="mt-8 text-3xl font-bold tracking-tight">医护业务与管理后台</h3>
+                <h3 className="mt-8 text-3xl font-bold tracking-tight">训练数据与报告后台</h3>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-slate-200">
-                  登录后按管理员、康复医生和康复执行岗加载对应菜单、数据范围与操作权限。
+                  康复师对照纸质处方选择本次训练项目，系统沉淀训练记录并生成单次、阶段和出院报告。
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
                   {doctorFeatures.map(({ label, icon: Icon }) => (
@@ -115,9 +115,9 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
                     iPad / Android 横屏
                   </span>
                 </div>
-                <h3 className="mt-8 text-3xl font-bold tracking-tight text-[#17324d]">患者训练端</h3>
+                <h3 className="mt-8 text-3xl font-bold tracking-tight text-[#17324d]">院内训练 Pad</h3>
                 <p className="mt-3 max-w-lg text-sm leading-6 text-slate-500">
-                  一步一任务的大触控训练流程，突出今日目标、训练感受、现场协作和安全提示。
+                  不建设独立患者小程序；本入口仅模拟院内 Pad/电视触控屏上的跟练、实时指标和安全提示。
                 </p>
                 <div className="mt-6 grid grid-cols-2 gap-2.5">
                   {patientFeatures.map(({ label, icon: Icon }) => (
@@ -128,7 +128,7 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
                   ))}
                 </div>
                 <span className="mt-auto flex items-center gap-2 pt-7 text-sm font-bold text-medical-700">
-                  模拟患者横屏体验
+                  模拟院内训练大屏
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </div>
@@ -138,7 +138,7 @@ export function SystemChooser({ onChoose }: { onChoose: (system: "doctor" | "pat
 
         <footer className="flex items-center justify-center gap-2 py-3 text-xs text-slate-500">
           <ShieldCheck className="h-4 w-4 text-medical-600" />
-          AI 不自动诊断、不发布处方、不控制设备；所有高风险结论均由医生确认。
+          系统不重复录入 HIS 病历或正式处方；AI 仅辅助汇总报告，所有高风险结论均由医生确认。
         </footer>
       </div>
     </main>

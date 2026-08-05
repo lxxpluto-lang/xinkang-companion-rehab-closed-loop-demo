@@ -18,6 +18,10 @@ export type RehabReportStatus = "draft" | "doctor_confirmed" | "published";
 export type RehabReport = {
   reportId: string;
   patientId: string;
+  /** 康复周期/住院 episode 序号；同一患者可保留多份出院报告。 */
+  episodeNo?: number;
+  admissionDate?: string;
+  dischargeDate?: string;
   generatedAt: string;
   status: RehabReportStatus;
   medicalSection: {

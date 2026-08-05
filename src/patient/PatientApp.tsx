@@ -36,7 +36,7 @@ import {
   X
 } from "lucide-react";
 import type { TrainingState } from "../types";
-import { effectiveFollowUpStatus, followUpStatusLabels, type FollowUpTask } from "../followUpData";
+import type { FollowUpTask } from "../followUpData";
 import type { RehabReport } from "../dischargeHandbookData";
 import type { PublishedTrainingVideo } from "../pages/VideoLibraryPage";
 import {
@@ -49,7 +49,7 @@ import {
 import { stageReportData, summarizeVersion } from "./stageReportData";
 import type { PrescriptionVersion, VersionSummary } from "./stageReportData";
 import { clinicalSnapshotChen, getPrescriptionVersionDetail, getSingleTrainingReportDetail, patientMasterChen, singleTrainingReportDetails } from "../clinicalSharedData";
-import { getTodayPlan, planTotalMinutes, type PrescriptionPlan } from "../prescriptionPlanData";
+import { getTodayPlan, planTotalMinutes, type PrescriptionExerciseStatus, type PrescriptionPlan } from "../prescriptionPlanData";
 import { formatDateTime } from "../utils/dateTime";
 import { demoDischargeHandbook } from "../dischargeHandbookData";
 import type { PrescriptionContent } from "../prescriptionWorkspaceData";
@@ -128,6 +128,17 @@ const patient = {
 
 const activePrescription = getPrescriptionVersionDetail("V4");
 const todayPrescriptionPlan = getTodayPlan(patientMasterChen.patientId);
+const planExerciseMap: Record<string, Exercise> = {
+  "腹式呼吸": "diaphragmatic",
+  "正念呼吸": "mindfulness",
+  "功率车": "bike",
+  "慢走": "elliptical",
+  "椭圆机": "elliptical",
+  "哑铃": "dumbbell",
+  "弹力带": "resistanceBand",
+  "八段锦": "baduanjin",
+  "太极拳": "taichi"
+};
 const prescribedTrainingType: TrainingType = activePrescription.trainingType === "间歇训练" ? "interval" : "continuous";
 const prescribedTargetHr = Math.round((activePrescription.targetHr[0] + activePrescription.targetHr[1]) / 2);
 
@@ -174,8 +185,11 @@ export function PatientApp({
   const [reportToOpen, setReportToOpen] = useState<string | null>(null);
   const [bikeTrainingVideos, setBikeTrainingVideos] = useState<LocalBikeVideo[]>([]);
   const [selectedBikeVideo, setSelectedBikeVideo] = useState<LocalBikeVideo | null>(null);
+  const [planItemStatuses, setPlanItemStatuses] = useState<Record<string, PrescriptionExerciseStatus>>(() => Object.fromEntries(todayPrescriptionPlan.items.map((item) => [item.itemId, item.status])));
+  const [planSkipReasons, setPlanSkipReasons] = useState<Record<string, string>>({});
+  const [sessionOutcome, setSessionOutcome] = useState<"completed" | "partially_completed" | "interrupted">("completed");
+  const [subjectiveFeeling, setSubjectiveFeeling] = useState<number | null>(null);
   const selectedTrainingVideo = publishedTrainingVideos.find((video) => video.subtype === exerciseVideoSubtypes[exercise]) ?? null;
-  const nextFollowUpTask = [...followUpTasks].sort((left, right) => left.currentDueDate.localeCompare(right.currentDueDate))[0];
 
   const totalMinutes = warmup + mainMinutes * repeats + cooldown;
   useEffect(() => {
@@ -221,6 +235,8 @@ export function PatientApp({
   }, [bikeTrainingVideos, selectedBikeVideo, view]);
 
   function startTraining() {
+    const currentItem = todayPrescriptionPlan.items.find((item) => planExerciseMap[item.label] === exercise);
+    if (currentItem) setPlanItemStatuses((items) => ({ ...items, [currentItem.itemId]: "in_progress" }));
     chooseRandomBikeVideo(selectedBikeVideo?.id);
     setPhase("warmup");
     setElapsed(0);
@@ -228,6 +244,16 @@ export function PatientApp({
     setTrainingState("running");
     setView("training");
     announcePhase("warmup");
+  }
+
+  function startSelectedExercise() {
+    const currentItem = todayPrescriptionPlan.items.find((item) => planExerciseMap[item.label] === exercise);
+    if (currentItem) setPlanItemStatuses((items) => ({ ...items, [currentItem.itemId]: "in_progress" }));
+    if (exercise === "bike") {
+      setView("prescription");
+    } else {
+      setView("videoTraining");
+    }
   }
 
   function changePhase(nextPhase: Phase) {
@@ -246,8 +272,30 @@ export function PatientApp({
 
   function finishTraining() {
     stopAudioGuidance();
+    const currentItem = todayPrescriptionPlan.items.find((item) => planExerciseMap[item.label] === exercise);
+    if (currentItem) setPlanItemStatuses((items) => ({ ...items, [currentItem.itemId]: "completed" }));
+    setSessionOutcome("completed");
+    setSubjectiveFeeling(null);
     setTrainingState("completed");
     setView("result");
+  }
+
+  function interruptTraining() {
+    stopAudioGuidance();
+    const currentItem = todayPrescriptionPlan.items.find((item) => planExerciseMap[item.label] === exercise);
+    if (currentItem) setPlanItemStatuses((items) => ({ ...items, [currentItem.itemId]: elapsed > 0 ? "partially_completed" : "interrupted" }));
+    setSessionOutcome(elapsed > 0 ? "partially_completed" : "interrupted");
+    setSubjectiveFeeling(null);
+    setTrainingState("completed");
+    setView("result");
+  }
+
+  function completeVideoTraining() {
+    const currentItem = todayPrescriptionPlan.items.find((item) => planExerciseMap[item.label] === exercise);
+    if (currentItem) setPlanItemStatuses((items) => ({ ...items, [currentItem.itemId]: "completed" }));
+    setSessionOutcome("completed");
+    setSubjectiveFeeling(null);
+    setView("home");
   }
 
   function resetSession() {
@@ -298,15 +346,17 @@ export function PatientApp({
             <HomeScreen
               exercise={exercise}
               onChoose={setExercise}
-              onStart={() => setView(exercise === "bike" ? "prescription" : "videoTraining")}
+              onStart={startSelectedExercise}
+              statusByItem={planItemStatuses}
+              onSkip={(itemId, reason) => { setPlanItemStatuses((items) => ({ ...items, [itemId]: "skipped" })); setPlanSkipReasons((items) => ({ ...items, [itemId]: reason })); }}
               publishedTrainingVideos={publishedTrainingVideos}
               todayPlan={todayPrescriptionPlan}
               patientPrescription={patientPrescription}
-              nextFollowUpTask={nextFollowUpTask}
+              skipReasons={planSkipReasons}
             />
           )}
-          {view === "calendar" && <CalendarScreen onBack={() => setView("home")} />}
-          {view === "report" && <ReportScreen onStart={() => setView("prescription")} initialSingleReportId={reportToOpen} rehabReport={rehabReports.find((report) => report.patientId === "P-DEMO-001" && report.status === "published")} />}
+          {view === "calendar" && <CalendarScreen onBack={() => setView("home")} todayPlan={todayPrescriptionPlan} statusByItem={planItemStatuses} />}
+          {view === "report" && <ReportScreen onStart={() => setView("prescription")} initialSingleReportId={reportToOpen} rehabReports={rehabReports.filter((report) => report.patientId === "P-DEMO-001" && report.status === "published")} />}
           {view === "profile" && <ProfileScreen onBack={() => setView("home")} />}
           {view === "prescription" && (
             <PrescriptionScreen
@@ -393,9 +443,10 @@ export function PatientApp({
               video={selectedBikeVideo}
               onVideoEnded={() => chooseRandomBikeVideo(selectedBikeVideo?.id)}
               onFinish={finishTraining}
+              onInterrupt={interruptTraining}
             />
           )}
-          {view === "videoTraining" && selectedTrainingVideo && <VideoTrainingScreen video={selectedTrainingVideo} onBack={() => setView("home")} onFinish={() => setView("home")} />}
+          {view === "videoTraining" && selectedTrainingVideo && <VideoTrainingScreen video={selectedTrainingVideo} onBack={() => setView("home")} onFinish={completeVideoTraining} />}
           {view === "result" && (
             <ResultScreen
               totalMinutes={totalMinutes}
@@ -405,6 +456,9 @@ export function PatientApp({
               targetPowerMax={targetPowerMax}
               rpe={rpe}
               bp={measuredBp}
+              outcome={sessionOutcome}
+              subjectiveFeeling={subjectiveFeeling}
+              setSubjectiveFeeling={setSubjectiveFeeling}
               onDone={resetSession}
               onViewReport={() => {
                 setReportToOpen("TR-20260725-012");
@@ -468,7 +522,7 @@ function LoginScreen({ onExit, onLogin }: { onExit: () => void; onLogin: (patien
             <p className="mt-5 max-w-md text-base leading-7 text-teal-50/80">围绕处方、设备、心理准备和训练监测，陪您安全完成每一次运动康复。</p>
           </div>
           <div className="absolute bottom-12 left-12 right-12 grid grid-cols-3 gap-3">
-            {[["4", "本阶段处方"], ["4", "已完成训练"], ["专业", "医护陪同"]].map(([value, label]) => (
+            {[[String(patientMasterChen.planSessions), "本阶段训练日"], [String(patientMasterChen.completedSessions), "已完成训练日"], ["专业", "医护陪同"]].map(([value, label]) => (
               <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10" key={label}>
                 <p className="text-2xl font-bold">{value}</p>
                 <p className="mt-1 text-xs text-teal-100/75">{label}</p>
@@ -492,7 +546,7 @@ function LoginScreen({ onExit, onLogin }: { onExit: () => void; onLogin: (patien
           <button type="button" onClick={login} disabled={!patientNo.trim()} className="patient-touch mt-7 flex items-center justify-center gap-2 rounded-2xl bg-medical-600 px-5 font-bold text-white shadow-lg shadow-medical-100 hover:bg-medical-700 disabled:bg-slate-300">
             登录患者端 <ArrowRight className="h-5 w-5" />
           </button>
-          <p className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-center text-xs leading-5 text-blue-800">如未建立档案，请联系医生在医护端新建患者基本信息。</p>
+          <p className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-center text-xs leading-5 text-blue-800">如无法登录，请联系康复中心核对院内患者号；患者主档由医院现有系统维护，本系统不提供患者自助建档。</p>
           <button type="button" onClick={onExit} className="mt-7 text-sm font-semibold text-slate-500 hover:text-slate-800">返回系统入口</button>
         </div>
       </section>
@@ -573,7 +627,7 @@ function FlowBar({ view }: { view: View }) {
   );
 }
 
-function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos, nextFollowUpTask, todayPlan, patientPrescription }: { exercise: Exercise; onChoose: (value: Exercise) => void; onStart: () => void; publishedTrainingVideos: PublishedTrainingVideo[]; nextFollowUpTask?: FollowUpTask; todayPlan: PrescriptionPlan; patientPrescription?: PrescriptionContent }) {
+function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos, todayPlan, patientPrescription, statusByItem, onSkip, skipReasons }: { exercise: Exercise; onChoose: (value: Exercise) => void; onStart: () => void; publishedTrainingVideos: PublishedTrainingVideo[]; todayPlan: PrescriptionPlan; patientPrescription?: PrescriptionContent; statusByItem: Record<string, PrescriptionExerciseStatus>; onSkip: (itemId: string, reason: string) => void; skipReasons: Record<string, string> }) {
   const [showHandbook, setShowHandbook] = useState(false);
   const exerciseNames: Record<Exercise, string> = {
     diaphragmatic: "腹式呼吸",
@@ -597,10 +651,33 @@ function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos, next
   ];
   const videoForExercise = (item: Exercise) => publishedTrainingVideos.find((video) => video.subtype === exerciseVideoSubtypes[item]);
   const selectedVideo = videoForExercise(exercise);
-  const planExerciseMap: Record<string, Exercise> = { "腹式呼吸": "diaphragmatic", "功率车": "bike", "八段锦": "baduanjin" };
-  const statusLabel = (status: string) => status === "completed" ? "已完成" : status === "in_progress" ? "进行中" : status === "skipped" ? "已跳过" : "待完成";
+  const statusLabel = (status: PrescriptionExerciseStatus) => status === "completed" ? "已完成" : status === "in_progress" ? "进行中" : status === "partially_completed" ? "部分完成" : status === "interrupted" ? "已中断" : status === "skipped" ? "已跳过" : "待完成";
   const prescribedExercises = new Set(todayPlan.items.map((item) => planExerciseMap[item.label]).filter(Boolean));
-  const canStart = prescribedExercises.has(exercise) && (exercise === "bike" || Boolean(selectedVideo));
+  const selectedPlanItem = todayPlan.items.find((item) => planExerciseMap[item.label] === exercise);
+  const nextPlanItem = todayPlan.items.find((item) => {
+    const status = statusByItem[item.itemId] ?? item.status;
+    return status !== "completed" && status !== "skipped";
+  });
+  const isSelectable = (itemId: string) => {
+    const status = statusByItem[itemId] ?? todayPlan.items.find((item) => item.itemId === itemId)?.status;
+    return status === "completed" || status === "skipped" || !nextPlanItem || nextPlanItem.itemId === itemId;
+  };
+  const chooseOrdered = (value: Exercise) => {
+    const item = todayPlan.items.find((candidate) => planExerciseMap[candidate.label] === value);
+    if (item && !isSelectable(item.itemId)) {
+      window.alert(`请先完成第 ${nextPlanItem?.order ?? "当前"} 项“${nextPlanItem?.label ?? "前序运动"}”，或先记录跳过原因。`);
+      return;
+    }
+    onChoose(value);
+  };
+  const selectedStatus = selectedPlanItem ? (statusByItem[selectedPlanItem.itemId] ?? selectedPlanItem.status) : undefined;
+  const canStart = prescribedExercises.has(exercise) && Boolean(selectedPlanItem) && (selectedStatus === "pending" || selectedStatus === "in_progress") && isSelectable(selectedPlanItem?.itemId ?? "") && (exercise === "bike" || Boolean(selectedVideo));
+  const completedToday = todayPlan.items.filter((item) => (statusByItem[item.itemId] ?? item.status) === "completed").length;
+  const completionRatio = todayPlan.items.length ? Math.round((completedToday / todayPlan.items.length) * 100) : 0;
+  function requestSkip(itemId: string, label: string) {
+    const reason = window.prompt(`请填写跳过“${label}”的原因（将同步给医护人员）`);
+    if (reason?.trim()) onSkip(itemId, reason.trim());
+  }
   return (
     <section className="flex h-full min-h-[570px] flex-col gap-4" data-testid="page-VIEW-PATIENT-HOME">
       <article className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#123d54] via-[#17636e] to-[#21877f] px-7 py-6 text-white shadow-xl">
@@ -623,7 +700,7 @@ function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos, next
             <div><p className="text-xs font-bold text-medical-600">护士操作区</p><h1 className="mt-1 text-xl font-bold text-slate-950">选择今日运动方式</h1></div>
             <span className="flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700"><Stethoscope className="h-3.5 w-3.5" />护士确认</span>
           </div>
-          <section className="mb-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-3"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold text-blue-600">今日处方执行序列</p><p className="mt-1 text-xs text-slate-500">按顺序选择项目，跳过需由护士记录原因</p></div><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-blue-700">V4.0 已发布</span></div><div className="mt-3 flex gap-2 overflow-x-auto pb-1">{todayPlan.items.map((item) => { const mapped = planExerciseMap[item.label]; return <button type="button" key={item.itemId} onClick={() => mapped && onChoose(mapped)} className={`min-w-[150px] rounded-xl border p-3 text-left transition ${exercise === mapped ? "border-blue-500 bg-white shadow-sm" : "border-white bg-white/70 hover:border-blue-200"}`}><div className="flex items-center justify-between"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-[10px] font-bold text-blue-700">{item.order}</span><span className={`text-[10px] font-bold ${item.status === "completed" ? "text-emerald-600" : item.status === "in_progress" ? "text-blue-600" : "text-slate-400"}`}>{statusLabel(item.status)}</span></div><p className="mt-2 text-xs font-bold text-slate-900">{item.label}</p><p className="mt-1 text-[10px] text-slate-500">{item.trainingMinutes} 分钟 · {item.mode}</p></button>; })}</div></section>
+          <section className="mb-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-3"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold text-blue-600">今日处方执行序列</p><p className="mt-1 text-xs text-slate-500">按医生确认的顺序执行；跳过需记录原因并同步给医护</p></div><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-blue-700">V4.0 已发布</span></div><div className="mt-3 flex gap-2 overflow-x-auto pb-1">{todayPlan.items.map((item) => { const mapped = planExerciseMap[item.label]; const status = statusByItem[item.itemId] ?? item.status; const selectable = isSelectable(item.itemId); return <div key={item.itemId} className={`min-w-[170px] rounded-xl border p-3 text-left transition ${exercise === mapped ? "border-blue-500 bg-white shadow-sm" : "border-white bg-white/70"} ${!selectable && status === "pending" ? "opacity-60" : ""}`}><button type="button" disabled={!mapped || !selectable} onClick={() => mapped && chooseOrdered(mapped)} className="w-full text-left disabled:cursor-not-allowed"><div className="flex items-center justify-between"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-[10px] font-bold text-blue-700">{item.order}</span><span className={`text-[10px] font-bold ${status === "completed" ? "text-emerald-600" : status === "in_progress" ? "text-blue-600" : status === "partially_completed" ? "text-amber-700" : status === "interrupted" || status === "skipped" ? "text-rose-600" : "text-slate-400"}`}>{statusLabel(status)}</span></div><p className="mt-2 text-xs font-bold text-slate-900">{item.label}</p><p className="mt-1 text-[10px] text-slate-500">{item.trainingMinutes} 分钟 · {item.mode}</p></button>{status === "pending" && selectable && <button type="button" onClick={() => requestSkip(item.itemId, item.label)} className="mt-2 text-[10px] font-bold text-slate-500 underline decoration-slate-300 underline-offset-2">跳过此项（填写原因）</button>}{status === "skipped" && skipReasons[item.itemId] && <p className="mt-2 text-[10px] leading-4 text-rose-600">原因：{skipReasons[item.itemId]}</p>}{status === "pending" && !selectable && <p className="mt-2 text-[10px] text-slate-400">请先完成前一项</p>}</div>; })}</div></section>
           <div className="mt-1 grid grid-cols-3 gap-2.5">
             {categories.map(({ title, icon: Icon, items }) => {
               const categorySelected = items.includes(exercise);
@@ -638,8 +715,8 @@ function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos, next
                       <button
                         type="button"
                         key={item}
-                        onClick={() => onChoose(item)}
-                        disabled={!prescribedExercises.has(item)}
+                        onClick={() => chooseOrdered(item)}
+                        disabled={!prescribedExercises.has(item) || !isSelectable(todayPlan.items.find((candidate) => planExerciseMap[candidate.label] === item)?.itemId ?? "")}
                         className={`relative min-h-9 rounded-xl border px-3 text-xs font-bold ${
                           exercise === item ? "border-medical-500 bg-medical-600 text-white shadow-sm" : prescribedExercises.has(item) ? "border-slate-200 bg-white text-slate-600 hover:border-medical-300" : "border-slate-100 bg-slate-100 text-slate-300"
                         }`}
@@ -665,17 +742,13 @@ function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos, next
           </div>
         </article>
 
-        <aside className="grid grid-rows-3 gap-3">
+        <aside className="grid grid-rows-2 gap-3">
           <article className="flex flex-col rounded-3xl border border-white bg-white p-5 shadow-card">
-            <div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-600">累计完成次数</p><Activity className="h-5 w-5 text-medical-600" /></div>
-            <div className="mt-auto flex items-end gap-2"><p className="text-5xl font-bold text-slate-950">{patient.completed}</p><p className="pb-1 text-sm font-bold text-slate-400">/ {patient.sessions} 次</p></div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full w-[31%] rounded-full bg-medical-500" /></div>
-            <p className="mt-2 text-[11px] text-slate-500">本月已完成 8 次</p>
+            <div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-600">本阶段已完成训练天数</p><Activity className="h-5 w-5 text-medical-600" /></div>
+            <div className="mt-auto flex items-end gap-2"><p className="text-5xl font-bold text-slate-950">{patient.completed}</p><p className="pb-1 text-sm font-bold text-slate-400">/ {patient.sessions} 天</p></div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-medical-500 transition-all" style={{ width: `${Math.min(Math.round((patient.completed / Math.max(patient.sessions, 1)) * 100), 100)}%` }} /></div>
+            <p className="mt-2 text-[11px] text-slate-500">今日已完成 {completedToday}/{todayPlan.items.length} 项 · 当前日完成度 {completionRatio}%</p>
           </article>
-          <div className="flex flex-col rounded-3xl border border-medical-100 bg-medical-50 p-5 text-left">
-            <div className="flex items-center justify-between"><p className="text-sm font-bold text-medical-900">下次随访</p><CalendarDays className="h-5 w-5 text-medical-600" /></div>
-            <div className="mt-auto"><p className="text-3xl font-bold text-slate-950">{nextFollowUpTask ? `${Number(nextFollowUpTask.currentDueDate.slice(5, 7))} 月 ${Number(nextFollowUpTask.currentDueDate.slice(8, 10))} 日` : "暂无计划"}</p><p className="mt-1 text-lg font-bold text-medical-800">{nextFollowUpTask ? followUpStatusLabels[effectiveFollowUpStatus(nextFollowUpTask)] : ""}</p><p className="mt-3 text-xs text-slate-500">康复师将通过电话联系您，您只需口述近期情况。</p></div>
-          </div>
           <button type="button" data-action="ACT-PATIENT-OPEN-HANDBOOK" onClick={() => setShowHandbook(true)} className="flex flex-col rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-left transition hover:border-emerald-300 hover:shadow-card"><div className="flex items-center justify-between"><p className="text-sm font-bold text-emerald-900">我的出院康复手册</p><FileText className="h-5 w-5 text-emerald-600" /></div><p className="mt-auto text-xs leading-5 text-slate-600">查看居家运动、用药、饮食和1/3/6个月复查计划</p><span className="mt-2 flex items-center gap-1 text-xs font-bold text-emerald-700">已由王医生确认 <ChevronRight className="h-4 w-4" /></span></button>
         </aside>
       </div>
@@ -695,8 +768,10 @@ function PatientHandbookSection({ title, items, warning = false }: { title: stri
 
 function VideoTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrainingVideo; onBack: () => void; onFinish: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [started, setStarted] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
   const [showMonitoring, setShowMonitoring] = useState(false);
 
   useEffect(() => {
@@ -706,6 +781,8 @@ function VideoTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrai
   }, [started]);
 
   const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  const requiredSeconds = videoDuration > 0 ? Math.ceil(videoDuration * 0.875) : 45;
+  const completionRatio = Math.min(seconds / requiredSeconds, 1);
   const liveHeartRate = 86 + (seconds % 5);
   const liveOxygen = 97 + (seconds % 2);
   const openFullscreen = () => playerRef.current?.requestFullscreen?.();
@@ -715,10 +792,10 @@ function VideoTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrai
       <article ref={playerRef} className="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-[#0d2432] shadow-xl">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-3 text-white">
           <div><p className="text-xs font-bold text-teal-200">{video.category} · {video.subtype}</p><h1 className="mt-1 text-xl font-bold">{video.title}</h1></div>
-          <div className="flex items-center gap-2"><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">跟练计时 {time}</span><button type="button" onClick={openFullscreen} className="flex h-10 items-center gap-2 rounded-xl bg-white/10 px-3 text-xs font-bold text-white hover:bg-white/15"><Maximize2 className="h-4 w-4" />全屏跟练</button></div>
+          <div className="flex items-center gap-2"><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">跟练计时 {time}</span><button type="button" onClick={openFullscreen} className="flex h-10 items-center gap-2 rounded-xl bg-white/10 px-3 text-xs font-bold text-white hover:bg-white/15"><Maximize2 className="h-4 w-4" />全屏 / 投屏</button></div>
         </div>
         <div className="relative min-h-0 flex-1 bg-black">
-          {video.source === "link" ? <iframe title={video.title} src={video.url} className="absolute inset-0 h-full w-full border-0" allow="autoplay; fullscreen" /> : <video title={video.title} src={video.url} className="absolute inset-0 h-full w-full object-contain" controls playsInline />}
+          {video.source === "link" ? <iframe title={video.title} src={video.url} className="absolute inset-0 h-full w-full border-0" allow="autoplay; fullscreen" /> : <video ref={videoRef} title={video.title} src={video.url} className="absolute inset-0 h-full w-full object-contain" controls playsInline onLoadedMetadata={(event) => setVideoDuration(event.currentTarget.duration)} />}
           {showMonitoring && <div className="absolute inset-x-4 bottom-4 z-10 grid grid-cols-4 gap-2 rounded-2xl bg-slate-950/75 p-3 text-white backdrop-blur-md"><div className="col-span-2 rounded-xl bg-white/10 p-3"><div className="flex items-center gap-2"><HeartPulse className="h-4 w-4 text-rose-300" /><span className="text-[10px] font-bold">实时心率</span></div><p className="mt-1 text-2xl font-bold">{liveHeartRate}<span className="ml-1 text-[9px] text-white/60">bpm</span></p></div><div className="rounded-xl bg-white/10 p-3"><p className="text-[9px] text-white/60">血氧</p><p className="mt-2 text-xl font-bold">{liveOxygen}<span className="ml-1 text-[9px] text-white/60">%</span></p></div><div className="rounded-xl bg-white/10 p-3"><p className="text-[9px] text-white/60">跟练时间</p><p className="mt-2 text-xl font-bold tabular-nums">{time}</p></div></div>}
         </div>
         {showMonitoring && <div className="flex items-center gap-5 border-t border-white/10 bg-[#102c3b] px-5 py-3 text-xs text-white"><span className="font-bold text-teal-200">可选监测</span><span>心率 <b className="ml-1 text-base">{liveHeartRate} bpm</b></span><span>血氧 <b className="ml-1 text-base">{liveOxygen}%</b></span><span className="flex-1 text-slate-300">监测指标已悬浮在视频上，进入全屏后仍保持可见。</span></div>}
@@ -734,7 +811,7 @@ function VideoTrainingScreen({ video, onBack, onFinish }: { video: PublishedTrai
         </article>
         <div className="mt-auto grid grid-cols-2 gap-3">
           <button type="button" onClick={onBack} className="btn-secondary patient-touch"><ArrowLeft className="h-4 w-4" />返回首页</button>
-          {!started ? <button type="button" onClick={() => setStarted(true)} className="btn-primary patient-touch"><Play className="h-5 w-5 fill-current" />开始跟练计时</button> : <button type="button" onClick={onFinish} className="patient-touch flex items-center justify-center gap-2 rounded-xl bg-emerald-600 font-bold text-white"><CheckCircle2 className="h-5 w-5" />完成练习</button>}
+          {!started ? <button type="button" onClick={() => setStarted(true)} className="btn-primary patient-touch"><Play className="h-5 w-5 fill-current" />开始跟练计时</button> : <><div className="rounded-xl bg-slate-50 p-3 text-[10px] text-slate-500"><div className="flex items-center justify-between"><span>完成进度</span><b className="text-medical-700">{Math.round(completionRatio * 100)}%（需完成视频 7/8）</b></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-medical-500 transition-all" style={{ width: `${completionRatio * 100}%` }} /></div></div><button type="button" disabled={seconds < requiredSeconds} onClick={onFinish} className="patient-touch flex items-center justify-center gap-2 rounded-xl bg-emerald-600 font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300"><CheckCircle2 className="h-5 w-5" />{seconds < requiredSeconds ? `再跟练 ${Math.ceil((requiredSeconds - seconds) / 60)} 分钟` : "完成练习并打卡"}</button></>}
         </div>
       </aside>
     </section>
@@ -809,7 +886,7 @@ function PrescriptionScreen(props: {
     <>
     <section className="grid h-full min-h-[570px] grid-cols-2 items-stretch gap-4" data-testid="page-VIEW-PATIENT-PRESCRIPTION">
       <article className="rounded-3xl border border-white bg-white p-6 shadow-card">
-        <p className="text-xs font-bold text-medical-600">医生处方 · 现场核对</p><h1 className="mt-2 text-2xl font-bold text-slate-950">今日功率车训练参数</h1><p className="mt-2 text-sm leading-6 text-slate-500">默认读取医生已审核并签署的处方；现场调整后，左侧训练目标会同步更新。</p>
+        <p className="text-xs font-bold text-medical-600">医生处方 · 患者核对</p><h1 className="mt-2 text-2xl font-bold text-slate-950">今日功率车训练参数</h1><p className="mt-2 text-sm leading-6 text-slate-500">以下参数来自医生已审核并签署的处方，患者端仅可查看，不能自行修改。</p>
         <div className="mt-6 rounded-2xl bg-gradient-to-br from-[#123d54] to-[#1f7e79] p-6 text-white">
           <p className="text-sm text-teal-100">今日目标</p><div className="mt-3 flex items-end gap-2"><span className="text-6xl font-bold">{targetHr}</span><span className="pb-2 text-lg text-teal-100">bpm</span></div><p className="mt-2 text-sm text-teal-50/75">建议控制区间 {targetHr - 8}–{targetHr + 8} bpm</p>
           <div className="mt-6 grid grid-cols-3 gap-2">{[["热身", warmup], ["训练", mainMinutes * repeats], ["放松", cooldown]].map(([label, value]) => <div className="rounded-xl bg-white/10 p-3" key={label}><p className="text-xs text-teal-100">{label}</p><p className="mt-1 text-xl font-bold">{value} 分</p></div>)}</div>
@@ -829,32 +906,27 @@ function PrescriptionScreen(props: {
       </article>
       <article className="flex flex-col rounded-3xl border border-white bg-white p-6 shadow-card">
         <div className="flex items-center justify-between gap-3">
-          <div><h2 className="text-lg font-bold text-slate-950">现场核对与调整</h2><p className="mt-1 text-xs text-slate-500">由现场医护人员根据患者当日情况调整。</p></div>
+          <div><h2 className="text-lg font-bold text-slate-950">处方参数核对</h2><p className="mt-1 text-xs text-slate-500">如需调整，请由医护人员在医护端新增版本或记录现场偏差。</p></div>
           <div className="flex items-center gap-2">
-            {hasAdjustments && <button type="button" onClick={restorePrescription} className="text-xs font-bold text-medical-700">恢复医生处方</button>}
-            <span className={`rounded-full px-3 py-1 text-xs font-bold ${hasAdjustments ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{hasAdjustments ? `已调整 ${adjustments.length} 项` : "与医生处方一致"}</span>
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">已确认 · 只读</span>
           </div>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-4">
           <ReadOnlyPrescriptionItem label="训练方式" value={exercise === "bike" ? prescription.exerciseProject : "视频跟练"} />
           <ReadOnlyPrescriptionItem label="执行模式" value="按医生处方执行" />
-          <NumberControl label="靶心率中心值" value={targetHr} unit="bpm" onMinus={() => setTargetHr(Math.max(80, targetHr - 1))} onPlus={() => setTargetHr(Math.min(150, targetHr + 1))} />
+          <ReadOnlyPrescriptionItem label="靶心率区间" value={`${prescription.targetHr.join("–")} bpm`} />
           <div className="rounded-2xl border border-slate-200 p-4">
             <p className="text-xs font-bold text-slate-500">目标功率范围</p>
-            <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <input aria-label="目标功率下限" type="number" min="10" max="200" value={targetPowerMin} onChange={(event) => setTargetPowerMin(Math.min(Number(event.target.value), targetPowerMax))} className="h-10 min-w-0 rounded-xl border border-slate-200 px-2 text-center font-bold text-slate-900 outline-none" />
-              <span className="font-bold text-slate-400">–</span>
-              <input aria-label="目标功率上限" type="number" min="10" max="200" value={targetPowerMax} onChange={(event) => setTargetPowerMax(Math.max(Number(event.target.value), targetPowerMin))} className="h-10 min-w-0 rounded-xl border border-slate-200 px-2 text-center font-bold text-slate-900 outline-none" />
-            </div>
-            <p className="mt-2 text-right text-xs font-bold text-slate-400">W</p>
+            <p className="mt-3 text-2xl font-bold text-slate-950">{prescription.targetPower[0]}–{prescription.targetPower[1]}<span className="ml-1 text-xs text-slate-500">W</span></p>
+            <p className="mt-2 text-xs text-slate-500">患者端不可调整</p>
           </div>
-          <NumberControl label="热身时间" value={warmup} unit="分钟" onMinus={() => setWarmup(Math.max(1, warmup - 1))} onPlus={() => setWarmup(Math.min(20, warmup + 1))} />
-          <NumberControl label="主要训练" value={mainMinutes * repeats} unit="分钟" onMinus={() => setMainMinutes(Math.max(5, mainMinutes - 1))} onPlus={() => setMainMinutes(Math.min(60, mainMinutes + 1))} />
-          <NumberControl label="放松时间" value={cooldown} unit="分钟" onMinus={() => setCooldown(Math.max(1, cooldown - 1))} onPlus={() => setCooldown(Math.min(20, cooldown + 1))} />
+          <ReadOnlyPrescriptionItem label="热身时间" value={`${prescription.warmupMinutes} 分钟`} />
+          <ReadOnlyPrescriptionItem label="主要训练" value={`${prescription.trainingMinutes * repeats} 分钟`} />
+          <ReadOnlyPrescriptionItem label="放松时间" value={`${prescription.cooldownMinutes} 分钟`} />
           <div className="rounded-2xl border border-medical-100 bg-medical-50 p-4"><p className="text-xs font-bold text-medical-700">自动计算总时长</p><p className="mt-2 text-3xl font-bold text-medical-900">{totalMinutes}<span className="ml-1 text-sm">分钟</span></p></div>
         </div>
-        <div className={`mt-5 rounded-2xl border p-4 text-xs font-bold leading-5 ${hasAdjustments ? "border-amber-200 bg-amber-50 text-amber-800" : "border-blue-100 bg-blue-50 text-blue-800"}`}>{hasAdjustments ? "当前训练参数与医生处方不一致。继续前必须二次确认，调整内容将作为本次训练记录保留，不会覆盖医生原处方。" : "当前训练参数与医生签署处方一致；确认后进入设备检查。"}</div>
-        <div className="mt-auto flex justify-between pt-5"><button type="button" onClick={onBack} className="btn-secondary patient-touch"><ArrowLeft className="h-4 w-4" /> 返回首页</button><button type="button" onClick={continueFromPrescription} className="btn-primary patient-touch px-7">{hasAdjustments ? "确认调整，检查设备" : "确认处方，检查设备"} <ArrowRight className="h-5 w-5" /></button></div>
+        <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-xs font-bold leading-5 text-blue-800">参数与医生签署处方一致；确认后进入设备检查。患者不能在此页面自由改变处方参数。</div>
+        <div className="mt-auto flex justify-between pt-5"><button type="button" onClick={onBack} className="btn-secondary patient-touch"><ArrowLeft className="h-4 w-4" /> 返回首页</button><button type="button" onClick={onContinue} className="btn-primary patient-touch px-7">确认处方，检查设备 <ArrowRight className="h-5 w-5" /></button></div>
       </article>
     </section>
     {showDifferenceConfirm && (
@@ -945,9 +1017,9 @@ function BpModeScreen({ mode, setMode, onBack, onStart }: { mode: BpMode | null;
 
 function TrainingScreen(props: {
   phase: Phase; setPhase: (value: Phase) => void; elapsed: number; paused: boolean; setPaused: (value: boolean) => void; bpMode: BpMode; measuredBp: string; measuredBpTime: string; onMeasureBp: () => void;
-  targetHr: number; targetPowerMin: number; targetPowerMax: number; warmup: number; mainMinutes: number; cooldown: number; repeats: number; setElapsed: (value: number) => void; rpe: number; setRpe: (value: number) => void; anomaly: boolean; setAnomaly: (value: boolean) => void; video: LocalBikeVideo | null; onVideoEnded: () => void; onFinish: () => void;
+  targetHr: number; targetPowerMin: number; targetPowerMax: number; warmup: number; mainMinutes: number; cooldown: number; repeats: number; setElapsed: (value: number) => void; rpe: number; setRpe: (value: number) => void; anomaly: boolean; setAnomaly: (value: boolean) => void; video: LocalBikeVideo | null; onVideoEnded: () => void; onFinish: () => void; onInterrupt: () => void;
 }) {
-  const { phase, setPhase, elapsed, paused, setPaused, bpMode, measuredBp, measuredBpTime, onMeasureBp, targetHr, targetPowerMin, targetPowerMax, warmup, mainMinutes, cooldown, repeats, setElapsed, rpe, setRpe, anomaly, setAnomaly, video, onVideoEnded, onFinish } = props;
+  const { phase, setPhase, elapsed, paused, setPaused, bpMode, measuredBp, measuredBpTime, onMeasureBp, targetHr, targetPowerMin, targetPowerMax, warmup, mainMinutes, cooldown, repeats, setElapsed, rpe, setRpe, anomaly, setAnomaly, video, onVideoEnded, onFinish, onInterrupt } = props;
   const sampleIndex = elapsed % 12;
   const heartRateWave = [0, 1, -1, 2, 0, -2, 1, 3, 0, -1, 2, -1];
   const speedWave = [0, 0.4, -0.2, 0.7, 0.2, -0.5, 0.3, 0.8, -0.1, -0.4, 0.5, 0.1];
@@ -994,6 +1066,7 @@ function TrainingScreen(props: {
       setElapsed(trainingEnd);
       setPhase("cooldown");
     } else {
+      setElapsed(totalSeconds);
       onFinish();
     }
   };
@@ -1070,15 +1143,16 @@ function TrainingScreen(props: {
                 <span className={`h-2 w-2 rounded-full ${paused ? "bg-amber-400" : "metric-live-dot bg-emerald-400"}`} />{paused ? "训练视频已暂停" : `${phaseLabels[phase]}跟练中`}
               </div>
               {video && <div className="absolute left-3 top-12 max-w-[70%] truncate rounded-lg bg-slate-950/60 px-3 py-1.5 text-[9px] font-bold text-white/85 backdrop-blur-md">随机视频：{video.title}</div>}
-              <button type="button" onClick={() => trainingVideoPanelRef.current?.requestFullscreen?.()} className="absolute right-3 top-3 flex h-9 items-center gap-2 rounded-xl bg-slate-950/75 px-3 text-[10px] font-bold text-white shadow-lg backdrop-blur-md hover:bg-slate-950/90"><Maximize2 className="h-4 w-4" />全屏跟练</button>
+              <button type="button" onClick={() => trainingVideoPanelRef.current?.requestFullscreen?.()} className="absolute right-3 top-3 flex h-9 items-center gap-2 rounded-xl bg-slate-950/75 px-3 text-[10px] font-bold text-white shadow-lg backdrop-blur-md hover:bg-slate-950/90"><Maximize2 className="h-4 w-4" />全屏 / 投屏</button>
               {paused && <div className="absolute inset-0 flex items-center justify-center"><div className="rounded-2xl bg-white/95 px-8 py-5 text-center shadow-xl"><Pause className="mx-auto h-8 w-8 text-medical-700" /><p className="mt-2 font-bold text-slate-900">训练已暂停</p><p className="mt-1 text-[10px] text-slate-500">点击“继续训练”恢复</p></div></div>}
               {anomaly && !paused && <div className="absolute inset-0 flex items-center justify-center bg-red-950/20"><div className="rounded-2xl border border-red-200 bg-red-50/95 px-8 py-5 text-center text-red-800 shadow-xl"><AlertTriangle className="mx-auto h-8 w-8 animate-pulse text-red-600" /><p className="mt-2 text-base font-bold">请降低踏频并等待医护确认</p><p className="mt-1 text-xs text-red-600">心率已高于目标控制区间</p></div></div>}
               <div className="absolute inset-x-3 bottom-20 z-10 grid grid-cols-6 gap-1.5 rounded-2xl bg-slate-950/70 p-2 text-white backdrop-blur-md">
                 {[["速度", speed.toFixed(1), "km/h"], ["距离", (elapsed * (phase === "training" ? 21.8 : 16.0) / 3600).toFixed(2), "km"], ["功率", String(currentPower), "W"], ["血氧", String(oxygen), "%"], ["血压", bpMode === "none" ? "—/—" : measuredBp, ""], ["RPE", String(rpe), "/20"]].map(([label, value, unit]) => <div className="rounded-xl bg-white/10 px-2 py-2 text-center" key={label}><p className="text-[9px] text-white/65">{label}</p><p className="mt-1 text-sm font-bold tabular-nums">{value}<span className="ml-0.5 text-[8px] text-white/60">{unit}</span></p></div>)}
               </div>
-              <div className="absolute inset-x-3 bottom-3 z-20 grid grid-cols-3 gap-2 rounded-2xl bg-slate-950/65 p-2 backdrop-blur-md">
+              <div className="absolute inset-x-3 bottom-3 z-20 grid grid-cols-4 gap-2 rounded-2xl bg-slate-950/65 p-2 backdrop-blur-md">
                 <button type="button" onClick={() => setPaused(!paused)} className="patient-touch flex items-center justify-center gap-2 rounded-xl bg-white/95 font-bold text-medical-800 shadow-sm">{paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}{paused ? "继续训练" : "暂停训练"}</button>
                 <button type="button" onClick={nextPhase} className="patient-touch flex items-center justify-center gap-2 rounded-xl bg-medical-600 font-bold text-white shadow-lg">{phase === "cooldown" ? <CircleStop className="h-5 w-5" /> : <ArrowRight className="h-5 w-5" />}{phase === "cooldown" ? "结束训练" : "下一阶段"}</button>
+                <button type="button" onClick={onInterrupt} className="patient-touch rounded-xl border border-rose-200 bg-rose-50 font-bold text-rose-700">中断并记录</button>
                 <button type="button" onClick={() => setAnomaly(!anomaly)} className={`patient-touch rounded-xl border font-bold ${anomaly ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{anomaly ? "恢复指标" : "演示异常"}</button>
               </div>
             </div>
@@ -1136,6 +1210,9 @@ function ResultScreen({
   targetPowerMax,
   rpe,
   bp,
+  outcome,
+  subjectiveFeeling,
+  setSubjectiveFeeling,
   onDone,
   onViewReport
 }: {
@@ -1146,33 +1223,41 @@ function ResultScreen({
   targetPowerMax: number;
   rpe: number;
   bp: string;
+  outcome: "completed" | "partially_completed" | "interrupted";
+  subjectiveFeeling: number | null;
+  setSubjectiveFeeling: (value: number) => void;
   onDone: () => void;
   onViewReport: () => void;
 }) {
   return (
     <section className="grid h-full min-h-[610px] grid-cols-[0.8fr_1.2fr] gap-5" data-testid="page-VIEW-PATIENT-RESULT">
-      <article className="flex flex-col items-center justify-center rounded-3xl bg-gradient-to-br from-[#123d54] to-[#1f7e79] p-8 text-center text-white shadow-xl"><span className="flex h-24 w-24 items-center justify-center rounded-full bg-white/15 ring-8 ring-white/5"><CheckCircle2 className="h-14 w-14" /></span><p className="mt-7 text-sm font-bold text-teal-100">第 {patient.completed + 1} 次训练</p><h1 className="mt-2 text-4xl font-bold">训练已完成</h1><p className="mt-3 max-w-sm text-sm leading-6 text-teal-50/75">本次过程平稳，数据已生成训练记录并同步给医生端。</p><div className="mt-8 w-full space-y-3"><button type="button" onClick={onViewReport} className="patient-touch flex w-full items-center justify-center gap-2 rounded-2xl bg-white font-bold text-medical-900"><FileText className="h-5 w-5" /> 查看单次报告</button><button type="button" onClick={onDone} className="patient-touch flex w-full items-center justify-center gap-2 rounded-2xl bg-white/10 font-bold text-white ring-1 ring-white/25 hover:bg-white/15"><House className="h-5 w-5" /> 返回首页</button></div></article>
-      <article className="rounded-3xl border border-white bg-white p-7 shadow-card"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-medical-600">本次训练小结</p><h2 className="mt-1 text-2xl font-bold text-slate-950">功率车 · {trainingType === "continuous" ? "连续训练" : "间歇训练"}</h2></div><span className="rounded-full bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700">数据完整</span></div><div className="mt-7 grid grid-cols-3 gap-4">{[["计划 / 完成", `${totalMinutes} / ${totalMinutes} 分`], ["平均心率", `${targetHr - 2} bpm`], ["目标区间时长", "18 分 42 秒"], ["距离", "8.4 km"], ["消耗热量", "126 kcal"], ["结束血压", `${bp} mmHg`], ["平均功率", `${Math.round((targetPowerMin + targetPowerMax) / 2)} W`], ["平均血氧", "97%"], ["RPE", `${rpe} / 20`]].map(([label, value]) => <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4" key={label}><p className="text-xs font-bold text-slate-400">{label}</p><p className="mt-2 text-lg font-bold text-slate-900">{value}</p></div>)}</div><div className="mt-6 rounded-2xl border border-medical-100 bg-medical-50 p-5"><p className="font-bold text-medical-900">训练建议</p><p className="mt-2 text-sm leading-6 text-slate-600">请坐位休息并少量饮水。若离开后出现持续胸闷、心悸或明显不适，请及时联系医护人员。</p></div></article>
+      <article className="flex flex-col items-center justify-center rounded-3xl bg-gradient-to-br from-[#123d54] to-[#1f7e79] p-8 text-center text-white shadow-xl"><span className="flex h-24 w-24 items-center justify-center rounded-full bg-white/15 ring-8 ring-white/5">{outcome === "completed" ? <CheckCircle2 className="h-14 w-14" /> : <CircleStop className="h-14 w-14" />}</span><p className="mt-7 text-sm font-bold text-teal-100">第 {patient.completed + 1} 次训练</p><h1 className="mt-2 text-4xl font-bold">{outcome === "completed" ? "训练已完成" : outcome === "partially_completed" ? "训练部分完成" : "训练已中断"}</h1><p className="mt-3 max-w-sm text-sm leading-6 text-teal-50/75">本次执行状态已记录，请先完成 1–10 分主观感受评分。</p><div className="mt-8 w-full space-y-3"><button type="button" disabled={subjectiveFeeling === null} onClick={onViewReport} className="patient-touch flex w-full items-center justify-center gap-2 rounded-2xl bg-white font-bold text-medical-900 disabled:cursor-not-allowed disabled:bg-white/30 disabled:text-white/60"><FileText className="h-5 w-5" /> 查看单次报告</button><button type="button" disabled={subjectiveFeeling === null} onClick={onDone} className="patient-touch flex w-full items-center justify-center gap-2 rounded-2xl bg-white/10 font-bold text-white ring-1 ring-white/25 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"><House className="h-5 w-5" /> 返回首页</button>{subjectiveFeeling === null && <p className="text-xs font-bold text-amber-200">请选择右侧评分后继续</p>}</div></article>
+      <article className="rounded-3xl border border-white bg-white p-7 shadow-card"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-medical-600">本次训练小结</p><h2 className="mt-1 text-2xl font-bold text-slate-950">功率车 · {trainingType === "continuous" ? "连续训练" : "间歇训练"}</h2></div><span className={`rounded-full px-4 py-2 text-xs font-bold ${outcome === "completed" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{outcome === "completed" ? "数据完整" : "部分数据"}</span></div><div className="mt-7 grid grid-cols-3 gap-4">{[["计划 / 完成", `${totalMinutes} / ${totalMinutes} 分`], ["平均心率", `${targetHr - 2} bpm`], ["目标区间时长", "18 分 42 秒"], ["距离", "8.4 km"], ["消耗热量", "126 kcal"], ["结束血压", `${bp} mmHg`], ["平均功率", `${Math.round((targetPowerMin + targetPowerMax) / 2)} W`], ["平均血氧", "97%"], ["RPE", `${rpe} / 20`]].map(([label, value]) => <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4" key={label}><p className="text-xs font-bold text-slate-400">{label}</p><p className="mt-2 text-lg font-bold text-slate-900">{value}</p></div>)}</div><div className="mt-5 rounded-2xl border border-violet-100 bg-violet-50 p-4"><div className="flex items-center justify-between gap-3"><span className="text-xs font-bold text-violet-700">本次整体感受（1–10，必选）</span><b className="text-xl text-violet-900">{subjectiveFeeling ?? "—"}</b></div><div className="mt-3 grid grid-cols-10 gap-1.5" role="radiogroup" aria-label="本次训练整体感受"><span className="col-span-10 text-[10px] text-violet-700">请根据真实感受手动选择，系统不提供默认值。</span>{Array.from({ length: 10 }, (_, index) => index + 1).map((value) => <button type="button" key={value} role="radio" aria-checked={subjectiveFeeling === value} onClick={() => setSubjectiveFeeling(value)} className={`h-9 rounded-lg border text-xs font-bold transition ${subjectiveFeeling === value ? "border-violet-600 bg-violet-600 text-white" : "border-violet-200 bg-white text-violet-700 hover:border-violet-400"}`}>{value}</button>)}</div><span className="mt-2 block text-[10px] text-violet-700">该评分将用于阶段报告中的主观耐受趋势分析。</span></div><div className="mt-6 rounded-2xl border border-medical-100 bg-medical-50 p-5"><p className="font-bold text-medical-900">训练建议</p><p className="mt-2 text-sm leading-6 text-slate-600">请坐位休息并少量饮水。若离开后出现持续胸闷、心悸或明显不适，请及时联系医护人员。</p></div></article>
     </section>
   );
 }
 
-function CalendarScreen({ onBack }: { onBack: () => void }) {
+function CalendarScreen({ onBack, todayPlan, statusByItem }: { onBack: () => void; todayPlan: PrescriptionPlan; statusByItem: Record<string, PrescriptionExerciseStatus> }) {
+  const [manualChecked, setManualChecked] = useState(false);
+  const completedCount = todayPlan.items.filter((item) => (statusByItem[item.itemId] ?? item.status) === "completed").length;
+  const allCompleted = todayPlan.items.length > 0 && completedCount === todayPlan.items.length;
   const days = Array.from({ length: 31 }, (_, index) => index + 1);
-  return <section className="rounded-3xl border border-white bg-white p-7 shadow-card"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-medical-600">训练记录</p><h1 className="mt-1 text-2xl font-bold text-slate-950">2026 年 7 月打卡日历</h1><p className="mt-2 text-xs text-slate-500">每天凌晨根据处方项目完成情况自动更新：全部完成为“已训练”，部分完成为“部分完成”。</p></div><button type="button" onClick={onBack} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> 返回首页</button></div><div className="mt-7 grid grid-cols-7 gap-3">{["一", "二", "三", "四", "五", "六", "日"].map((day) => <p key={day} className="text-center text-xs font-bold text-slate-400">周{day}</p>)}{days.map((day) => { const done = [2, 4, 7, 9, 11, 14, 16, 18, 22, 23, 25].includes(day); const partial = [26, 28].includes(day); return <div key={day} className={`flex h-16 items-center justify-center rounded-2xl text-sm font-bold ${done ? "bg-emerald-50 text-emerald-700" : partial ? "bg-amber-50 text-amber-700" : "bg-slate-50 text-slate-500"}`}>{done ? <span className="text-center"><Check className="mx-auto h-4 w-4" /><small className="text-[9px]">已训练</small></span> : partial ? <span className="text-center"><span className="mx-auto block h-2.5 w-2.5 rounded-full bg-amber-500" /><small className="text-[9px]">部分完成</small></span> : day}</div>; })}</div><div className="mt-5 flex gap-4 text-xs font-bold text-slate-500"><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />全部完成</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-amber-500" />部分完成</span></div></section>;
+  return <section className="rounded-3xl border border-white bg-white p-7 shadow-card"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-medical-600">训练记录</p><h1 className="mt-1 text-2xl font-bold text-slate-950">2026 年 7 月打卡日历</h1><p className="mt-2 text-xs text-slate-500">每天凌晨根据处方项目完成情况自动更新：全部完成为“已训练”，部分完成为“部分完成”。</p></div><button type="button" onClick={onBack} className="btn-secondary"><ArrowLeft className="h-4 w-4" /> 返回首页</button></div><div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4"><div><p className="text-xs font-bold text-blue-900">今日执行进度</p><p className="mt-1 text-sm text-blue-800">{completedCount}/{todayPlan.items.length} 项已完成 · {allCompleted ? "已训练" : completedCount > 0 ? "部分完成" : "待训练"}</p></div>{allCompleted && <button type="button" onClick={() => setManualChecked(true)} className="btn-primary">{manualChecked ? "今日已确认打卡" : "手动确认今日打卡"}</button>}</div><div className="mt-7 grid grid-cols-7 gap-3">{["一", "二", "三", "四", "五", "六", "日"].map((day) => <p key={day} className="text-center text-xs font-bold text-slate-400">周{day}</p>)}{days.map((day) => { const done = [2, 4, 7, 9, 11, 14, 16, 18, 22, 23, 25].includes(day); const partial = [26, 28].includes(day); return <div key={day} className={`flex h-16 items-center justify-center rounded-2xl text-sm font-bold ${done ? "bg-emerald-50 text-emerald-700" : partial ? "bg-amber-50 text-amber-700" : "bg-slate-50 text-slate-500"}`}>{done ? <span className="text-center"><Check className="mx-auto h-4 w-4" /><small className="text-[9px]">已训练</small></span> : partial ? <span className="text-center"><span className="mx-auto block h-2.5 w-2.5 rounded-full bg-amber-500" /><small className="text-[9px]">部分完成</small></span> : day}</div>; })}</div><div className="mt-5 flex gap-4 text-xs font-bold text-slate-500"><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />全部完成</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-amber-500" />部分完成</span></div></section>;
 }
 
 function ReportScreen({
   onStart,
   initialSingleReportId,
-  rehabReport
+  rehabReports = []
 }: {
   onStart: () => void;
   initialSingleReportId?: string | null;
-  rehabReport?: RehabReport;
+  rehabReports?: RehabReport[];
 }) {
   const [reportTab, setReportTab] = useState<"single" | "stage" | "discharge">("single");
   const [selectedSingleReport, setSelectedSingleReport] = useState<string | null>(initialSingleReportId ?? null);
+  const [selectedRehabReportId, setSelectedRehabReportId] = useState<string | null>(rehabReports[0]?.reportId ?? null);
+  const rehabReport = rehabReports.find((item) => item.reportId === selectedRehabReportId) ?? rehabReports[0];
   return (
     <section className="space-y-4 pb-2" data-testid="page-VIEW-PATIENT-REPORT">
       <header className="flex items-center justify-between rounded-3xl border border-white bg-white px-6 py-4 shadow-card">
@@ -1187,7 +1272,7 @@ function ReportScreen({
         </div>
       </header>
       {reportTab === "discharge" ? (
-        rehabReport ? <PatientRehabReport report={rehabReport} /> : <article className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center"><FileText className="mx-auto h-8 w-8 text-amber-600" /><h2 className="mt-3 text-lg font-bold text-amber-950">康复出院报告尚未发布</h2><p className="mt-2 text-xs text-amber-800">医生完成治疗部分填写、康复数据确认和最终发布后，患者可在此查看。</p></article>
+        rehabReport ? <div className="space-y-4"><div className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-card"><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-slate-500">已发布康复周期</span>{rehabReports.map((item) => <button type="button" key={item.reportId} onClick={() => setSelectedRehabReportId(item.reportId)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${item.reportId === rehabReport.reportId ? "bg-medical-600 text-white" : "bg-medical-50 text-medical-700"}`}>第{item.episodeNo ?? 1}周期 · {item.publishedAt?.slice(0, 10) ?? "已发布"}</button>)}</div><p className="mt-2 text-[10px] text-slate-400">每次住院/康复周期单独保存，患者只能查看医生已发布的版本。</p></div><PatientRehabReport report={rehabReport} /></div> : <article className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center"><FileText className="mx-auto h-8 w-8 text-amber-600" /><h2 className="mt-3 text-lg font-bold text-amber-950">康复出院报告尚未发布</h2><p className="mt-2 text-xs text-amber-800">医生完成治疗部分填写、康复数据确认和最终发布后，患者可在此查看。</p></article>
       ) : reportTab === "single" ? (
         selectedSingleReport
           ? <SingleTrainingReport reportId={selectedSingleReport} onBack={() => setSelectedSingleReport(null)} />
@@ -1200,7 +1285,7 @@ function ReportScreen({
 function PatientRehabReport({ report }: { report: RehabReport }) {
   const medicalItems = [["入院诊断", report.medicalSection.diagnosis], ["住院治疗经过", report.medicalSection.treatmentCourse], ["手术/介入情况", report.medicalSection.procedure], ["药物及注意事项", report.medicalSection.medications], ["医学复诊要求", report.medicalSection.followUpRequirements], ["临床结论", report.medicalSection.clinicalConclusion]];
   const rehabItems = [["评估结果", report.rehabSection.assessmentSummary], ["训练数据", report.rehabSection.trainingSummary], ["依从性", report.rehabSection.adherenceSummary], ["随访", report.rehabSection.followUpSummary], ["改善趋势", report.rehabSection.improvementSummary]];
-  return <div className="space-y-4" data-testid="page-VIEW-PATIENT-REHAB-REPORT"><article className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 shadow-card"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-emerald-700">医生已确认 · {report.publishedAt ? new Date(report.publishedAt).toLocaleDateString("zh-CN") : "已发布"}</p><h2 className="mt-1 text-2xl font-bold text-emerald-950">康复出院报告</h2></div><span className="rounded-full bg-white px-4 py-2 text-xs font-bold text-emerald-700">可查看</span></div><p className="mt-3 text-xs leading-5 text-emerald-900">本报告包含医生填写的治疗信息、系统汇总的康复数据和医生确认后的居家建议。</p></article><section className="grid gap-4 xl:grid-cols-2"><article className="rounded-3xl border border-blue-100 bg-blue-50 p-5 shadow-card"><h3 className="text-sm font-bold text-blue-950">医生治疗部分</h3><div className="mt-4 space-y-3">{medicalItems.map(([label, value]) => <div key={label} className="rounded-2xl bg-white p-4"><p className="text-[11px] font-bold text-blue-600">{label}</p><p className="mt-1 text-xs leading-5 text-slate-700">{value || "未填写"}</p></div>)}</div></article><article className="rounded-3xl border border-teal-100 bg-teal-50 p-5 shadow-card"><h3 className="text-sm font-bold text-teal-950">康复数据</h3><div className="mt-4 space-y-3">{rehabItems.map(([label, value]) => <div key={label} className="rounded-2xl bg-white p-4"><p className="text-[11px] font-bold text-teal-600">{label}</p><p className="mt-1 text-xs leading-5 text-slate-700">{value}</p></div>)}</div></article></section><article className="rounded-3xl border border-violet-100 bg-violet-50 p-6 shadow-card"><h3 className="text-sm font-bold text-violet-950">居家康复与后续建议</h3><p className="mt-4 whitespace-pre-line text-sm leading-7 text-violet-950">{report.recommendationDraft}</p><p className="mt-4 text-[11px] text-violet-700">如症状加重、持续胸痛、晕厥或发生急诊/再住院，请及时联系医生或就医。</p></article></div>;
+  return <div className="space-y-4" data-testid="page-VIEW-PATIENT-REHAB-REPORT"><article className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 shadow-card"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-emerald-700">第{report.episodeNo ?? 1}康复周期 · 医生已确认 · {report.publishedAt ? new Date(report.publishedAt).toLocaleDateString("zh-CN") : "已发布"}</p><h2 className="mt-1 text-2xl font-bold text-emerald-950">康复出院报告</h2><p className="mt-1 text-xs text-emerald-800">康复时间：{report.admissionDate ?? "未记录"} 至 {report.dischargeDate ?? "未记录"}</p></div><span className="rounded-full bg-white px-4 py-2 text-xs font-bold text-emerald-700">可查看</span></div><p className="mt-3 text-xs leading-5 text-emerald-900">本报告包含医生填写的治疗信息、系统汇总的康复数据和医生确认后的居家建议。</p></article><section className="grid gap-4 xl:grid-cols-2"><article className="rounded-3xl border border-blue-100 bg-blue-50 p-5 shadow-card"><h3 className="text-sm font-bold text-blue-950">医生治疗部分</h3><div className="mt-4 space-y-3">{medicalItems.map(([label, value]) => <div key={label} className="rounded-2xl bg-white p-4"><p className="text-[11px] font-bold text-blue-600">{label}</p><p className="mt-1 text-xs leading-5 text-slate-700">{value || "未填写"}</p></div>)}</div></article><article className="rounded-3xl border border-teal-100 bg-teal-50 p-5 shadow-card"><h3 className="text-sm font-bold text-teal-950">康复数据</h3><div className="mt-4 space-y-3">{rehabItems.map(([label, value]) => <div key={label} className="rounded-2xl bg-white p-4"><p className="text-[11px] font-bold text-teal-600">{label}</p><p className="mt-1 text-xs leading-5 text-slate-700">{value}</p></div>)}</div></article></section><article className="rounded-3xl border border-violet-100 bg-violet-50 p-6 shadow-card"><h3 className="text-sm font-bold text-violet-950">居家康复与后续建议</h3><p className="mt-4 whitespace-pre-line text-sm leading-7 text-violet-950">{report.recommendationDraft}</p><p className="mt-4 text-[11px] text-violet-700">如症状加重、持续胸痛、晕厥或发生急诊/再住院，请及时联系医生或就医。</p></article></div>;
 }
 
 function SingleReportList({ onSelect }: { onSelect: (reportId: string) => void }) {
@@ -1231,6 +1316,7 @@ function SingleTrainingReport({ reportId, onBack }: { reportId: string; onBack: 
   const isDemoData = report.dataMode === "demo" || !report.sampleSeries?.length;
   const patientInfo = [
     ["患者姓名", report.clinicalSnapshot.name],
+    ["患者号", report.patientNo],
     ["年龄", `${report.clinicalSnapshot.age} 岁`],
     ["体重", `${report.clinicalSnapshot.weightKg} kg`],
     ["BMI", `${report.clinicalSnapshot.bmi} kg/m²`],
@@ -1285,18 +1371,15 @@ function SingleTrainingReport({ reportId, onBack }: { reportId: string; onBack: 
         </div>
       </article>
 
-      <div className="grid grid-cols-2 gap-4">
-        <TrendChart
-          title={isDemoData ? "心率、呼吸率与血氧演示趋势" : "心率、呼吸率与血氧采样时序"}
-          subtitle={isDemoData ? "Demo 数据 · 非设备真实采样" : "设备采样时序"}
-          dataMode={report.dataMode}
-          sourceNote={report.dataSourceNote}
-          series={[
-            { name: "心率 bpm", color: "#e84b68", values: [86, 92, 101, 108, 112, 109, 103, 96] },
-            { name: "呼吸率 次/分", color: "#347faf", values: [17, 18, 20, 22, 23, 22, 20, 18] },
-            { name: "血氧 %", color: "#1f7e79", values: [98, 98, 97, 97, 96, 97, 98, 98] }
-          ]}
-        />
+      <div className="grid gap-4 lg:grid-cols-3">
+        {[
+          { name: "实际心率 bpm", color: "#e84b68", values: [86, 92, 101, 108, 112, 109, 103, 96] },
+          { name: "实际呼吸率 次/分", color: "#347faf", values: [17, 18, 20, 22, 23, 22, 20, 18] },
+          { name: "实际血氧 %", color: "#1f7e79", values: [98, 98, 97, 97, 96, 97, 98, 98] }
+        ].map((item) => <TrendChart key={item.name} title={item.name} subtitle={isDemoData ? "Demo 数据 · 非设备真实采样" : "设备采样时序"} dataMode={report.dataMode} sourceNote={report.dataSourceNote} series={[item]} />)}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+        {previousReport && <article className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5 shadow-card"><p className="text-xs font-bold text-emerald-700">本次变化提示</p><h3 className="mt-1 text-lg font-bold text-emerald-950">和上一次相比，训练效果如何？</h3><p className="mt-3 text-sm leading-6 text-emerald-900">本次平均心率{report.hrStats.average <= previousReport.hrStats.average ? "下降" : "上升"}，靶区时间{report.targetZoneMinutes >= previousReport.targetZoneMinutes ? "增加" : "减少"}；血氧请结合测量时间和医生复核理解。该提示仅用于医患共读，不替代临床判断。</p></article>}
         <BpAndEcgPanel report={report} />
       </div>
     </div>
@@ -1371,6 +1454,9 @@ function StageTrainingReport({ onStart }: { onStart: () => void }) {
   const abnormalSessionCount = new Set(data.safetyEvents.map((event) => event.sessionId)).size;
   const interruptedSessionCount = data.sessions.filter((item) => item.pauses > 0 || item.terminatedEarly).length;
   const selectedPrescriptionDetail = selectedPrescriptionVersion ? getPrescriptionVersionDetail(selectedPrescriptionVersion) : null;
+  if (completedSessions < 4) {
+    return <section className="rounded-3xl border border-white bg-white p-8 shadow-card" data-testid="page-VIEW-STAGE-REPORT"><p className="text-xs font-bold text-medical-600">阶段性报告</p><h2 className="mt-2 text-2xl font-bold text-slate-950">完成 4 次训练后生成阶段报告</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">当前只有 {completedSessions} 次完成记录，系统继续保留每次单次报告；达到 4 次后再汇总处方执行、趋势、异常和随访结论。</p><div className="mt-6 h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-medical-500" style={{ width: `${Math.min(completedSessions / 4 * 100, 100)}%` }} /></div></section>;
+  }
   return (
     <section className="space-y-4 pb-3" data-testid="page-VIEW-STAGE-REPORT">
       <div className="grid grid-cols-[1.25fr_0.75fr] gap-4">

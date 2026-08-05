@@ -7,18 +7,22 @@ import type { FollowUpRecord, FollowUpTask } from "../followUpData";
 import { effectiveFollowUpStatus } from "../followUpData";
 import type { PrescriptionTask } from "../prescriptionData";
 import type { ManagedPatient } from "./PatientArchivePage";
+import { stageReportData } from "../patient/stageReportData";
 
 type ReportRole = "ADMIN" | "DOCTOR" | "REHAB_EXECUTION";
 
-function createReport(patient: ManagedPatient, assessments: AssessmentRecord[], tasks: PrescriptionTask[], followUps: FollowUpTask[], followUpRecords: FollowUpRecord[]): RehabReport {
+function createReport(patient: ManagedPatient, assessments: AssessmentRecord[], tasks: PrescriptionTask[], followUps: FollowUpTask[], followUpRecords: FollowUpRecord[], episodeNo = 1): RehabReport {
   const reviewed = assessments.filter((record) => record.status === "doctor_reviewed");
   const completedFollowUps = followUps.filter((task) => effectiveFollowUpStatus(task) === "completed").length;
   const patientTasks = tasks.filter((task) => task.patientId === patient.patient_demo_id);
   const patientRecords = followUpRecords.filter((record) => record.patientId === patient.patient_demo_id);
   const latest = reviewed[0];
   return {
-    reportId: `CRH-RR-${patient.patient_demo_id}-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`,
+    reportId: `CRH-RR-${patient.patient_demo_id}-E${episodeNo}-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`,
     patientId: patient.patient_demo_id,
+    episodeNo,
+    admissionDate: patient.planned_rehab_date || patient.created_at.slice(0, 10),
+    dischargeDate: patient.discharge_date || undefined,
     generatedAt: new Date().toISOString(),
     status: "draft",
     medicalSection: { diagnosis: patient.diagnosis_summary, treatmentCourse: "", procedure: patient.procedure_history || "", medications: patient.current_medications || "", followUpRequirements: "", clinicalConclusion: "" },
@@ -38,8 +42,12 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
   const scopedPatients = role === "DOCTOR" ? patients.filter((patient) => patient.assigned_doctor === currentAccount) : patients;
   const [patientId, setPatientId] = useState(initialPatientId && scopedPatients.some((item) => item.patient_demo_id === initialPatientId) ? initialPatientId : scopedPatients[0]?.patient_demo_id ?? "");
   const patient = scopedPatients.find((item) => item.patient_demo_id === patientId) ?? scopedPatients[0];
-  const existing = reports.find((report) => report.patientId === patient?.patient_demo_id);
+  const patientReports = reports.filter((item) => item.patientId === patient?.patient_demo_id).sort((left, right) => (right.episodeNo ?? 1) - (left.episodeNo ?? 1));
+  const existing = patientReports[0];
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(existing?.reportId ?? null);
   const [report, setReport] = useState<RehabReport | null>(existing ?? (patient ? createReport(patient, assessments, tasks, followUps.filter((task) => task.patientId === patient.patient_demo_id), followUpRecords) : null));
+  const [stageSessionCount, setStageSessionCount] = useState(4);
+  const [stageDraftReady, setStageDraftReady] = useState(false);
   const readOnly = role !== "DOCTOR" || report?.status === "published";
   const patientFollowUps = useMemo(() => followUps.filter((task) => task.patientId === patient?.patient_demo_id), [followUps, patient?.patient_demo_id]);
 
@@ -47,7 +55,24 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
     const nextPatient = scopedPatients.find((item) => item.patient_demo_id === nextId);
     if (!nextPatient) return;
     setPatientId(nextId);
-    setReport(reports.find((item) => item.patientId === nextId) ?? createReport(nextPatient, assessments.filter((item) => item.patientId === nextId), tasks, followUps.filter((item) => item.patientId === nextId), followUpRecords));
+    const nextReports = reports.filter((item) => item.patientId === nextId).sort((left, right) => (right.episodeNo ?? 1) - (left.episodeNo ?? 1));
+    const nextReport = nextReports[0] ?? createReport(nextPatient, assessments.filter((item) => item.patientId === nextId), tasks, followUps.filter((item) => item.patientId === nextId), followUpRecords);
+    setSelectedReportId(nextReport.reportId);
+    setReport(nextReport);
+  }
+
+  function switchReport(nextReportId: string) {
+    const nextReport = patientReports.find((item) => item.reportId === nextReportId);
+    if (!nextReport) return;
+    setSelectedReportId(nextReport.reportId);
+    setReport(nextReport);
+  }
+
+  function createNextEpisode() {
+    if (!patient || role !== "DOCTOR") return;
+    const nextReport = createReport(patient, assessments.filter((item) => item.patientId === patient.patient_demo_id), tasks, patientFollowUps, followUpRecords, patientReports.length + 1);
+    setSelectedReportId(nextReport.reportId);
+    setReport(nextReport);
   }
 
   function save(status: RehabReport["status"]) {
@@ -60,7 +85,7 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
 
   if (!patient || !report) return <section className="card p-8 text-center">暂无可用患者</section>;
   const missingMedical = Object.values(report.medicalSection).some((value) => !value.trim());
-  return <section data-testid="page-VIEW-REHAB-DISCHARGE-REPORT"><PageHeader eyebrow="康复报告中心" title="康复出院报告" description="医生填写治疗部分，系统汇总已确认康复数据，后续建议仅生成草稿；医生确认后才能发布给患者。网页预览使用轻量动画，打印/PDF保持静态医疗文书格式。" action={<StatusBadge tone={report.status === "published" ? "green" : report.status === "doctor_confirmed" ? "blue" : "orange"}>{report.status === "published" ? "已发布" : report.status === "doctor_confirmed" ? "医生已确认" : "草稿"}</StatusBadge>} /><div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4"><label className="flex items-center gap-2 text-xs font-bold text-slate-600">患者<select value={patient.patient_demo_id} onChange={(event) => switchPatient(event.target.value)} className="text-field min-w-64"><option value="">选择患者</option>{scopedPatients.map((item) => <option key={item.patient_demo_id} value={item.patient_demo_id}>{item.name} · {item.patient_code}</option>)}</select></label><span className="text-[10px] text-slate-400">数据来源 {report.sourceRefs.length} 条 · {patientFollowUps.length} 个随访节点</span></div><ReportJourney report={report} /><div className="grid gap-4 xl:grid-cols-3"><MedicalSection report={report} disabled={readOnly} onChange={(medicalSection) => setReport({ ...report, medicalSection })} /><RehabSection report={report} /><RecommendationSection report={report} disabled={readOnly} onChange={(recommendationDraft) => setReport({ ...report, recommendationDraft })} /></div><section className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4"><SectionHeader title="发布检查" description="医生治疗部分和康复数据确认完成后，才允许发布。" /><div className="grid gap-2 text-xs sm:grid-cols-3"><CheckItem label="医生治疗部分完整" ok={!missingMedical} /><CheckItem label="康复数据有来源" ok={report.sourceRefs.length > 0} /><CheckItem label="医生已确认" ok={report.status === "doctor_confirmed" || report.status === "published"} /></div>{missingMedical && <p className="mt-3 text-xs font-semibold text-amber-700">请先补充医生治疗部分的所有字段。</p>}</section><div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => window.print()} className="btn-secondary"><Printer className="h-4 w-4" />打印预览</button>{role === "DOCTOR" && report.status !== "published" && <><button type="button" onClick={() => save("draft")} className="btn-secondary"><Save className="h-4 w-4" />保存草稿</button><button type="button" onClick={() => save("doctor_confirmed")} disabled={missingMedical} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300"><CheckCircle2 className="h-4 w-4" />确认报告</button><button type="button" onClick={() => save("published")} disabled={missingMedical || report.status !== "doctor_confirmed"} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300"><Send className="h-4 w-4" />发布给患者</button></>}</div></section>;
+  return <section data-testid="page-VIEW-REHAB-DISCHARGE-REPORT"><PageHeader eyebrow="AI报告中心" title="阶段与出院报告" description="从已完成训练记录中选择汇总范围，AI生成阶段报告草稿；医生确认后可继续形成出院报告。" action={<StatusBadge tone={report.status === "published" ? "green" : report.status === "doctor_confirmed" ? "blue" : "orange"}>{report.status === "published" ? "已发布" : report.status === "doctor_confirmed" ? "医生已确认" : "草稿"}</StatusBadge>} /><div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4"><label className="flex items-center gap-2 text-xs font-bold text-slate-600">患者<select value={patient.patient_demo_id} onChange={(event) => switchPatient(event.target.value)} className="text-field min-w-64"><option value="">选择患者</option>{scopedPatients.map((item) => <option key={item.patient_demo_id} value={item.patient_demo_id}>{item.name} · {item.patient_code}</option>)}</select></label><label className="flex items-center gap-2 text-xs font-bold text-slate-600">康复周期<select value={selectedReportId ?? report.reportId} onChange={(event) => switchReport(event.target.value)} className="text-field min-w-56"><option value={report.reportId}>本次报告 · 第{report.episodeNo ?? 1}周期</option>{patientReports.filter((item) => item.reportId !== report.reportId).map((item) => <option key={item.reportId} value={item.reportId}>第{item.episodeNo ?? 1}周期 · {item.status === "published" ? "已发布" : "未发布"}</option>)}</select></label>{role === "DOCTOR" && <button type="button" onClick={createNextEpisode} className="btn-secondary">新建报告周期</button>}<span className="text-[10px] text-slate-400">发布后支持打印/PDF与院内系统查看，不依赖独立患者小程序</span></div><section className="mb-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-violet-50 p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-[10px] font-bold text-blue-600">AI阶段报告生成</p><h2 className="mt-1 text-lg font-bold text-slate-950">选择需要联合分析的训练次数</h2><p className="mt-1 text-xs text-slate-500">单次报告自动保留；阶段报告可选择最近若干次，不要求录入完整处方。</p></div><div className="flex items-end gap-2"><label><span className="field-label">汇总最近</span><select value={stageSessionCount} onChange={(event) => { setStageSessionCount(Number(event.target.value)); setStageDraftReady(false); }} className="text-field w-28">{[2,3,4,6,8,10].map((count) => <option key={count} value={count}>{count}次训练</option>)}</select></label><button type="button" onClick={() => setStageDraftReady(true)} className="btn-primary">生成AI阶段草稿</button></div></div><div className="mt-4 grid gap-2 sm:grid-cols-4">{stageReportData.sessions.slice(-Math.min(stageSessionCount, 4)).map((item, index) => <div key={item.id} className="rounded-xl border border-blue-100 bg-white p-3"><p className="text-[10px] font-bold text-blue-600">第{index + 1}次 · {item.date}</p><p className="mt-2 text-xs font-bold text-slate-800">平均心率 {item.avgHr} bpm</p><p className="mt-1 text-[10px] text-slate-500">血氧最低 {item.minSpo2}% · RPE {item.rpe}</p></div>)}</div>{stageDraftReady && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs leading-5 text-emerald-900"><b>AI阶段草稿已生成，等待医生确认</b><p className="mt-1">已联合分析最近{stageSessionCount}次训练的心率、血氧、血压、RPE、完成率与异常记录。AI不形成诊断，也不自动修改处方。</p></div>}</section><section className="mb-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-blue-100 bg-blue-50 p-4"><p className="text-[10px] font-bold text-blue-600">训练数据来源</p><p className="mt-2 text-2xl font-bold text-blue-950">{report.sourceRefs.length}</p><p className="mt-1 text-[10px] text-blue-600">评估、训练与随访记录</p></div><div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4"><p className="text-[10px] font-bold text-emerald-600">阶段趋势</p><p className="mt-2 text-sm font-bold text-emerald-950">心率 · 完成率 · 依从性</p><p className="mt-1 text-[10px] text-emerald-600">仅基于已确认数据汇总</p></div><div className="rounded-xl border border-amber-100 bg-amber-50 p-4"><p className="text-[10px] font-bold text-amber-600">出院报告发布</p><p className="mt-2 text-sm font-bold text-amber-950">自动标记出院</p><p className="mt-1 text-[10px] text-amber-600">并生成院后随访提醒</p></div></section><ReportJourney report={report} /><div className="grid gap-4 xl:grid-cols-3"><MedicalSection report={report} disabled={readOnly} onChange={(medicalSection) => setReport({ ...report, medicalSection })} /><RehabSection report={report} /><RecommendationSection report={report} disabled={readOnly} onChange={(recommendationDraft) => setReport({ ...report, recommendationDraft })} /></div><section className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4"><SectionHeader title="发布检查" description="医生治疗部分和康复数据确认完成后，才允许发布。" /><div className="grid gap-2 text-xs sm:grid-cols-3"><CheckItem label="医生治疗部分完整" ok={!missingMedical} /><CheckItem label="康复数据有来源" ok={report.sourceRefs.length > 0} /><CheckItem label="医生已确认" ok={report.status === "doctor_confirmed" || report.status === "published"} /></div>{missingMedical && <p className="mt-3 text-xs font-semibold text-amber-700">请先补充医生治疗部分的所有字段。</p>}</section><div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => window.print()} className="btn-secondary"><Printer className="h-4 w-4" />打印预览</button>{role === "DOCTOR" && report.status !== "published" && <><button type="button" onClick={() => save("draft")} className="btn-secondary"><Save className="h-4 w-4" />保存草稿</button><button type="button" onClick={() => save("doctor_confirmed")} disabled={missingMedical} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300"><CheckCircle2 className="h-4 w-4" />确认报告</button><button type="button" onClick={() => save("published")} disabled={missingMedical || report.status !== "doctor_confirmed"} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300"><Send className="h-4 w-4" />发布出院报告</button></>}</div></section>;
 }
 
 function ReportJourney({ report }: { report: RehabReport }) {

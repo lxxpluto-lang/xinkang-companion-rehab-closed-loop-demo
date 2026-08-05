@@ -73,10 +73,10 @@ function OrganizationSheet() {
         <SectionHeader title="组织边界" description="验证版只维护一个康复中心和必要岗位账号。" action={<button className="btn-secondary"><Plus className="h-4 w-4" />新增账号</button>} />
         <div className="space-y-3">
           {[
-            ["青岛市心脏康复中心", "主机构", "1 个院区"],
-            ["市南院区", "院区", "1 个康复中心"],
-            ["心脏康复科", "科室", "医生与执行岗共用"],
-            ["院内Ⅱ期康复中心", "验证中心", "本 Demo 数据边界"]
+            ["合作康复中心", "主机构", "1 个院区"],
+            ["验证院区", "院区", "1 个康复团队"],
+            ["康复科", "科室", "医生与执行岗共用"],
+            ["院内Ⅱ期康复团队", "验证中心", "本 Demo 数据边界"]
           ].map(([name, type, detail], index) => (
             <div key={name} className={`flex items-center gap-3 rounded-xl border p-3 ${index === 3 ? "border-blue-200 bg-blue-50" : "border-slate-100"}`}>
               <Building2 className="h-4 w-4 text-blue-600" />

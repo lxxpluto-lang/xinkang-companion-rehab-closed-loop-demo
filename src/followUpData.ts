@@ -39,6 +39,8 @@ export type FollowUpTask = {
   recordId?: string;
   reviewRequiredAt?: string;
   reviewRequiredBy?: string;
+  /** 出院报告发布后写入的提醒来源，便于医生知道该任务由报告触发。 */
+  reportPublishedAt?: string;
   rescheduleHistory: FollowUpReschedule[];
 };
 
@@ -48,7 +50,7 @@ export type FollowUpRecord = {
   patientId: string;
   milestoneMonth: FollowUpMilestone;
   contactResult: ContactResult;
-  communicationMethod: "phone" | "outpatient" | "other";
+  communicationMethod: "sms" | "online_message" | "phone" | "outpatient" | "other";
   contactedAt: string;
   symptoms: string[];
   medicationAdherence: string;
@@ -244,4 +246,13 @@ export function reconcilePatientFollowUps(
     return updated;
   });
   return [...otherTasks, ...reconciled];
+}
+
+export function markDischargeReportPublished(tasks: FollowUpTask[], patientId: string, publishedAt: string) {
+  const target = tasks
+    .filter((task) => task.patientId === patientId && task.status !== "completed")
+    .sort((left, right) => left.milestoneMonth - right.milestoneMonth)[0];
+  if (!target) return tasks;
+  const reminderDate = publishedAt.slice(0, 10);
+  return tasks.map((task) => task.id === target.id ? { ...task, reportPublishedAt: publishedAt, reminderDate } : task);
 }

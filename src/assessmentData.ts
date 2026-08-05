@@ -22,6 +22,7 @@ export type SPPBAssessment = {
     fastestSec: number | null;
     score: number;
   };
+  maxWalkingSpeedMs: { trial1: number | null; trial2: number | null; fastest: number | null };
   totalScore: number;
   grip: { leftTrial1Kg: number | null; leftTrial2Kg: number | null; rightTrial1Kg: number | null; rightTrial2Kg: number | null };
   canWalk100m: "yes" | "no" | "unknown";
@@ -29,7 +30,8 @@ export type SPPBAssessment = {
   muscleStrength: { upper: string; lower: string };
 };
 
-type SPPBCore = Pick<SPPBAssessment, "balance" | "walk4m" | "chairStand"> & { totalScore: number };
+type SPPBInput = Pick<SPPBAssessment, "balance" | "walk4m" | "chairStand"> & { maxWalkingSpeedMs?: SPPBAssessment["maxWalkingSpeedMs"] };
+type SPPBCore = Pick<SPPBAssessment, "balance" | "walk4m" | "chairStand" | "maxWalkingSpeedMs"> & { totalScore: number };
 
 export type AssessmentRecord = {
   assessmentId: string;
@@ -55,6 +57,10 @@ export type AssessmentRecord = {
 };
 
 export const sppbRuleVersion = "CRH-SPPB-2026.08";
+
+export function hasSppbInput(sppb: SPPBAssessment) {
+  return [sppb.balance.sideBySideSec, sppb.balance.semiTandemSec, sppb.balance.tandemSec, sppb.walk4m.trial1Sec, sppb.walk4m.trial2Sec, sppb.chairStand.trial1Sec, sppb.chairStand.trial2Sec].some((value) => value !== null);
+}
 
 function scoreBalance(value: number | null, type: "side" | "semi" | "tandem") {
   if (value === null) return 0;
@@ -82,13 +88,14 @@ function scoreChair(seconds: number | null) {
   return 0;
 }
 
-export function calculateSppb(input: Pick<SPPBAssessment, "balance" | "walk4m" | "chairStand">): SPPBCore {
+export function calculateSppb(input: SPPBInput): SPPBCore {
   const balance = { ...input.balance, score: scoreBalance(input.balance.sideBySideSec, "side") + scoreBalance(input.balance.semiTandemSec, "semi") + scoreBalance(input.balance.tandemSec, "tandem") };
   const fastestWalk = [input.walk4m.trial1Sec, input.walk4m.trial2Sec].filter((value): value is number => value !== null).sort((a, b) => a - b)[0] ?? null;
   const fastestChair = [input.chairStand.trial1Sec, input.chairStand.trial2Sec].filter((value): value is number => value !== null).sort((a, b) => a - b)[0] ?? null;
   const walk4m = { ...input.walk4m, fastestSec: fastestWalk, score: scoreWalk(fastestWalk) };
   const chairStand = { ...input.chairStand, fastestSec: fastestChair, score: scoreChair(fastestChair) };
-  return { ...input, balance, walk4m, chairStand, totalScore: balance.score + walk4m.score + chairStand.score };
+  const speed = input.maxWalkingSpeedMs ?? { trial1: null, trial2: null, fastest: null };
+  return { ...input, balance, walk4m, chairStand, maxWalkingSpeedMs: { ...speed, fastest: Math.max(speed.trial1 ?? 0, speed.trial2 ?? 0) || null }, totalScore: balance.score + walk4m.score + chairStand.score };
 }
 
 export function createBlankSppb(patient: ManagedPatient, attemptNo: number, actor: string): AssessmentRecord {
@@ -96,7 +103,8 @@ export function createBlankSppb(patient: ManagedPatient, attemptNo: number, acto
   const sppb = calculateSppb({
     balance: { sideBySideSec: null, semiTandemSec: null, tandemSec: null, score: 0 },
     walk4m: { trial1Sec: null, trial2Sec: null, fastestSec: null, score: 0 },
-    chairStand: { trial1Sec: null, trial2Sec: null, fastestSec: null, score: 0 }
+    chairStand: { trial1Sec: null, trial2Sec: null, fastestSec: null, score: 0 },
+    maxWalkingSpeedMs: { trial1: null, trial2: null, fastest: null }
   });
   return {
     assessmentId: `ASMT-${patient.patient_demo_id}-${Date.now()}`,
@@ -125,7 +133,8 @@ export function createDemoAssessmentRecords(patients: ManagedPatient[]): Assessm
   const sppb = calculateSppb({
     balance: { sideBySideSec: 10, semiTandemSec: 10, tandemSec: 8.2, score: 0 },
     walk4m: { trial1Sec: 6.4, trial2Sec: 6.1, fastestSec: null, score: 0 },
-    chairStand: { trial1Sec: 14.2, trial2Sec: 13.8, fastestSec: null, score: 0 }
+    chairStand: { trial1Sec: 14.2, trial2Sec: 13.8, fastestSec: null, score: 0 },
+    maxWalkingSpeedMs: { trial1: 0.62, trial2: 0.66, fastest: 0.66 }
   });
   return [{ ...record, assessedAt: "2026-07-20T09:30:00+08:00", source: "manual", status: "doctor_reviewed", sourceNote: "康复师现场人工采集并确认", weightKg: 62.4, preVitals: { bloodPressure: "128/78", pulse: 72 }, postVitals: { bloodPressure: "136/82", pulse: 88 }, sppb: { ...sppb, grip: { leftTrial1Kg: null, leftTrial2Kg: null, rightTrial1Kg: null, rightTrial2Kg: null }, canWalk100m: "yes", unableWalkReason: "", muscleStrength: { upper: "4级", lower: "4级" } }, notes: "演示数据，需以医院复核结果为准", therapist: "周康复师", doctor: "王医生", confirmedAt: "2026-07-20T10:00:00+08:00", reviewedAt: "2026-07-20T10:20:00+08:00" }];
 }

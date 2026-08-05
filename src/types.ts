@@ -56,3 +56,40 @@ export type QualityStatus =
   | "delayed"
   | "missing"
   | "disconnected";
+
+export type ClinicalMetricSource = "CPET" | "SPPB" | "治疗记录" | "设备" | "人工录入";
+
+export type ClinicalMetric = {
+  value: number | null;
+  unit: string;
+  measuredAt: string;
+  source: ClinicalMetricSource;
+  status: "not_collected" | "pending_review" | "confirmed";
+  verifiedBy?: string;
+  verifiedAt?: string;
+};
+
+export type CpetStatus = "not_collected" | "not_completed" | "completed" | "not_applicable" | "pending_review";
+
+export type PatientClinicalOverview = {
+  patientNo: string;
+  name: string;
+  sex: string;
+  birthDate: string;
+  age: number | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  bmi: number | null;
+  rehabStage: string;
+  riskLevel: string;
+  dischargeDate: string;
+  previousFollowUpDate: string;
+  nextFollowUpDate: string;
+  cpetStatus: CpetStatus;
+  anaerobicThresholdHr: ClinicalMetric;
+  peakHr: ClinicalMetric;
+  restingHr: ClinicalMetric;
+  currentPrescriptionVersion?: string;
+  trainingStatus?: string;
+  latestAbnormal?: string;
+};

@@ -11,22 +11,31 @@ const stationTasks = [
   { id: "NS-04", patientId: "P-DEMO-004", patientNo: "CRH-P-2026-000004", station: "抗阻区 02", patient: "赵女士", exercise: "哑铃", phase: "已完成", elapsed: "24:00", remaining: "00:00", hr: 86, target: "≤110", power: 0, cadence: 0, resistance: 0, progress: 100, connection: "已归还设备", quality: "数据完整", status: "已完成" }
 ];
 
+const executableExercises = ["腹式呼吸", "正念呼吸", "功率车", "椭圆机", "哑铃", "弹力带", "柔韧性训练", "八段锦", "太极拳"];
+
 export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
   const [selectedId, setSelectedId] = useState("NS-01");
   const [arrived, setArrived] = useState<string[]>(["NS-01", "NS-02", "NS-04"]);
   const [note, setNote] = useState("");
+  const [exerciseRecords, setExerciseRecords] = useState<Record<string, string[]>>({ "NS-01": ["功率车"], "NS-02": ["功率车"], "NS-03": ["椭圆机"], "NS-04": ["哑铃"] });
+  const [sessionTarget, setSessionTarget] = useState<Record<string, number>>({ "NS-01": 4, "NS-02": 6, "NS-03": 4, "NS-04": 8 });
+  const [savedSelection, setSavedSelection] = useState<string | null>(null);
   const selected = useMemo(() => stationTasks.find((item) => item.id === selectedId) ?? stationTasks[0], [selectedId]);
   const canExecute = role === "ADMIN" || role === "REHAB_EXECUTION";
   const linkedSafetyEvent = minimalSafetyEvents.find((event) => event.patientName === selected.patient);
   const displayPatient = (task: typeof stationTasks[number]) => role !== "DOCTOR" || task.id === "NS-01" ? task.patient : `患者 ${task.patient.slice(0, 1)}**`;
   const toggleArrival = (id: string) => setArrived((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
+  const toggleExercise = (exercise: string) => setExerciseRecords((records) => {
+    const current = records[selected.id] ?? [];
+    return { ...records, [selected.id]: current.includes(exercise) ? current.filter((item) => item !== exercise) : [...current, exercise] };
+  });
 
   return (
     <section data-testid="page-VIEW-NURSE-STATION">
-      <PageHeader eyebrow={canExecute ? "康复执行岗 · 当前康复中心" : "医生观察视图 · 非本人任务匿名"} title="训练工作台" description={canExecute ? "康复执行岗查看到诊、设备与在训状态，完成现场记录和异常上报；设备开始、暂停和停止仍在患者训练Pad端完成。" : "医生可查看本中心训练概览；仅本人负责的患者显示身份与详细指标，其他患者自动脱敏。"} action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />实时数据连接正常</StatusBadge>} />
+      <PageHeader eyebrow={canExecute ? "康复执行岗 · 当前康复中心" : "医生观察视图 · 非本人任务匿名"} title="训练工作台" description={canExecute ? "患者到诊后，康复师对照纸质处方勾选本次训练项目和计划次数；系统只记录执行，不重复录入正式处方。" : "医生查看本中心训练、异常和报告来源；训练项目选择与现场记录由康复执行岗完成。"} action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />实时数据连接正常</StatusBadge>} />
       <div className="mb-5 grid grid-cols-5 gap-4">
-        <StatCard label="今日计划患者" value="15" note="上午 9 人 · 下午 6 人" icon={<ClipboardCheck className="h-5 w-5" />} />
-        <StatCard label="已到诊患者" value="12" note="3 人尚未到诊" tone="green" icon={<UserCheck className="h-5 w-5" />} />
+        <StatCard label="今日到诊患者" value="12" note="以现场签到为准" icon={<ClipboardCheck className="h-5 w-5" />} />
+        <StatCard label="待选择训练项目" value="3" note="对照纸质处方勾选" tone="orange" icon={<UserCheck className="h-5 w-5" />} />
         <StatCard label="在训患者" value="2" note="2 台功率车正在运行" tone="green" icon={<Activity className="h-5 w-5" />} />
         <StatCard label="已完成训练" value="7" note="完成率 58%" icon={<CheckCircle2 className="h-5 w-5" />} />
         <StatCard label="异常 / 设备提醒" value="1" note="椭圆机等待连接" tone="orange" icon={<AlertTriangle className="h-5 w-5" />} />
@@ -34,7 +43,7 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
 
       <div className="grid grid-cols-[1.12fr_0.88fr] gap-5">
         <section className="card overflow-hidden">
-          <div className="px-5 pt-5"><SectionHeader title="今日训练任务" description="点击任务查看对应设备与患者动态数据。" /></div>
+          <div className="px-5 pt-5"><SectionHeader title="今日到诊与训练记录" description="不依赖预约数据；患者到诊后创建本次执行记录。" /></div>
           <div className="grid grid-cols-[1fr_0.78fr_0.76fr_0.72fr_0.62fr_0.58fr_0.82fr] border-y border-slate-100 bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>设备 / 患者</span><span>患者号</span><span>训练项目</span><span>当前阶段</span><span>心率</span><span>进度</span><span>到诊 / 状态</span></div>
           {stationTasks.map((task) => (
             <button type="button" onClick={() => setSelectedId(task.id)} key={task.id} className={`grid w-full grid-cols-[1fr_0.78fr_0.76fr_0.72fr_0.62fr_0.58fr_0.82fr] items-center border-b border-slate-100 px-5 py-3 text-left text-xs ${selectedId === task.id ? "bg-blue-50 ring-1 ring-inset ring-blue-100" : "bg-white hover:bg-slate-50"}`}>
@@ -50,6 +59,12 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
         </section>
 
         <div className="space-y-4">
+          <section className="card p-4">
+            <SectionHeader title="本次训练项目核对" description="康复师只需对照患者手中的纸质处方选择项目和计划次数，不录入诊断、处方参数或医生意见。" action={<StatusBadge tone="blue">第 {Math.min(3, sessionTarget[selected.id] ?? 1)} / {sessionTarget[selected.id] ?? 1} 次</StatusBadge>} />
+            <div className="mt-3 flex flex-wrap gap-2">{executableExercises.map((exercise) => { const checked = (exerciseRecords[selected.id] ?? []).includes(exercise); return <button type="button" key={exercise} disabled={!canExecute} onClick={() => toggleExercise(exercise)} className={`rounded-xl border px-3 py-2 text-xs font-bold ${checked ? "border-blue-300 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-500"} disabled:cursor-not-allowed`}>{checked ? "✓ " : "+ "}{exercise}</button>; })}</div>
+            <div className="mt-4 flex flex-wrap items-end gap-3"><label><span className="field-label">本阶段计划训练次数</span><input type="number" min="1" max="30" disabled={!canExecute} value={sessionTarget[selected.id] ?? 1} onChange={(event) => setSessionTarget((items) => ({ ...items, [selected.id]: Math.max(1, Number(event.target.value) || 1) }))} className="text-field w-36" /></label><button type="button" disabled={!canExecute || !(exerciseRecords[selected.id] ?? []).length} onClick={() => { setSavedSelection(selected.id); window.setTimeout(() => setSavedSelection(null), 1600); }} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300">保存本次执行项目</button><span className="pb-2 text-[10px] text-slate-400">保存后进入训练，并累计本次打卡。</span></div>
+            {savedSelection === selected.id && <p className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-xs font-bold text-emerald-700">已记录：{(exerciseRecords[selected.id] ?? []).join("、")}。本次训练完成后自动生成单次报告。</p>}
+          </section>
           <section className="card overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="text-[10px] font-bold text-blue-600">动态设备视图</p><h2 className="mt-1 text-lg font-bold text-slate-900">{selected.station} · {displayPatient(selected)}</h2></div><StatusBadge tone={selected.status === "在训" ? "green" : "orange"}>{selected.status}</StatusBadge></div>
             <div className="grid grid-cols-[0.92fr_1.08fr]">

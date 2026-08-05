@@ -1,9 +1,21 @@
+import type { ClinicalMetric, CpetStatus } from "./types";
+
 export type PatientClinicalProfile = {
   patientId: string;
   patientNo: string;
   name: string;
   sex: string;
   age: number;
+  birthDate: string;
+  heightCm: number | null;
+  weightKg: number | null;
+  bmi: number | null;
+  dischargeDate: string;
+  previousFollowUpDate: string;
+  nextFollowUpDate: string;
+  currentPrescriptionVersion?: string;
+  trainingStatus?: string;
+  latestAbnormal?: string;
   idNumberMasked: string;
   contact: string;
   riskLevel: "低危" | "中危" | "高危";
@@ -12,6 +24,7 @@ export type PatientClinicalProfile = {
   medicalHistory: string;
   specialMedications: string;
   cpet: string;
+  cpetStatus: CpetStatus;
   sixMinuteWalk: string;
   restingVitals: string;
   updatedBy: string;
@@ -40,10 +53,13 @@ export type RehabAssessment = {
   cpet: {
     peakVo2: number | null;
     anaerobicThreshold: number | null;
+    peakHr: ClinicalMetric;
+    anaerobicThresholdHr: ClinicalMetric;
     contraindication: string;
   };
   restingVitals: {
     heartRate: number | null;
+    metric: ClinicalMetric;
     systolic: number | null;
     diastolic: number | null;
     spo2: number | null;
@@ -106,12 +122,20 @@ export type PrescriptionContent = {
 };
 
 const baseProfile = {
+  birthDate: "1967-04-18",
+  heightCm: 162,
+  weightKg: 63,
+  bmi: 24,
+  dischargeDate: "2026-07-02",
+  previousFollowUpDate: "2026-07-25",
+  nextFollowUpDate: "2026-08-06",
   idNumberMasked: "3702********1531",
   contact: "138****6021",
   diagnosis: "冠心病 PCI 术后，Ⅱ期院内心脏康复",
   medicalHistory: "高血压病史；否认近期静息胸痛，训练中需持续观察症状变化。",
   specialMedications: "阿司匹林、氯吡格雷、美托洛尔、阿托伐他汀",
   cpet: "峰值 VO₂ 18.6 ml/kg/min",
+  cpetStatus: "completed" as const,
   sixMinuteWalk: "486 m",
   restingVitals: "HR 72 bpm · BP 126/78 mmHg · SpO₂ 98%",
   updatedBy: "王医生",
@@ -124,8 +148,20 @@ const baseProfile = {
     status: "已复核" as const,
     sppb: { balanceScore: 3, gaitScore: 3, chairStandScore: 2 },
     sixMinuteWalk: { distanceMeters: 486, baselineMeters: 438, startHeartRate: 72, endHeartRate: 105 },
-    cpet: { peakVo2: 18.6, anaerobicThreshold: 13.2, contraindication: "未发现运动禁忌证" },
-    restingVitals: { heartRate: 72, systolic: 126, diastolic: 78, spo2: 98 }
+    cpet: {
+      peakVo2: 18.6,
+      anaerobicThreshold: 13.2,
+      peakHr: { value: 142, unit: "bpm", measuredAt: "2026-07-20", source: "CPET" as const, status: "confirmed" as const, verifiedBy: "王医生", verifiedAt: "2026-07-20T10:20:00+08:00" },
+      anaerobicThresholdHr: { value: 118, unit: "bpm", measuredAt: "2026-07-20", source: "CPET" as const, status: "confirmed" as const, verifiedBy: "王医生", verifiedAt: "2026-07-20T10:20:00+08:00" },
+      contraindication: "未发现运动禁忌证"
+    },
+    restingVitals: {
+      heartRate: 72,
+      metric: { value: 72, unit: "bpm", measuredAt: "2026-07-20", source: "SPPB" as const, status: "confirmed" as const, verifiedBy: "王医生", verifiedAt: "2026-07-20T10:20:00+08:00" },
+      systolic: 126,
+      diastolic: 78,
+      spo2: 98
+    }
   }
 };
 
@@ -133,9 +169,9 @@ export const initialPatientClinicalProfiles: PatientClinicalProfile[] = [
   { ...baseProfile, patientId: "P-DEMO-001", patientNo: "000001", name: "陈女士", sex: "女", age: 59, riskLevel: "中危", rehabStage: "Ⅱ期 · 第4周", medicalHistory: "冠心病 PCI 术后 6 周，高血压病史 8 年；训练中偶有轻微胸闷。" },
   { ...baseProfile, patientId: "P-DEMO-002", patientNo: "000002", name: "李先生", sex: "男", age: 58, riskLevel: "低危", rehabStage: "Ⅱ期 · 第2周", idNumberMasked: "3702********4826", contact: "136****1938", cpet: "峰值 VO₂ 20.1 ml/kg/min", sixMinuteWalk: "512 m" },
   { ...baseProfile, patientId: "P-DEMO-003", patientNo: "000003", name: "王先生", sex: "男", age: 66, riskLevel: "中危", rehabStage: "Ⅱ期 · 第3周", idNumberMasked: "3702********7714", contact: "159****2850" },
-  { ...baseProfile, patientId: "P-DEMO-004", patientNo: "000004", name: "赵女士", sex: "女", age: 60, riskLevel: "高危", rehabStage: "首次评估", idNumberMasked: "3702********3409", contact: "137****8246", cpet: "待医生复核", sixMinuteWalk: "待补充", rehabAssessment: { ...baseProfile.rehabAssessment, assessmentId: "RA-20260730-0004", status: "待复核", sppb: { balanceScore: 2, gaitScore: 2, chairStandScore: 1 }, sixMinuteWalk: { distanceMeters: null, baselineMeters: null, startHeartRate: null, endHeartRate: null }, cpet: { peakVo2: 12.8, anaerobicThreshold: null, contraindication: "需医生复核运动诱发缺血风险" } } },
+  { ...baseProfile, patientId: "P-DEMO-004", patientNo: "000004", name: "赵女士", sex: "女", age: 60, riskLevel: "高危", rehabStage: "首次评估", idNumberMasked: "3702********3409", contact: "137****8246", cpet: "待医生复核", cpetStatus: "pending_review", sixMinuteWalk: "待补充", rehabAssessment: { ...baseProfile.rehabAssessment, assessmentId: "RA-20260730-0004", status: "待复核", sppb: { balanceScore: 2, gaitScore: 2, chairStandScore: 1 }, sixMinuteWalk: { distanceMeters: null, baselineMeters: null, startHeartRate: null, endHeartRate: null }, cpet: { ...baseProfile.rehabAssessment.cpet, peakVo2: 12.8, anaerobicThreshold: null, peakHr: { ...baseProfile.rehabAssessment.cpet.peakHr, value: null, status: "pending_review" as const }, anaerobicThresholdHr: { ...baseProfile.rehabAssessment.cpet.anaerobicThresholdHr, value: null, status: "pending_review" as const }, contraindication: "需医生复核运动诱发缺血风险" } } },
   { ...baseProfile, patientId: "P-DEMO-005", patientNo: "000005", name: "周先生", sex: "男", age: 55, riskLevel: "低危", rehabStage: "Ⅱ期 · 第6周", idNumberMasked: "3702********2218", contact: "135****6016" },
-  { ...baseProfile, patientId: "P-DEMO-006", patientNo: "000006", name: "孙女士", sex: "女", age: 64, riskLevel: "中危", rehabStage: "首次评估", idNumberMasked: "3702********3902", contact: "158****1705", cpet: "待补充", sixMinuteWalk: "待补充", rehabAssessment: { ...baseProfile.rehabAssessment, assessmentId: "RA-20260730-0006", status: "待补充", sppb: { balanceScore: 0, gaitScore: 0, chairStandScore: 0 }, sixMinuteWalk: { distanceMeters: null, baselineMeters: null, startHeartRate: null, endHeartRate: null }, cpet: { peakVo2: null, anaerobicThreshold: null, contraindication: "待评估" }, restingVitals: { heartRate: null, systolic: null, diastolic: null, spo2: null } } }
+  { ...baseProfile, patientId: "P-DEMO-006", patientNo: "000006", name: "孙女士", sex: "女", age: 64, riskLevel: "中危", rehabStage: "首次评估", idNumberMasked: "3702********3902", contact: "158****1705", cpet: "待补充", cpetStatus: "not_collected", sixMinuteWalk: "待补充", rehabAssessment: { ...baseProfile.rehabAssessment, assessmentId: "RA-20260730-0006", status: "待补充", sppb: { balanceScore: 0, gaitScore: 0, chairStandScore: 0 }, sixMinuteWalk: { distanceMeters: null, baselineMeters: null, startHeartRate: null, endHeartRate: null }, cpet: { ...baseProfile.rehabAssessment.cpet, peakVo2: null, anaerobicThreshold: null, peakHr: { ...baseProfile.rehabAssessment.cpet.peakHr, value: null, status: "not_collected" as const }, anaerobicThresholdHr: { ...baseProfile.rehabAssessment.cpet.anaerobicThresholdHr, value: null, status: "not_collected" as const }, contraindication: "待评估" }, restingVitals: { ...baseProfile.rehabAssessment.restingVitals, heartRate: null, metric: { ...baseProfile.rehabAssessment.restingVitals.metric, value: null, status: "not_collected" as const }, systolic: null, diastolic: null, spo2: null } } }
 ];
 
 export const initialClinicalNarratives: ClinicalNarrativeRecord[] = [

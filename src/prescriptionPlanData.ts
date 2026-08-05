@@ -1,6 +1,6 @@
 import { clinicalSnapshotChen, getPrescriptionVersionDetail, type PrescriptionVersionId } from "./clinicalSharedData";
 
-export type PrescriptionExerciseStatus = "pending" | "in_progress" | "completed" | "skipped";
+export type PrescriptionExerciseStatus = "pending" | "in_progress" | "completed" | "partially_completed" | "interrupted" | "skipped";
 
 export type PrescriptionExerciseItem = {
   itemId: string;
@@ -88,4 +88,3 @@ export function getTodayPlan(patientId: string) {
 export function planTotalMinutes(plan: PrescriptionPlan) {
   return plan.items.reduce((sum, item) => sum + (item.warmupMinutes ?? 0) + item.trainingMinutes + (item.cooldownMinutes ?? 0), 0);
 }
-

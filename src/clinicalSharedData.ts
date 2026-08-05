@@ -391,7 +391,42 @@ const singleTrainingReportSeeds: SingleTrainingReportSeed[] = [
   }
 ];
 
-export const singleTrainingReportDetails: SingleTrainingReportDetail[] = singleTrainingReportSeeds.map((report, index) => {
+// 阶段报告要求至少 4 次单次记录；以下两条为同一 Demo 阶段的补充样例，确保列表、阶段汇总和处方版本可以互相追溯。
+const expandedSingleTrainingReportSeeds: SingleTrainingReportSeed[] = [
+  ...singleTrainingReportSeeds,
+  {
+    ...singleTrainingReportSeeds[0],
+    id: "TR-20260721-010",
+    taskId: "RX-TASK-001",
+    prescriptionVersionId: "V3",
+    dateTime: "2026-07-21 09:10",
+    totalMinutes: 28,
+    activeMinutes: 20,
+    invalidMinutes: 8,
+    targetZoneMinutes: 18,
+    targetZoneRate: 78,
+    status: "已完成",
+    hrStats: { ...singleTrainingReportSeeds[0].hrStats, resting: 73, average: 103, peak: 111, targetZoneMinutes: 18 },
+    executionSummary: "V3 处方训练完成，数据可用于本阶段首次对照。"
+  },
+  {
+    ...singleTrainingReportSeeds[1],
+    id: "TR-20260718-009",
+    taskId: "RX-TASK-001",
+    prescriptionVersionId: "V2",
+    dateTime: "2026-07-18 09:00",
+    totalMinutes: 26,
+    activeMinutes: 18,
+    invalidMinutes: 8,
+    targetZoneMinutes: 15,
+    targetZoneRate: 72,
+    status: "已完成",
+    hrStats: { ...singleTrainingReportSeeds[1].hrStats, resting: 74, average: 101, peak: 110, targetZoneMinutes: 15 },
+    executionSummary: "V2 处方训练完成，保留训练前后血压和心率测量点。"
+  }
+];
+
+export const singleTrainingReportDetails: SingleTrainingReportDetail[] = expandedSingleTrainingReportSeeds.map((report, index) => {
   const actualStartAt = `${report.dateTime.replace(" ", "T")}:00+08:00`;
   const start = new Date(actualStartAt);
   const actualEndAt = new Date(start.getTime() + report.totalMinutes * 60_000).toISOString();

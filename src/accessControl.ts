@@ -2,6 +2,7 @@ import {
   Building2,
   CalendarCheck2,
   ClipboardList,
+  FileChartColumn,
   FileSignature,
   LayoutDashboard,
   MonitorUp,
@@ -25,11 +26,11 @@ const clinicalRoles: Role[] = ["ADMIN", "DOCTOR", "REHAB_EXECUTION"];
 
 export const navItems: NavItem[] = [
   { key: "dashboard", label: "今日工作台", icon: LayoutDashboard, group: "business", roles: clinicalRoles },
-  { key: "patients", label: "患者档案", icon: UsersRound, group: "business", roles: clinicalRoles },
-  { key: "prescriptions", label: "处方管理", icon: ClipboardList, group: "business", roles: ["ADMIN", "DOCTOR"] },
-  { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: clinicalRoles },
-  { key: "assessment", label: "体能评估", icon: ClipboardList, group: "business", roles: clinicalRoles, hidden: true },
   { key: "training", label: "训练工作台", icon: MonitorUp, group: "business", roles: clinicalRoles },
+  { key: "report", label: "阶段与出院报告", icon: FileChartColumn, group: "business", roles: clinicalRoles },
+  { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: clinicalRoles },
+  { key: "patients", label: "患者数据", icon: UsersRound, group: "business", roles: clinicalRoles },
+  { key: "assessment", label: "OCR体能评估", icon: ClipboardList, group: "business", roles: clinicalRoles },
   { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: ["ADMIN", "DOCTOR", "REHAB_EXECUTION"] },
   { key: "orgPermissions", label: "组织权限", icon: Building2, group: "admin", roles: ["ADMIN"] },
   { key: "documentConfig", label: "报告打印签名", icon: FileSignature, group: "admin", roles: ["ADMIN"] }
