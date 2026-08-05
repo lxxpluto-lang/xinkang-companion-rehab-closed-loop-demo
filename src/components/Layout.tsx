@@ -9,6 +9,7 @@ export function DoctorLayout({
   onRoleChange,
   onNavigate,
   onExit,
+  currentAccount,
   children
 }: {
   page: DoctorPageKey;
@@ -16,6 +17,7 @@ export function DoctorLayout({
   onRoleChange: (role: StaffRole) => void;
   onNavigate: (page: DoctorPageKey) => void;
   onExit: () => void;
+  currentAccount?: string;
   children: React.ReactNode;
 }) {
   const [clock, setClock] = useState(new Date());
@@ -91,7 +93,7 @@ export function DoctorLayout({
               <label className="relative flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <UserRoundCog className="h-4 w-4 text-blue-600" />
                 <span>
-                  <span className="block text-[9px] text-slate-400">{roleMeta[role].account}</span>
+                  <span className="block text-[9px] text-slate-400">{currentAccount ?? roleMeta[role].account}</span>
                   <span className="block text-[10px] font-bold text-slate-700">{roleMeta[role].label}</span>
                 </span>
                 <select
@@ -101,6 +103,7 @@ export function DoctorLayout({
                   className="absolute inset-0 cursor-pointer opacity-0"
                 >
                   <option value="ADMIN">系统管理员</option>
+                  <option value="DOCTOR">康复医生</option>
                   <option value="REHAB_EXECUTION">康复师</option>
                 </select>
                 <ChevronDown className="h-3.5 w-3.5 text-slate-400" />

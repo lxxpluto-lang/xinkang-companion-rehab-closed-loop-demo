@@ -11,19 +11,21 @@ const demoAccounts: Array<{
   scope: string;
   permissions: string[];
 }> = [
-  { username: "admin", name: "林管理员", role: "ADMIN", icon: ShieldCheck, scope: "配置权限", permissions: ["组织账号与权限", "视频审核与发布", "打印和签名模板", "临床数据只读"] },
-  { username: "rehab.zhou", name: "周康复师", role: "REHAB_EXECUTION", icon: UserRoundCog, scope: "当前康复中心", permissions: ["患者与体能评估", "治疗和训练记录", "阶段及康复报告", "人工电话随访"] }
+  { username: "admin", name: "林管理员", role: "ADMIN", icon: ShieldCheck, scope: "配置权限", permissions: ["组织账号与权限", "异常规则配置", "视频与打印模板", "临床业务只读"] },
+  { username: "doctor001", name: "王医生", role: "DOCTOR", icon: Stethoscope, scope: "医疗团队", permissions: ["团队患者查看", "本人处方复核签署", "异常复核闭环", "训练大屏只读"] },
+  { username: "doctor002", name: "李医生", role: "DOCTOR", icon: Stethoscope, scope: "医疗团队", permissions: ["团队患者查看", "本人处方复核签署", "异常复核闭环", "训练大屏只读"] },
+  { username: "rehab001", name: "周康复师", role: "REHAB_EXECUTION", icon: UserRoundCog, scope: "当前康复中心", permissions: ["患者与体能评估", "治疗和训练记录", "异常现场处置", "预约与电话随访"] }
 ];
 
 export function StaffLogin({
   onLogin,
   onBack
 }: {
-  onLogin: (role: StaffRole) => void;
+  onLogin: (role: StaffRole, username: string, name: string) => void;
   onBack: () => void;
 }) {
   const [selectedRole, setSelectedRole] = useState<StaffRole>("REHAB_EXECUTION");
-  const [username, setUsername] = useState("rehab.zhou");
+  const [username, setUsername] = useState("rehab001");
   const [password, setPassword] = useState("123456");
   const [error, setError] = useState("");
   const selected = demoAccounts.find((account) => account.role === selectedRole) ?? demoAccounts[1];
@@ -38,11 +40,11 @@ export function StaffLogin({
 
   function login() {
     const account = demoAccounts.find((item) => item.username === username && item.role === selectedRole);
-    if (!account || password !== "123456") {
-      setError("账号或密码不匹配。演示密码统一为 123456。");
+    if (!account || !["123456", "1234567"].includes(password)) {
+      setError("账号或密码不匹配。演示密码为 123456 或 1234567。");
       return;
     }
-    onLogin(account.role);
+    onLogin(account.role, account.username, account.name);
   }
 
   return (
@@ -67,11 +69,11 @@ export function StaffLogin({
 
           <section className="p-10">
             <div className="flex items-start justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">STAFF SIGN IN</p><h2 className="mt-2 text-2xl font-bold text-slate-900">登录医护工作站</h2><p className="mt-2 text-xs text-slate-500">选择预设演示岗位，查看对应权限效果。</p></div><span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-700">脱敏 Demo</span></div>
-            <div className="mt-7 grid grid-cols-2 gap-3">
-              {demoAccounts.map((account) => {
+            <div className="mt-7 grid grid-cols-3 gap-3">
+              {demoAccounts.filter((account) => account.username !== "doctor002").map((account) => {
                 const Icon = account.icon;
                 const active = selectedRole === account.role;
-                return <button type="button" key={account.role} onClick={() => chooseAccount(account.role)} className={`rounded-xl border p-3 text-left ${active ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 hover:border-blue-200"}`}><Icon className={`h-5 w-5 ${active ? "text-blue-600" : "text-slate-400"}`} /><p className="mt-3 text-xs font-bold text-slate-800">{roleMeta[account.role].label}</p><p className="mt-1 text-[9px] text-slate-400">{account.scope}</p></button>;
+                return <button type="button" key={account.username} onClick={() => chooseAccount(account.role)} className={`rounded-xl border p-3 text-left ${active ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 hover:border-blue-200"}`}><Icon className={`h-5 w-5 ${active ? "text-blue-600" : "text-slate-400"}`} /><p className="mt-3 text-xs font-bold text-slate-800">{roleMeta[account.role].label}</p><p className="mt-1 text-[9px] text-slate-400">{account.scope}</p></button>;
               })}
             </div>
             <div className="mt-6 grid grid-cols-2 gap-4">
@@ -84,7 +86,7 @@ export function StaffLogin({
               <div className="mt-3 grid grid-cols-2 gap-2">{selected.permissions.map((item) => <span key={item} className="rounded-lg bg-white px-3 py-2 text-[10px] text-slate-600 ring-1 ring-blue-100">{item}</span>)}</div>
             </div>
             <button type="button" onClick={login} className="btn-primary mt-6 w-full py-3.5 text-sm">以{roleMeta[selectedRole].label}身份登录<ArrowRight className="h-4 w-4" /></button>
-            <p className="mt-3 text-center text-[10px] text-slate-400">演示账号密码统一为 123456 · 不连接真实身份认证服务</p>
+            <p className="mt-3 text-center text-[10px] text-slate-400">账号：admin / doctor001 / doctor002 / rehab001 · 密码 123456 或 1234567</p>
           </section>
         </div>
       </div>

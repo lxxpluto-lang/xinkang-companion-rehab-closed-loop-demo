@@ -7,6 +7,9 @@ import { PatientApp } from "./patient/PatientApp";
 import { AdminConsolePage } from "./pages/AdminConsolePage";
 import { AssessmentWorkspacePage } from "./pages/AssessmentWorkspacePage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
+import { AlertManagementPage } from "./pages/AlertManagementPage";
+import { AppointmentManagementPage } from "./pages/AppointmentManagementPage";
 import { NurseStationPage } from "./pages/NurseStationPage";
 import { FollowUpManagementPage, type FollowUpView } from "./pages/FollowUpManagementPage";
 import { initialPatients, PatientArchivePage, type ManagedPatient, type PatientWorkspaceTab } from "./pages/PatientArchivePage";
@@ -26,12 +29,14 @@ import {
   initialPatientClinicalProfiles,
   initialPrescriptionContents,
   type ClinicalNarrativeRecord,
-  type PatientClinicalProfile
+  type PatientClinicalProfile,
+  type PrescriptionContent
 } from "./prescriptionWorkspaceData";
 import type { DoctorPageKey, StaffRole, TrainingState } from "./types";
 import { createDemoAssessmentRecords, type AssessmentRecord } from "./assessmentData";
 import type { RehabReport } from "./dischargeHandbookData";
 import { initialTreatmentRecords, type CardiopulmonaryTreatmentRecord } from "./treatmentData";
+import { initialAlertEvents, initialAlertRules, initialAppointments, initialPrescriptionTasks, type AlertEvent, type AlertRule, type Appointment, type PrescriptionTask } from "./clinicalWorkflowData";
 
 type SystemKey = "chooser" | "staffLogin" | "doctor" | "patient";
 const adminConsolePages: DoctorPageKey[] = ["orgPermissions", "documentConfig"];
@@ -48,6 +53,8 @@ export default function App() {
   const queryTab = query.get("tab") as PatientWorkspaceTab | null;
   const [system, setSystem] = useState<SystemKey>(query.get("system") === "staff" ? "doctor" : "chooser");
   const [role, setRole] = useState<StaffRole>("REHAB_EXECUTION");
+  const [accountId, setAccountId] = useState("rehab001");
+  const [accountName, setAccountName] = useState("周康复师");
   const [doctorPage, setDoctorPage] = useState<DoctorPageKey>(queryPage ?? "dashboard");
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(standalonePatientId || null);
   const [patientInitialTab, setPatientInitialTab] = useState<PatientWorkspaceTab>(queryTab ?? "profile");
@@ -64,11 +71,18 @@ export default function App() {
   const [trainingState, setTrainingState] = useState<TrainingState>("ready");
   const [anomaly, setAnomaly] = useState(false);
   const [trainingVideos, setTrainingVideos] = useState<TrainingVideo[]>(initialTrainingVideos);
+  const [prescriptionTasks, setPrescriptionTasks] = useState<PrescriptionTask[]>(() => readDemoStore("xinkang-prescription-tasks", initialPrescriptionTasks));
+  const [alertEvents, setAlertEvents] = useState<AlertEvent[]>(() => readDemoStore("xinkang-alert-events", initialAlertEvents));
+  const [alertRules, setAlertRules] = useState<AlertRule[]>(() => readDemoStore("xinkang-alert-rules", initialAlertRules));
+  const [appointments, setAppointments] = useState<Appointment[]>(() => readDemoStore("xinkang-appointments", initialAppointments));
 
-  const currentAccount = roleMeta[role].account;
+  const currentAccount = accountName || roleMeta[role].account;
   const scopedFollowUpTasks = followUpTasks;
   const publishedTrainingVideos = trainingVideos.filter((video) => video.status === "PUBLISHED" && video.url);
-  const publishedPatientPrescription = initialPrescriptionContents["RX-TASK-001"];
+  const signedPatientTask = prescriptionTasks.find((task) => task.patientId === "P-DEMO-001" && task.status === "completed" && task.doctorFinal);
+  const publishedPatientPrescription = signedPatientTask?.doctorFinal
+    ? mergePublishedPrescription(initialPrescriptionContents["RX-TASK-001"], signedPatientTask.doctorFinal)
+    : initialPrescriptionContents["RX-TASK-001"];
 
   useEffect(() => {
     const sync = (event: StorageEvent) => {
@@ -79,6 +93,11 @@ export default function App() {
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
   }, []);
+
+  useEffect(() => { localStorage.setItem("xinkang-prescription-tasks", JSON.stringify(prescriptionTasks)); }, [prescriptionTasks]);
+  useEffect(() => { localStorage.setItem("xinkang-alert-events", JSON.stringify(alertEvents)); }, [alertEvents]);
+  useEffect(() => { localStorage.setItem("xinkang-alert-rules", JSON.stringify(alertRules)); }, [alertRules]);
+  useEffect(() => { localStorage.setItem("xinkang-appointments", JSON.stringify(appointments)); }, [appointments]);
 
   function resetViewScroll() {
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
@@ -97,6 +116,9 @@ export default function App() {
 
   function changeRole(nextRole: StaffRole) {
     setRole(nextRole);
+    if (nextRole === "ADMIN") { setAccountId("admin"); setAccountName("林管理员"); }
+    if (nextRole === "DOCTOR") { setAccountId("doctor001"); setAccountName("王医生"); }
+    if (nextRole === "REHAB_EXECUTION") { setAccountId("rehab001"); setAccountName("周康复师"); }
     if (!canAccessPage(nextRole, doctorPage)) setDoctorPage(firstPageForRole(nextRole));
     setSelectedFollowUpTaskId(null);
   }
@@ -265,7 +287,7 @@ export default function App() {
   if (system === "chooser") return <SystemChooser onChoose={(target) => setSystem(target === "doctor" ? "staffLogin" : "patient")} />;
 
   if (system === "staffLogin") {
-    return <StaffLogin onBack={() => setSystem("chooser")} onLogin={(nextRole) => { setRole(nextRole); setDoctorPage(firstPageForRole(nextRole)); setSystem("doctor"); }} />;
+    return <StaffLogin onBack={() => setSystem("chooser")} onLogin={(nextRole, username, name) => { setRole(nextRole); setAccountId(username); setAccountName(name); setDoctorPage(firstPageForRole(nextRole)); setSystem("doctor"); }} />;
   }
 
   if (system === "patient") {
@@ -273,20 +295,23 @@ export default function App() {
   }
 
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
-    dashboard: <DashboardPage role={role} patients={patients} followUpTasks={scopedFollowUpTasks} onOpenFollowUps={openFollowUps} onOpenReports={() => { setSelectedPatientId("P-DEMO-001"); setPatientInitialTab("sessions"); navigateDoctor("patients"); }} onOpenTraining={() => navigateDoctor("training")} />,
+    dashboard: <DashboardPage role={role} patients={patients} followUpTasks={scopedFollowUpTasks} prescriptionTasks={prescriptionTasks} alertEvents={alertEvents} appointments={appointments} accountId={accountId} onOpenFollowUps={openFollowUps} onOpenReports={() => { setSelectedPatientId("P-DEMO-001"); setPatientInitialTab("sessions"); navigateDoctor("patients"); }} onOpenTraining={() => navigateDoctor("training")} onNavigate={navigateDoctor} />,
     patients: <PatientArchivePage key={`${role}-${selectedPatientId ?? "list"}-${patientInitialTab}-${standaloneRecordId}`} role={role} currentAccount={currentAccount} patients={patients} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} rehabReports={rehabReports} initialPatientId={selectedPatientId} initialTab={patientInitialTab} initialRecordId={standaloneRecordId || null} initialRecordKind={standaloneRecordKind || null} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onSaveTreatmentRecord={saveTreatmentRecord} onSaveRehabReport={saveRehabReport} />,
     assessment: <AssessmentWorkspacePage key={`${role}-${selectedPatientId ?? "all"}-${standaloneRecordId}`} role={role} currentAccount={currentAccount} patients={patients} records={assessmentRecords} initialPatientId={selectedPatientId} initialRecordId={standaloneRecordId || null} onSave={saveAssessmentRecord} onBack={closeAssessment} />,
     followups: <FollowUpManagementPage key={`${role}-${followUpEntryView}-${selectedFollowUpTaskId ?? "list"}`} role={role} currentAccount={currentAccount} patients={patients} tasks={followUpTasks} records={followUpRecords} initialView={followUpEntryView} initialTaskId={selectedFollowUpTaskId} onSaveRecord={saveFollowUpRecord} onOpenPatient={openPatient} />,
     training: <NurseStationPage role={role} />,
+    prescriptions: <PrescriptionManagementPage role={role} accountId={accountId} tasks={prescriptionTasks} setTasks={setPrescriptionTasks} />,
+    alerts: <AlertManagementPage role={role} events={alertEvents} setEvents={setAlertEvents} rules={alertRules} setRules={setAlertRules} />,
+    appointments: <AppointmentManagementPage role={role} accountId={accountId} appointments={appointments} setAppointments={setAppointments} />,
     videoConfig: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />
   };
 
   for (const page of adminConsolePages) {
-    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "assessment" | "followups" | "report" | "training" | "videoConfig">} />;
+    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "assessment" | "followups" | "report" | "training" | "videoConfig" | "prescriptions" | "alerts" | "appointments">} />;
   }
 
   return (
-    <DoctorLayout page={doctorPage} role={role} onRoleChange={changeRole} onNavigate={navigateDoctor} onExit={() => setSystem("staffLogin")}>
+    <DoctorLayout page={doctorPage} role={role} currentAccount={currentAccount} onRoleChange={changeRole} onNavigate={navigateDoctor} onExit={() => setSystem("staffLogin")}>
       {doctorContent[doctorPage]}
     </DoctorLayout>
   );
@@ -299,4 +324,40 @@ function readDemoStore<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function mergePublishedPrescription(base: PrescriptionContent, draft: NonNullable<PrescriptionTask["doctorFinal"]>): PrescriptionContent {
+  const byCategory = (category: string) => draft.items.find((item) => item.category === category);
+  const breathing = byCategory("呼吸训练");
+  const warmup = byCategory("热身运动");
+  const aerobic = byCategory("有氧运动");
+  const resistance = byCategory("抗阻训练");
+  const flexibility = byCategory("柔韧性训练");
+  return {
+    ...base,
+    breathingModes: breathing ? [breathing.project] : base.breathingModes,
+    breathingIntensity: breathing?.intensity ?? base.breathingIntensity,
+    breathingTime: breathing?.duration ?? base.breathingTime,
+    breathingFrequency: breathing?.frequency ?? base.breathingFrequency,
+    warmupModes: warmup ? [warmup.project] : base.warmupModes,
+    warmupTime: warmup?.duration ?? base.warmupTime,
+    warmupFrequency: warmup?.frequency ?? base.warmupFrequency,
+    aerobicModes: aerobic ? [aerobic.project] : base.aerobicModes,
+    aerobicIntensity: aerobic?.intensity ?? base.aerobicIntensity,
+    aerobicTime: aerobic?.duration ?? base.aerobicTime,
+    aerobicFrequency: aerobic?.frequency ?? base.aerobicFrequency,
+    resistanceModes: resistance ? [resistance.project] : base.resistanceModes,
+    resistanceIntensity: resistance?.intensity ?? base.resistanceIntensity,
+    resistanceTime: resistance?.duration ?? base.resistanceTime,
+    resistanceFrequency: resistance?.frequency ?? base.resistanceFrequency,
+    flexibilityModes: flexibility ? [flexibility.project] : base.flexibilityModes,
+    flexibilityIntensity: flexibility?.intensity ?? base.flexibilityIntensity,
+    flexibilityTime: flexibility?.duration ?? base.flexibilityTime,
+    flexibilityFrequency: flexibility?.frequency ?? base.flexibilityFrequency,
+    dietCautions: draft.dietAdvice,
+    exerciseCautions: draft.exerciseAdvice,
+    stopConditions: draft.stopConditions,
+    patientInstruction: `${draft.summary} ${draft.exerciseAdvice}`,
+    remark: `处方已由责任医生签署发布。${draft.summary}`
+  };
 }

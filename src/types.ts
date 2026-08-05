@@ -1,6 +1,9 @@
 export type DoctorPageKey =
   | "dashboard"
   | "patients"
+  | "prescriptions"
+  | "alerts"
+  | "appointments"
   | "followups"
   | "assessment"
   | "report"
@@ -162,7 +165,7 @@ export type StageReport = {
   confirmedAt?: string;
 };
 
-export type StaffRole = "ADMIN" | "REHAB_EXECUTION";
+export type StaffRole = "ADMIN" | "DOCTOR" | "REHAB_EXECUTION";
 export type PatientStatus = "prescription_opened" | "rehabilitation" | "recovered";
 export type AssessmentInputMode = "batch_ocr" | "single_ocr" | "manual";
 export type RecordStatus = "draft" | "completed";

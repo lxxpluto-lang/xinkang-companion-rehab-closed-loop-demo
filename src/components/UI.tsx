@@ -97,9 +97,9 @@ export function StatCard({
 }: {
   label: string;
   value: string;
-  note: string;
+  note?: string;
   tone?: Tone;
-  icon: ReactNode;
+  icon?: ReactNode;
 }) {
   const accent: Record<Tone, string> = {
     green: "bg-emerald-50 text-emerald-700",
@@ -111,12 +111,12 @@ export function StatCard({
   return (
     <article className="card p-5" data-metric={`METRIC-${label}`}>
       <div className="flex items-start justify-between">
-        <div className={`rounded-xl p-2.5 ${accent[tone]}`}>{icon}</div>
+        {icon ? <div className={`rounded-xl p-2.5 ${accent[tone]}`}>{icon}</div> : <span />}
         {tone === "red" && <span className="h-2.5 w-2.5 rounded-full bg-red-500" />}
       </div>
       <p className="mt-5 text-sm font-medium text-slate-500">{label}</p>
       <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{value}</p>
-      <p className="mt-2 text-xs text-slate-500">{note}</p>
+      {note && <p className="mt-2 text-xs text-slate-500">{note}</p>}
     </article>
   );
 }
