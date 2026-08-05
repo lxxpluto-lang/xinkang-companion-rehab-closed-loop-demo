@@ -117,8 +117,253 @@ textarea:focus-visible {
     @apply mb-2 block text-sm font-semibold text-slate-700;
   }
 
-  .text-field {
+.text-field {
     @apply w-full rounded-[10px] border border-[#d5e1e7] bg-white px-3.5 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-medical-500;
+  }
+}
+
+.assessment-cell {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px 8px;
+  color: #334155;
+  font-size: 12px;
+  outline: none;
+}
+
+.assessment-cell:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.12);
+}
+
+.assessment-cell:disabled {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.treatment-print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 9mm 10mm;
+  }
+
+  .doctor-shell aside,
+  .doctor-shell header,
+  .doctor-shell footer,
+  .btn-primary,
+  .btn-secondary {
+    display: none !important;
+  }
+
+  .doctor-shell > div {
+    margin-left: 0 !important;
+  }
+
+  .doctor-main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .treatment-screen {
+    display: none !important;
+  }
+
+  .treatment-print-sheet {
+    display: block !important;
+    width: 190mm;
+    min-height: 277mm;
+    margin: 0 auto;
+    background: #fff;
+    color: #111;
+    font-family: "Songti SC", "STSong", "SimSun", serif;
+    font-size: 10.5pt;
+    line-height: 1.45;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .treatment-print-header {
+    padding: 1mm 0 2mm;
+    text-align: center;
+  }
+
+  .treatment-print-header p {
+    margin: 0 0 2mm;
+    font-size: 10pt;
+    letter-spacing: .18em;
+  }
+
+  .treatment-print-header h1 {
+    margin: 0;
+    font-family: "Heiti SC", "SimHei", sans-serif;
+    font-size: 20pt;
+    font-weight: 700;
+    letter-spacing: .12em;
+  }
+
+  .treatment-print-rule {
+    margin-top: 2mm;
+    border-bottom: .45mm solid #111;
+  }
+
+  .treatment-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .treatment-print-table th,
+  .treatment-print-table td {
+    border: .25mm solid #111;
+    padding: 1.5mm 2mm;
+    vertical-align: top;
+    font-weight: 400;
+  }
+
+  .treatment-print-demographics tr:first-child td {
+    border-top: 0;
+  }
+
+  .treatment-print-demographics tr:first-child td:nth-child(1) { width: 15%; }
+  .treatment-print-demographics tr:first-child td:nth-child(2) { width: 22%; }
+  .treatment-print-demographics tr:first-child td:nth-child(3) { width: 13%; }
+  .treatment-print-demographics tr:first-child td:nth-child(4) { width: 16%; }
+  .treatment-print-demographics tr:first-child td:nth-child(5) { width: 34%; }
+
+  .treatment-print-demographics th {
+    width: 18mm;
+    white-space: nowrap;
+  }
+
+  .treatment-print-value {
+    display: inline-block;
+    min-width: 14mm;
+    border-bottom: .25mm solid #222;
+    padding: 0 1mm;
+    text-align: center;
+  }
+
+  .treatment-print-value.is-wide {
+    min-width: 120mm;
+    text-align: left;
+  }
+
+  .treatment-print-record {
+    margin-top: -0.25mm;
+  }
+
+  .treatment-print-record thead th {
+    padding: 1.2mm;
+    text-align: center;
+    font-weight: 700;
+  }
+
+  .treatment-print-count {
+    width: 12mm;
+    text-align: center;
+  }
+
+  .treatment-print-vertical {
+    padding: 4mm 2mm !important;
+    vertical-align: middle !important;
+    writing-mode: vertical-rl;
+    letter-spacing: .25em;
+  }
+
+  .treatment-print-left {
+    width: 76mm;
+    padding: 0 !important;
+  }
+
+  .treatment-print-right {
+    padding: 3mm !important;
+  }
+
+  .treatment-print-assessment {
+    min-height: 47mm;
+    border-bottom: .25mm solid #111;
+    padding: 3mm;
+  }
+
+  .treatment-print-assessment:last-child {
+    min-height: 25mm;
+    border-bottom: 0;
+  }
+
+  .treatment-print-assessment h2,
+  .treatment-print-right h2 {
+    margin: 0 0 2mm;
+    font-family: "Heiti SC", "SimHei", sans-serif;
+    font-size: 11pt;
+    font-weight: 700;
+  }
+
+  .treatment-print-assessment p {
+    margin: 1.1mm 0;
+  }
+
+  .treatment-print-right ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .treatment-print-right li {
+    margin: 0 0 2.2mm;
+    break-inside: avoid;
+  }
+
+  .treatment-print-checkbox {
+    display: inline-block;
+    width: 5mm;
+    font-family: "Heiti SC", "SimHei", sans-serif;
+    font-weight: 400;
+  }
+
+  .treatment-print-adjustment {
+    margin: 2mm 0 5mm;
+    font-weight: 700;
+  }
+
+  .treatment-print-signatures {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6mm;
+    margin-top: 5mm;
+    align-items: end;
+  }
+
+  .treatment-print-signatures img {
+    display: inline-block;
+    width: 25mm;
+    height: 10mm;
+    object-fit: contain;
+    vertical-align: middle;
+  }
+
+  .treatment-print-sign-line {
+    display: inline-block;
+    width: 25mm;
+    border-bottom: .25mm solid #111;
+  }
+
+  .treatment-print-date {
+    margin: 3mm 0 0;
+    text-align: right;
+  }
+
+  .treatment-print-footer {
+    padding-top: 2mm;
+    text-align: right;
+    font-size: 8.5pt;
+    color: #333;
   }
 }
 

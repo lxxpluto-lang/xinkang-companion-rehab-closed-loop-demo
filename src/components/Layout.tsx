@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, HeartPulse, LockKeyhole, LogOut, Menu, ShieldCheck, UserRoundCog } from "lucide-react";
 import { navItems, roleMeta } from "../accessControl";
-import type { DoctorPageKey, Role } from "../types";
+import type { DoctorPageKey, StaffRole } from "../types";
 
 export function DoctorLayout({
   page,
@@ -12,8 +12,8 @@ export function DoctorLayout({
   children
 }: {
   page: DoctorPageKey;
-  role: Exclude<Role, "PATIENT">;
-  onRoleChange: (role: Exclude<Role, "PATIENT">) => void;
+  role: StaffRole;
+  onRoleChange: (role: StaffRole) => void;
   onNavigate: (page: DoctorPageKey) => void;
   onExit: () => void;
   children: React.ReactNode;
@@ -38,7 +38,7 @@ export function DoctorLayout({
             </div>
             <div>
               <p className="text-[15px] font-bold tracking-wide text-slate-900">心康伴侣</p>
-              <p className="mt-0.5 text-[9px] text-slate-400">医护 Web 工作站</p>
+              <p className="mt-0.5 text-[9px] text-slate-400">康复管理工作站</p>
             </div>
           </div>
         </div>
@@ -97,12 +97,11 @@ export function DoctorLayout({
                 <select
                   aria-label="切换演示角色"
                   value={role}
-                  onChange={(event) => onRoleChange(event.target.value as Exclude<Role, "PATIENT">)}
+                  onChange={(event) => onRoleChange(event.target.value as StaffRole)}
                   className="absolute inset-0 cursor-pointer opacity-0"
                 >
                   <option value="ADMIN">系统管理员</option>
-                  <option value="DOCTOR">康复医生</option>
-                  <option value="REHAB_EXECUTION">康复执行岗</option>
+                  <option value="REHAB_EXECUTION">康复师</option>
                 </select>
                 <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
               </label>
@@ -114,7 +113,7 @@ export function DoctorLayout({
           </div>
         </header>
         <main className="doctor-main mx-auto max-w-[1540px] p-5">{children}</main>
-        <footer className="px-6 pb-5 text-center text-[9px] text-slate-400">医护 Web 端 · 角色权限与操作审计演示</footer>
+        <footer className="px-6 pb-5 text-center text-[9px] text-slate-400">康复管理端 · 角色权限与操作审计演示</footer>
       </div>
     </div>
   );

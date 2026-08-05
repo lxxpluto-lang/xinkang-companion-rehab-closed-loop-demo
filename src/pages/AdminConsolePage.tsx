@@ -34,11 +34,11 @@ const actionLabels: Record<PermissionAction, string> = {
 };
 
 const documentRows = [
-  { name: "运动处方打印模板", detail: "A4 医疗文书版 · V2.1", status: "已生效", owner: "医务科" },
+  { name: "治疗记录打印模板", detail: "A4 表格文书版 · V2.1", status: "已生效", owner: "康复中心" },
   { name: "单次报告模板", detail: "指标、趋势、异常、结论", status: "已生效", owner: "康复医学科" },
-  { name: "阶段报告模板", detail: "四版本处方演变", status: "已生效", owner: "康复医学科" },
-  { name: "王医生数字签名", detail: "证书有效至 2027-07-01", status: "有效", owner: "王医生" },
-  { name: "签署二次确认规则", detail: "高风险处方签署需本人确认", status: "有效", owner: "医务科" }
+  { name: "阶段报告模板", detail: "按所选训练记录汇总", status: "已生效", owner: "康复医学科" },
+  { name: "康复师电子签名", detail: "治疗记录签名图片模板", status: "有效", owner: "周康复师" },
+  { name: "签名日期规则", detail: "签名必须记录治疗日期和签署时间", status: "有效", owner: "康复中心" }
 ];
 
 export function AdminConsolePage({ page }: { page: AdminConsolePageKey }) {
@@ -66,7 +66,7 @@ function OrgPermissionsPage() {
 }
 
 function OrganizationSheet() {
-  const [enabled, setEnabled] = useState<Record<string, boolean>>({ "王医生": true, "周康复师": true, "刘护士": true, "赵医生": false });
+  const [enabled, setEnabled] = useState<Record<string, boolean>>({ "林管理员": true, "周康复师": true, "刘康复师": true });
   return (
     <div className="grid grid-cols-[0.82fr_1.18fr] gap-5">
       <section className="card p-5">
@@ -75,7 +75,7 @@ function OrganizationSheet() {
           {[
             ["合作康复中心", "主机构", "1 个院区"],
             ["验证院区", "院区", "1 个康复团队"],
-            ["康复科", "科室", "医生与执行岗共用"],
+            ["康复科", "科室", "管理员与康复师共用"],
             ["院内Ⅱ期康复团队", "验证中心", "本 Demo 数据边界"]
           ].map(([name, type, detail], index) => (
             <div key={name} className={`flex items-center gap-3 rounded-xl border p-3 ${index === 3 ? "border-blue-200 bg-blue-50" : "border-slate-100"}`}>
@@ -99,10 +99,9 @@ function OrganizationSheet() {
           </thead>
           <tbody>
             {[
-              ["王医生", "康复医生", "医疗团队", "院内Ⅱ期康复中心"],
-              ["周康复师", "康复执行岗", "当前中心", "院内Ⅱ期康复中心"],
-              ["刘护士", "康复执行岗", "当前中心", "院内Ⅱ期康复中心"],
-              ["赵医生", "康复医生", "医疗团队", "院内Ⅱ期康复中心"]
+              ["林管理员", "系统管理员", "配置权限", "院内Ⅱ期康复中心"],
+              ["周康复师", "康复师", "当前中心", "院内Ⅱ期康复中心"],
+              ["刘康复师", "康复师", "当前中心", "院内Ⅱ期康复中心"]
             ].map(([name, role, scope, center]) => (
               <tr className="border-t border-slate-100" key={name}>
                 <td className="px-4 py-3 font-bold text-slate-800">{name}</td>
@@ -124,7 +123,7 @@ function OrganizationSheet() {
 }
 
 function PermissionSheet() {
-  const [selectedRole, setSelectedRole] = useState<Exclude<Role, "PATIENT">>("DOCTOR");
+  const [selectedRole, setSelectedRole] = useState<Exclude<Role, "PATIENT">>("REHAB_EXECUTION");
   const [actions, setActions] = useState<Record<Exclude<Role, "PATIENT">, PermissionAction[]>>({
     ADMIN: [...roleActions.ADMIN],
     DOCTOR: [...roleActions.DOCTOR],
@@ -139,8 +138,8 @@ function PermissionSheet() {
   }
   return (
     <>
-      <div className="mb-5 grid grid-cols-3 gap-4">
-        {(["ADMIN", "DOCTOR", "REHAB_EXECUTION"] as const).map((role) => (
+      <div className="mb-5 grid grid-cols-2 gap-4">
+        {(["ADMIN", "REHAB_EXECUTION"] as const).map((role) => (
           <button key={role} type="button" onClick={() => { setSelectedRole(role); setSaved(false); }} className={`card p-4 text-left ${selectedRole === role ? "border-blue-300 ring-2 ring-blue-100" : ""}`}>
             <div className="flex items-center justify-between">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><UserCog className="h-4 w-4" /></span>
@@ -176,10 +175,10 @@ function PermissionSheet() {
             {[
               ["菜单范围", selectedRole === "ADMIN" ? "核心业务 + 4 个后台菜单" : "核心业务 + 授权后台菜单"],
               ["数据范围", roleMeta[selectedRole].scope === "ALL" ? "全部验证数据" : roleMeta[selectedRole].scope === "TEAM" ? "医疗团队" : "当前康复中心"],
-              ["患者数据", selectedRole === "DOCTOR" ? "团队患者共享查看；本人患者资料可核对" : selectedRole === "ADMIN" ? "全部患者只读查看" : "中心患者基础资料、评估与训练事实可维护"],
-              ["随访管理", selectedRole === "DOCTOR" ? "仅本人患者可沟通、改期和完成" : selectedRole === "ADMIN" ? "全院随访只读查看" : "无随访管理入口"],
+              ["患者数据", selectedRole === "ADMIN" ? "全部患者只读查看" : "中心患者基础资料、评估与训练事实可维护"],
+              ["随访管理", selectedRole === "ADMIN" ? "全部随访只读查看" : "人工电话记录、改期和完成"],
               ["视频资源", selectedRole === "ADMIN" ? "发布、下架、删除" : "草稿、编辑、提交发布"],
-              ["签署动作", selectedRole === "DOCTOR" || selectedRole === "ADMIN" ? "可签署本人任务" : "不可签署"]
+              ["签署动作", selectedRole === "ADMIN" ? "只能配置模板，不能业务签署" : "仅签署本人治疗记录"]
             ].map(([label, value]) => (
               <div className="rounded-xl bg-slate-50 p-3" key={label}>
                 <p className="text-[9px] text-slate-400">{label}</p>
@@ -195,19 +194,19 @@ function PermissionSheet() {
 
 function DocumentConfigPage() {
   const [activeConfig, setActiveConfig] = useState<string | null>(null);
-  const [signatureFile, setSignatureFile] = useState("王医生-签名.png");
+  const [signatureFile, setSignatureFile] = useState("周康复师-签名.png");
   const [saved, setSaved] = useState(false);
   return (
     <section data-testid="page-VIEW-DOCUMENTCONFIG">
       <PageHeader
         eyebrow="3个月验证版 · 文书闭环"
         title="报告打印签名"
-        description="保留处方打印、报告模板和数字签名，支撑医生复核、签署和线下沟通。"
+        description="保留治疗记录、报告打印与康复师签名模板；管理员只能配置，不能代签。"
         action={<StatusBadge tone="blue"><ShieldCheck className="h-3.5 w-3.5" />核心文书</StatusBadge>}
       />
       <section className="card overflow-hidden">
         <div className="flex items-center justify-between p-5">
-          <SectionHeader title="模板与签名配置" description="验证期只维护报告、处方和医生签名相关配置。" />
+          <SectionHeader title="模板与签名配置" description="验证期只维护治疗记录、报告和康复师签名配置。" />
           <button className="btn-primary"><Plus className="h-4 w-4" />新增配置</button>
         </div>
         <table className="w-full text-left text-xs">
@@ -227,7 +226,7 @@ function DocumentConfigPage() {
           </tbody>
         </table>
       </section>
-      {activeConfig && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm"><section className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold text-blue-600">后台配置</p><h2 className="mt-1 text-xl font-bold text-slate-950">{activeConfig}</h2></div><button type="button" onClick={() => setActiveConfig(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100" aria-label="关闭配置"><X className="h-4 w-4" /></button></div>{activeConfig === "王医生数字签名" ? <div className="mt-5 space-y-4"><div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-900">处方签署时只允许本人使用已配置签名；管理员可以配置模板，但不能代替医生签署。</div><label className="block"><span className="field-label">上传签名图片</span><input type="file" accept="image/png,image/jpeg" onChange={(event) => setSignatureFile(event.target.files?.[0]?.name ?? signatureFile)} className="mt-2 block w-full rounded-xl border border-slate-200 p-3 text-xs" /></label><div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3"><div className="flex h-16 w-28 items-center justify-center rounded-lg bg-white text-2xl italic text-slate-700 shadow-sm">王医生</div><div><p className="text-xs font-bold text-slate-800">当前文件</p><p className="mt-1 text-[10px] text-slate-500">{signatureFile}</p></div></div></div> : <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900"><b>康复报告模板预览</b><p className="mt-2">网页预览使用成长进度、生命体征前后对照和阶段勋章等轻量动画；打印/PDF 输出静态、清晰的医疗文书。</p></div>}<div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setActiveConfig(null)} className="btn-secondary">取消</button><button type="button" onClick={() => setSaved(true)} className="btn-primary"><Save className="h-4 w-4" />保存配置</button>{saved && <span className="self-center text-xs font-bold text-emerald-600">已保存</span>}</div></section></div>}
+      {activeConfig && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm"><section className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold text-blue-600">后台配置</p><h2 className="mt-1 text-xl font-bold text-slate-950">{activeConfig}</h2></div><button type="button" onClick={() => setActiveConfig(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100" aria-label="关闭配置"><X className="h-4 w-4" /></button></div>{activeConfig === "康复师电子签名" ? <div className="mt-5 space-y-4"><div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-900">治疗记录签署只允许康复师使用本人签名；管理员可以配置模板，但不能代替业务签署。</div><label className="block"><span className="field-label">上传签名图片</span><input type="file" accept="image/png,image/jpeg" onChange={(event) => setSignatureFile(event.target.files?.[0]?.name ?? signatureFile)} className="mt-2 block w-full rounded-xl border border-slate-200 p-3 text-xs" /></label><div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3"><div className="flex h-16 w-28 items-center justify-center rounded-lg bg-white text-2xl italic text-slate-700 shadow-sm">周康复师</div><div><p className="text-xs font-bold text-slate-800">当前文件</p><p className="mt-1 text-[10px] text-slate-500">{signatureFile}</p></div></div></div> : <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900"><b>康复报告模板预览</b><p className="mt-2">网页预览使用成长进度、生命体征前后对照和阶段勋章等轻量动画；打印/PDF 输出静态、清晰的医疗文书。</p></div>}<div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setActiveConfig(null)} className="btn-secondary">取消</button><button type="button" onClick={() => setSaved(true)} className="btn-primary"><Save className="h-4 w-4" />保存配置</button>{saved && <span className="self-center text-xs font-bold text-emerald-600">已保存</span>}</div></section></div>}
     </section>
   );
 }

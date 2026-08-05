@@ -117,7 +117,7 @@ export function FollowUpManagementPage({
   const roleLabel = role === "DOCTOR" ? "我的随访管理" : role === "REHAB_EXECUTION" ? "康复执行随访" : "全院随访管理";
 
   return <section data-testid="page-VIEW-FOLLOWUPS">
-    <PageHeader eyebrow="院后康复管理" title={roleLabel} description={role === "DOCTOR" ? `仅展示主管医生为${currentAccount}的患者；出院报告发布后自动生成1、3、6个月提醒任务。` : role === "REHAB_EXECUTION" ? "优先发送短信或在线消息提醒；需要收集口述情况时由康复师人工电话联系，高风险提交医生复核。" : "管理员可查看全部医生的消息提醒与人工随访记录，但不能代医护完成随访。"} action={<StatusBadge tone={role === "DOCTOR" ? "blue" : role === "REHAB_EXECUTION" ? "orange" : "gray"}>{role === "DOCTOR" ? "本人患者" : role === "REHAB_EXECUTION" ? "消息优先 · 人工补充" : "只读查看"}</StatusBadge>} />
+    <PageHeader eyebrow="院后康复管理" title={roleLabel} description={role === "REHAB_EXECUTION" ? "由康复师人工电话联系并记录患者口述；出现胸痛、晕厥、急诊或再住院时提示线下联系医疗人员。" : "管理员只读查看随访任务与记录，不能代替康复师完成随访。"} action={<StatusBadge tone={role === "REHAB_EXECUTION" ? "orange" : "gray"}>{role === "REHAB_EXECUTION" ? "人工电话随访" : "只读查看"}</StatusBadge>} />
 
     <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Metric label="7天内待随访" value={counts.soon} tone="blue" icon={<CalendarClock className="h-4 w-4" />} />
@@ -134,7 +134,7 @@ export function FollowUpManagementPage({
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[1.3fr_0.65fr_0.8fr_0.8fr_0.8fr_auto]">
           <label className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} className="text-field pl-9" placeholder="患者姓名、档案编码或病案号" /></label>
           <select aria-label="随访节点" value={milestone} onChange={(event) => setMilestone(event.target.value)} className="text-field"><option value="all">全部节点</option><option value="1">1个月</option><option value="3">3个月</option><option value="6">6个月</option></select>
-          <select aria-label="随访状态" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-field"><option value="all">全部状态</option><option value="upcoming">待随访</option><option value="due">今日到期</option><option value="overdue">已逾期</option><option value="rescheduled">已改期</option><option value="review_required">待医生复核</option><option value="completed">已完成</option></select>
+          <select aria-label="随访状态" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-field"><option value="all">全部状态</option><option value="upcoming">待随访</option><option value="due">今日到期</option><option value="overdue">已逾期</option><option value="rescheduled">已改期</option><option value="review_required">需线下联系</option><option value="completed">已完成</option></select>
           <input aria-label="计划日期开始" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="text-field" />
           <input aria-label="计划日期结束" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="text-field" />
           <button type="button" onClick={() => { setKeyword(""); setMilestone("all"); setStatusFilter("all"); setDateFrom(""); setDateTo(""); }} className="btn-secondary">重置</button>
@@ -235,7 +235,7 @@ function FollowUpModal({ task, patient, record, readOnly, currentAccount, role, 
       </>}
       {!!task.rescheduleHistory.length && <section className="mt-5"><SectionHeader title="改期记录" /><div className="space-y-2">{task.rescheduleHistory.map((item, index) => <div key={`${item.changedAt}-${index}`} className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">{item.fromDate} → {item.toDate} · {item.reason} · {item.changedBy}</div>)}</div></section>}
     </div>
-    <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4 sm:px-6"><button type="button" onClick={onClose} className="btn-secondary">{readOnly ? "关闭" : "取消"}</button>{!readOnly && <button type="button" onClick={submit} className="btn-primary"><Save className="h-4 w-4" />{reached && highRisk && role === "REHAB_EXECUTION" ? "提交医生复核" : reached ? "完成随访" : "保存联系结果"}</button>}</div>
+    <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4 sm:px-6"><button type="button" onClick={onClose} className="btn-secondary">{readOnly ? "关闭" : "取消"}</button>{!readOnly && <button type="button" onClick={submit} className="btn-primary"><Save className="h-4 w-4" />{reached && highRisk && role === "REHAB_EXECUTION" ? "保存并标记线下联系" : reached ? "完成随访" : "保存联系结果"}</button>}</div>
   </div></div>;
 }
 

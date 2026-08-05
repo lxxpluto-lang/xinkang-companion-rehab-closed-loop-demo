@@ -1,7 +1,7 @@
 import type { ManagedPatient } from "./pages/PatientArchivePage";
 
-export type AssessmentStatus = "draft" | "therapist_confirmed" | "doctor_reviewed";
-export type AssessmentSource = "manual" | "ocr" | "device";
+export type AssessmentStatus = "draft" | "completed" | "therapist_confirmed" | "doctor_reviewed";
+export type AssessmentSource = "manual" | "ocr_single" | "ocr_batch" | "device";
 
 export type SPPBAssessment = {
   balance: {
@@ -42,6 +42,7 @@ export type AssessmentRecord = {
   source: AssessmentSource;
   status: AssessmentStatus;
   sourceNote: string;
+  ocrConfidence?: number;
   patientSnapshot: { name: string; gender: string; age: number; hospitalPatientNo: string; diagnosis: string };
   weightKg: number | null;
   preVitals: { bloodPressure: string; pulse: number | null };
@@ -51,6 +52,7 @@ export type AssessmentRecord = {
   therapist?: string;
   doctor?: string;
   enteredBy: string;
+  completedAt?: string;
   confirmedAt?: string;
   reviewedAt?: string;
   ruleVersion: string;
@@ -136,5 +138,5 @@ export function createDemoAssessmentRecords(patients: ManagedPatient[]): Assessm
     chairStand: { trial1Sec: 14.2, trial2Sec: 13.8, fastestSec: null, score: 0 },
     maxWalkingSpeedMs: { trial1: 0.62, trial2: 0.66, fastest: 0.66 }
   });
-  return [{ ...record, assessedAt: "2026-07-20T09:30:00+08:00", source: "manual", status: "doctor_reviewed", sourceNote: "康复师现场人工采集并确认", weightKg: 62.4, preVitals: { bloodPressure: "128/78", pulse: 72 }, postVitals: { bloodPressure: "136/82", pulse: 88 }, sppb: { ...sppb, grip: { leftTrial1Kg: null, leftTrial2Kg: null, rightTrial1Kg: null, rightTrial2Kg: null }, canWalk100m: "yes", unableWalkReason: "", muscleStrength: { upper: "4级", lower: "4级" } }, notes: "演示数据，需以医院复核结果为准", therapist: "周康复师", doctor: "王医生", confirmedAt: "2026-07-20T10:00:00+08:00", reviewedAt: "2026-07-20T10:20:00+08:00" }];
+  return [{ ...record, assessedAt: "2026-07-20T09:30:00+08:00", source: "manual", status: "completed", sourceNote: "康复师现场人工采集", weightKg: 62.4, preVitals: { bloodPressure: "128/78", pulse: 72 }, postVitals: { bloodPressure: "136/82", pulse: 88 }, sppb: { ...sppb, grip: { leftTrial1Kg: 18.2, leftTrial2Kg: 18.6, rightTrial1Kg: 19.1, rightTrial2Kg: 19.4 }, canWalk100m: "yes", unableWalkReason: "", muscleStrength: { upper: "4级", lower: "4级" } }, notes: "演示数据，正式使用前需核对原始记录", therapist: "周康复师", completedAt: "2026-07-20T10:00:00+08:00" }];
 }

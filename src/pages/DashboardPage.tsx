@@ -18,7 +18,7 @@ export function DashboardPage({ role, patients, followUpTasks, onOpenFollowUps, 
   const patientMap = new Map(patients.map((patient) => [patient.patient_demo_id, patient]));
   if (role === "REHAB_EXECUTION") {
     return <section data-testid="page-VIEW-DASHBOARD">
-      <PageHeader eyebrow="康复执行岗 · 当前康复中心" title="周康复师，上午好" description="按患者实际到诊完成项目核对、训练前后评估、设备连接和异常上报；不重复录入正式处方。" action={<StatusBadge tone="green"><MonitorUp className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />
+      <PageHeader eyebrow="康复师 · 当前康复中心" title="周康复师，上午好" description="按患者实际到诊完成项目核对、训练前后评估、设备连接、报告发送和随访记录。" action={<StatusBadge tone="green"><MonitorUp className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />
       <div className="mb-5 grid grid-cols-5 gap-4">
         <StatCard label="今日到诊" value="12" note="以现场签到为准" icon={<UserCheck className="h-5 w-5" />} />
         <StatCard label="待选择项目" value="3" note="对照纸质处方" tone="orange" icon={<ClipboardList className="h-5 w-5" />} />
@@ -34,7 +34,7 @@ export function DashboardPage({ role, patients, followUpTasks, onOpenFollowUps, 
   }
 
   return <section data-testid="page-VIEW-DASHBOARD">
-    <PageHeader eyebrow={role === "ADMIN" ? "训练数据与报告系统 · 管理视图" : "训练数据与报告 · 医生视图"} title={role === "ADMIN" ? "林管理员，上午好" : "王医生，上午好"} description={role === "ADMIN" ? "查看系统运行和报告发布情况；管理员不能代替医生完成临床签署。" : "优先处理阶段报告、训练异常和随访升级；正式处方继续在医院原系统完成。"} action={<StatusBadge tone="blue"><FileText className="h-3.5 w-3.5" />报告优先</StatusBadge>} />
+    <PageHeader eyebrow="康复管理系统 · 管理视图" title="林管理员，上午好" description="查看系统运行和内容发布情况；管理员不能编辑治疗记录或代替康复师完成业务签署。" action={<StatusBadge tone="blue"><FileText className="h-3.5 w-3.5" />只读概览</StatusBadge>} />
     <div className="mb-5 grid grid-cols-5 gap-4">
       <StatCard label="患者数据" value={String(patients.length)} note="OCR与人工核对" icon={<UsersRound className="h-5 w-5" />} />
       <StatCard label="累计训练记录" value="42" note="设备与人工记录" icon={<Activity className="h-5 w-5" />} />
@@ -43,7 +43,7 @@ export function DashboardPage({ role, patients, followUpTasks, onOpenFollowUps, 
       <StatCard label="异常待复核" value="1" note="训练中主诉" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
     </div>
     <div className="grid gap-5 lg:grid-cols-2">
-      <section className="card p-5"><SectionHeader title="阶段报告待办" description="AI只汇总已选训练记录，医生确认后形成正式结论。" />
+      <section className="card p-5"><SectionHeader title="阶段报告概览" description="管理员只读查看，报告由康复师在患者档案内生成并发送。" />
         <div className="mt-4 space-y-3">{[
           ["陈女士", "最近4次训练数据已齐", "含1次胸闷事件", "orange"],
           ["李先生", "已有6次完成记录", "可生成阶段草稿", "blue"],

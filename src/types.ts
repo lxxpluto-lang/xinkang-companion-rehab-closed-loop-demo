@@ -151,9 +151,30 @@ export type StageReport = {
   periodStart: string;
   periodEnd: string;
   generatedSummary: string;
-  status: "draft" | "pending_doctor_review" | "confirmed";
+  conclusion?: string;
+  patientAdvice?: string;
+  status: "draft" | "pending_doctor_review" | "confirmed" | "sent";
+  generatedBy?: string;
+  generatedAt?: string;
+  sentBy?: string;
+  sentAt?: string;
   confirmedBy?: string;
   confirmedAt?: string;
+};
+
+export type StaffRole = "ADMIN" | "REHAB_EXECUTION";
+export type PatientStatus = "prescription_opened" | "rehabilitation" | "recovered";
+export type AssessmentInputMode = "batch_ocr" | "single_ocr" | "manual";
+export type RecordStatus = "draft" | "completed";
+export type SharedContentStatus = "draft" | "sent";
+
+export type TreatmentSignature = {
+  mode: "uploaded" | "print_hand_sign";
+  signerRole: "REHAB_EXECUTION";
+  signerName: string;
+  signatureImage?: string;
+  treatmentAt: string;
+  signedAt: string;
 };
 
 export type PatientImportRecord = {

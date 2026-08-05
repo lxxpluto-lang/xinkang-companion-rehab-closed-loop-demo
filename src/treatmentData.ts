@@ -1,4 +1,4 @@
-import type { ClinicalMetricSource } from "./types";
+import type { ClinicalMetricSource, TreatmentSignature } from "./types";
 
 export type TreatmentVitalSnapshot = {
   bloodPressure: string;
@@ -29,11 +29,16 @@ export type CardiopulmonaryTreatmentRecord = {
   treatmentAt: string;
   diagnosis: string;
   surgeryHistory?: string;
+  surgeryMethod?: "正中胸骨切开" | "肋缘侧切" | "微创" | "其他";
   specialMedications?: string;
   source: ClinicalMetricSource | "OCR";
   preAssessment: TreatmentVitalSnapshot & {
     chestPainRestVas: number | null;
     chestPainActivityVas: number | null;
+    edema: string;
+    posturalPainChange: string;
+    chestDrainage: string;
+    lifeSupportDevice: string;
     respiratorySymptoms: string;
     assistiveDevice: string;
   };
@@ -47,20 +52,23 @@ export type CardiopulmonaryTreatmentRecord = {
   fieldAction: string;
   therapist: string;
   patientAcknowledged: boolean;
-  status: "draft" | "therapist_confirmed" | "doctor_reviewed";
+  signature?: TreatmentSignature;
+  correctionOf?: string;
+  status: "draft" | "completed";
 };
 
 export const treatmentInterventionOptions: TreatmentIntervention[] = [
-  { code: "breathing", label: "呼吸训练", selected: true },
-  { code: "airway", label: "气道清理/排痰技术", selected: false },
-  { code: "strength", label: "身体功能障碍训练", selected: false },
+  { code: "pulmonary", label: "肺功能综合训练", selected: true, notes: "气道廓清、呼吸肌训练与呼吸控制" },
+  { code: "strength", label: "身体功能障碍作业训练", selected: false },
   { code: "balance", label: "肢体平衡功能训练", selected: false },
   { code: "coordination", label: "运动协调性训练", selected: false },
   { code: "transfer", label: "转移动作训练", selected: false },
   { code: "adl", label: "日常生活动作训练", selected: false },
-  { code: "resistance", label: "器械/抗阻训练", selected: false },
+  { code: "resistance", label: "器械抗阻训练", selected: false },
+  { code: "endurance", label: "耐力训练", selected: false },
   { code: "ecg", label: "遥测心电监测", selected: true },
-  { code: "bike", label: "功率车训练", selected: true, durationMinutes: 30 }
+  { code: "bike", label: "康复踏车训练", selected: true, durationMinutes: 30 },
+  { code: "counterpulsation", label: "体外反搏治疗", selected: false, durationMinutes: 20 }
 ];
 
 export const initialTreatmentRecords: CardiopulmonaryTreatmentRecord[] = [
@@ -74,6 +82,7 @@ export const initialTreatmentRecords: CardiopulmonaryTreatmentRecord[] = [
     treatmentAt: "2026-07-25T09:30:00+08:00",
     diagnosis: "冠心病 PCI 术后，Ⅱ期心脏康复",
     surgeryHistory: "PCI 术后 6 周",
+    surgeryMethod: "微创",
     specialMedications: "阿司匹林、氯吡格雷、美托洛尔、阿托伐他汀",
     source: "人工录入",
     preAssessment: {
@@ -85,6 +94,10 @@ export const initialTreatmentRecords: CardiopulmonaryTreatmentRecord[] = [
       measuredAt: "09:18",
       chestPainRestVas: 0,
       chestPainActivityVas: 1,
+      edema: "无",
+      posturalPainChange: "无明显变化",
+      chestDrainage: "无",
+      lifeSupportDevice: "无",
       respiratorySymptoms: "无明显气促",
       assistiveDevice: "无"
     },
@@ -104,10 +117,11 @@ export const initialTreatmentRecords: CardiopulmonaryTreatmentRecord[] = [
     fieldAction: "康复执行岗暂停观察2分钟，症状缓解后低阻力继续。",
     therapist: "周康复师",
     patientAcknowledged: true,
-    status: "doctor_reviewed"
+    signature: { mode: "uploaded", signerRole: "REHAB_EXECUTION", signerName: "周康复师", treatmentAt: "2026-07-25T09:30:00+08:00", signedAt: "2026-07-25T10:08:00+08:00" },
+    status: "completed"
   }
 ];
 
 export function treatmentStatusLabel(status: CardiopulmonaryTreatmentRecord["status"]) {
-  return status === "doctor_reviewed" ? "医生已复核" : status === "therapist_confirmed" ? "康复师已确认" : "草稿";
+  return status === "completed" ? "已完成" : "草稿";
 }

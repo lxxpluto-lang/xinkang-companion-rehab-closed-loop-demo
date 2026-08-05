@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, HeartPulse, KeyRound, LockKeyhole, ShieldCheck, Stethoscope, UserRoundCog } from "lucide-react";
 import { roleMeta } from "../accessControl";
-import type { Role } from "../types";
-
-type StaffRole = Exclude<Role, "PATIENT">;
+import type { StaffRole } from "../types";
 
 const demoAccounts: Array<{
   username: string;
@@ -13,9 +11,8 @@ const demoAccounts: Array<{
   scope: string;
   permissions: string[];
 }> = [
-  { username: "admin", name: "林管理员", role: "ADMIN", icon: ShieldCheck, scope: "全部数据", permissions: ["患者数据只读查看", "全院随访只读查看", "组织权限配置", "签名模板配置"] },
-  { username: "doctor.wang", name: "王医生", role: "DOCTOR", icon: Stethoscope, scope: "本人患者", permissions: ["患者资料核对", "本人患者随访", "阶段与出院报告确认", "本人临床签署"] },
-  { username: "rehab.zhou", name: "周康复师", role: "REHAB_EXECUTION", icon: UserRoundCog, scope: "当前康复中心", permissions: ["训练执行与现场记录", "患者基础资料核对", "评估与人工随访", "视频草稿维护"] }
+  { username: "admin", name: "林管理员", role: "ADMIN", icon: ShieldCheck, scope: "配置权限", permissions: ["组织账号与权限", "视频审核与发布", "打印和签名模板", "临床数据只读"] },
+  { username: "rehab.zhou", name: "周康复师", role: "REHAB_EXECUTION", icon: UserRoundCog, scope: "当前康复中心", permissions: ["患者与体能评估", "治疗和训练记录", "阶段及康复报告", "人工电话随访"] }
 ];
 
 export function StaffLogin({
@@ -25,8 +22,8 @@ export function StaffLogin({
   onLogin: (role: StaffRole) => void;
   onBack: () => void;
 }) {
-  const [selectedRole, setSelectedRole] = useState<StaffRole>("DOCTOR");
-  const [username, setUsername] = useState("doctor.wang");
+  const [selectedRole, setSelectedRole] = useState<StaffRole>("REHAB_EXECUTION");
+  const [username, setUsername] = useState("rehab.zhou");
   const [password, setPassword] = useState("123456");
   const [error, setError] = useState("");
   const selected = demoAccounts.find((account) => account.role === selectedRole) ?? demoAccounts[1];
@@ -59,7 +56,7 @@ export function StaffLogin({
             <button type="button" onClick={onBack} className="relative flex items-center gap-2 text-xs font-bold text-blue-100 hover:text-white"><ArrowLeft className="h-4 w-4" />返回系统入口</button>
             <div className="relative mt-14 flex items-center gap-3">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/12 ring-1 ring-white/20"><HeartPulse className="h-6 w-6" /></span>
-              <div><h1 className="text-xl font-bold">心康伴侣</h1><p className="mt-1 text-xs text-blue-100">医护 Web 身份认证</p></div>
+              <div><h1 className="text-xl font-bold">心康伴侣</h1><p className="mt-1 text-xs text-blue-100">康复管理端身份认证</p></div>
             </div>
             <h2 className="relative mt-10 text-3xl font-bold leading-tight">一个入口，按岗位进入<br />各自的工作边界。</h2>
             <p className="relative mt-4 max-w-md text-sm leading-7 text-blue-100">登录后依据账号加载菜单、操作、数据与字段权限。隐藏菜单不等于授权，正式系统仍由服务端完成最终校验。</p>
@@ -70,7 +67,7 @@ export function StaffLogin({
 
           <section className="p-10">
             <div className="flex items-start justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">STAFF SIGN IN</p><h2 className="mt-2 text-2xl font-bold text-slate-900">登录医护工作站</h2><p className="mt-2 text-xs text-slate-500">选择预设演示岗位，查看对应权限效果。</p></div><span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-700">脱敏 Demo</span></div>
-            <div className="mt-7 grid grid-cols-3 gap-3">
+            <div className="mt-7 grid grid-cols-2 gap-3">
               {demoAccounts.map((account) => {
                 const Icon = account.icon;
                 const active = selectedRole === account.role;

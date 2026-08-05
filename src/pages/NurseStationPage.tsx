@@ -38,7 +38,7 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
 
   return (
     <section data-testid="page-VIEW-NURSE-STATION">
-      <PageHeader eyebrow={canExecute ? "康复执行岗 · 当前康复中心" : "医生观察视图 · 非本人任务匿名"} title="训练工作台" description={canExecute ? "患者到诊后，康复师核对并选择本次实际运动项目；系统记录实际发生的数据，不推测计划总次数。" : "医生查看本中心训练、异常和报告来源；训练项目选择与现场记录由康复执行岗完成。"} action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />实时数据连接正常</StatusBadge>} />
+      <PageHeader eyebrow={canExecute ? "康复师 · 当前康复中心" : "管理员只读视图"} title="训练大屏" description={canExecute ? "患者到诊后，康复师核对并选择本次实际运动项目；系统记录实际发生的数据，不推测计划总次数。" : "管理员只读查看工位和设备状态，不能修改临床记录。"} action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />实时数据连接正常</StatusBadge>} />
       <div className="mb-5 grid grid-cols-5 gap-4">
         <StatCard label="今日到诊患者" value="12" note="以现场签到为准" icon={<ClipboardCheck className="h-5 w-5" />} />
         <StatCard label="待选择训练项目" value="3" note="对照纸质处方勾选" tone="orange" icon={<UserCheck className="h-5 w-5" />} />
@@ -101,17 +101,17 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
             <div className={`mx-4 mb-4 rounded-lg border px-3 py-2.5 text-xs ${selected.quality === "数据完整" ? "border-emerald-100 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}><b>{selected.connection}</b> · {selected.quality} · 目标心率未获取，仅记录实际心率</div>
           </section>
           {linkedSafetyEvent && <section className="card border-l-4 border-l-amber-500 p-4">
-            <SectionHeader title="异常上报闭环" description="训练工作台只保留最小闭环：现场事实、医生复核状态和对下一处方的影响。" action={<StatusBadge tone={linkedSafetyEvent.doctorReviewStatus === "医生已复核" ? "green" : "orange"}>{linkedSafetyEvent.doctorReviewStatus}</StatusBadge>} />
+            <SectionHeader title="异常上报闭环" description="训练大屏只保留现场事实、处置记录和线下医疗联系提示。" action={<StatusBadge tone="orange">需关注</StatusBadge>} />
             <div className="space-y-2 text-xs leading-5 text-slate-600">
               <p><b className="text-slate-900">事件：</b>{linkedSafetyEvent.occurredAt} · {linkedSafetyEvent.type}</p>
               <p><b className="text-slate-900">指标：</b>{linkedSafetyEvent.metricSnapshot}</p>
               <p><b className="text-slate-900">现场处置：</b>{linkedSafetyEvent.fieldAction}</p>
-              <p><b className="text-slate-900">医生复核：</b>{linkedSafetyEvent.doctorReview}</p>
+              <p><b className="text-slate-900">后续处理：</b>症状持续或加重时立即停止训练，并线下联系医疗人员。</p>
             </div>
           </section>}
           {canExecute ? <section className="card p-4">
-            <SectionHeader title="现场处置记录" description="护士仅记录现场事实，不形成处方或医学结论。" />
-            <textarea value={note} onChange={(event) => setNote(event.target.value)} className="text-field min-h-20 resize-none" placeholder="例如：已协助患者坐位休息，复测血压并通知康复医生……" />
+            <SectionHeader title="现场处置记录" description="康复师仅记录现场事实，不形成处方或医学结论。" />
+            <textarea value={note} onChange={(event) => setNote(event.target.value)} className="text-field min-h-20 resize-none" placeholder="例如：已协助患者坐位休息，复测血压并提示线下联系医疗人员……" />
             <div className="mt-3 flex justify-end"><button type="button" disabled={!note.trim()} onClick={() => setNote("")} className="btn-primary">保存现场记录</button></div>
           </section> : <section className="card border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-700">当前为医生只读观察视图。到诊确认、设备连接和现场记录由康复执行岗完成。</section>}
         </div>
@@ -139,7 +139,7 @@ function ExecutionWorkflow({ step, setStep, preVitals, setPreVitals, postVitals,
     {step === "device" && <div className="mt-4"><SectionHeader title="设备连接检查" description="背包与训练设备均连接后才能开始训练。" /><div className="grid grid-cols-2 gap-3"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800"><b>✓ 生理数据背包已连接</b><p className="mt-1">心率、血氧与心电信号正常</p></div><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800"><b>✓ 功率车已连接</b><p className="mt-1">功率、踏频、速度与距离可采集</p></div></div><div className="mt-3 flex justify-end"><button type="button" onClick={() => setStep("training")} className="btn-primary">进入视频训练</button></div></div>}
     {step === "training" && <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4"><div className="flex items-center justify-between"><div><b className="text-sm text-blue-950">训练数据采集中</b><p className="mt-1 text-xs text-blue-700">完成后进入生命体征复测；暂停、终止和异常将写入单次报告。</p></div><button type="button" onClick={() => setStep("post")} className="btn-primary">模拟训练完成</button></div></div>}
     {step === "post" && <div className="mt-4"><SectionHeader title="训练后评估" description="复测生命体征并记录患者主诉和最终RPE。" /><VitalEditor value={postVitals} onChange={setPostVitals} /><div className="mt-3 flex items-end justify-between"><label><span className="field-label">训练后RPE（6–20）</span><select value={rpe} onChange={(event) => setRpe(event.target.value)} className="text-field w-52"><option value="">请选择，不设默认值</option>{Array.from({ length: 15 }, (_, index) => index + 6).map((value) => <option key={value}>{value}</option>)}</select></label><button type="button" disabled={!rpe || !postVitals.bp || !postVitals.hr} onClick={() => setStep("reported")} className="btn-primary disabled:bg-slate-300">完成并生成单次报告</button></div></div>}
-    {step === "reported" && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex items-center justify-between"><div><b className="text-sm text-emerald-900">单次报告已自动生成</b><p className="mt-1 text-xs text-emerald-700">已记录训练前后生命体征、设备指标、RPE、异常和处置；本次计入实际累计次数，不代表处方完成进度。</p></div><StatusBadge tone="orange">待康复师确认 / 医生复核</StatusBadge></div></div>}
+    {step === "reported" && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex items-center justify-between"><div><b className="text-sm text-emerald-900">单次报告已自动生成</b><p className="mt-1 text-xs text-emerald-700">已记录训练前后生命体征、设备指标、RPE、异常和处置；本次计入实际累计次数，不代表处方完成进度。</p></div><StatusBadge tone="green">待康复师确认</StatusBadge></div></div>}
   </section>;
 }
 

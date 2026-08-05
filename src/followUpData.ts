@@ -76,7 +76,7 @@ export const followUpStatusLabels: Record<FollowUpStatus, string> = {
   due: "今日到期",
   overdue: "已逾期",
   rescheduled: "未接通/待重拨",
-  review_required: "待医生复核",
+  review_required: "需线下联系",
   completed: "已完成"
 };
 

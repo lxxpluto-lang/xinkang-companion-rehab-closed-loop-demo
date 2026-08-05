@@ -1,7 +1,6 @@
 import {
   Building2,
   CalendarCheck2,
-  FileChartColumn,
   FileSignature,
   LayoutDashboard,
   MonitorUp,
@@ -21,23 +20,22 @@ export type NavItem = {
   hidden?: boolean;
 };
 
-const clinicalRoles: Role[] = ["ADMIN", "DOCTOR", "REHAB_EXECUTION"];
+const clinicalRoles: Role[] = ["ADMIN", "REHAB_EXECUTION"];
 
 export const navItems: NavItem[] = [
   { key: "dashboard", label: "今日工作台", icon: LayoutDashboard, group: "business", roles: clinicalRoles },
-  { key: "training", label: "训练工作台", icon: MonitorUp, group: "business", roles: clinicalRoles },
-  { key: "report", label: "阶段与出院报告", icon: FileChartColumn, group: "business", roles: clinicalRoles },
+  { key: "patients", label: "患者档案", icon: UsersRound, group: "business", roles: clinicalRoles },
   { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: clinicalRoles },
-  { key: "patients", label: "患者数据", icon: UsersRound, group: "business", roles: clinicalRoles },
-  { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: ["ADMIN", "DOCTOR", "REHAB_EXECUTION"] },
+  { key: "training", label: "训练大屏", icon: MonitorUp, group: "business", roles: clinicalRoles },
+  { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: ["ADMIN", "REHAB_EXECUTION"] },
   { key: "orgPermissions", label: "组织权限", icon: Building2, group: "admin", roles: ["ADMIN"] },
   { key: "documentConfig", label: "报告打印签名", icon: FileSignature, group: "admin", roles: ["ADMIN"] }
 ];
 
 export const roleMeta: Record<Role, { label: string; account: string; scope: DataScope; note: string }> = {
-  ADMIN: { label: "系统管理员", account: "林管理员", scope: "ALL", note: "全量数据与随访只读查看" },
-  DOCTOR: { label: "康复医生", account: "王医生", scope: "TEAM", note: "团队患者共享查看 · 本人任务可编辑" },
-  REHAB_EXECUTION: { label: "康复执行岗", account: "周康复师", scope: "CENTER", note: "当前康复中心执行与异常上报" },
+  ADMIN: { label: "系统管理员", account: "林管理员", scope: "ALL", note: "账号、权限、视频和打印模板配置；临床业务只读" },
+  DOCTOR: { label: "历史医生角色", account: "—", scope: "TEAM", note: "仅用于兼容历史数据，不提供登录入口" },
+  REHAB_EXECUTION: { label: "康复师", account: "周康复师", scope: "CENTER", note: "患者、评估、治疗、训练、报告与随访" },
   PATIENT: { label: "患者", account: "陈女士", scope: "SELF_TASK", note: "仅本人数据" }
 };
 
@@ -45,8 +43,8 @@ const adminActions: PermissionAction[] = ["VIEW", "CREATE", "EDIT", "REVIEW", "P
 
 export const roleActions: Record<Role, PermissionAction[]> = {
   ADMIN: adminActions,
-  DOCTOR: ["VIEW", "CREATE", "EDIT", "REVIEW", "SIGN", "PRINT", "EXPORT"],
-  REHAB_EXECUTION: ["VIEW", "CREATE", "EDIT", "EXPORT"],
+  DOCTOR: ["VIEW"],
+  REHAB_EXECUTION: ["VIEW", "CREATE", "EDIT", "REVIEW", "SIGN", "PRINT", "EXPORT", "PUBLISH"],
   PATIENT: ["VIEW"]
 };
 
