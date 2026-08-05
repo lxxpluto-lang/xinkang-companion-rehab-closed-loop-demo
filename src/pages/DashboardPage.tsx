@@ -1,444 +1,78 @@
-import { useState } from "react";
-import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, BarChart3, CalendarClock, CheckCircle2, ClipboardList, FileText, MonitorUp, PenTool, PhoneCall, Printer, RefreshCw, Signature, Sparkles, TrendingUp, UserCheck, UsersRound } from "lucide-react";
-import { doctorAppointments, prescriptionStatusLabels, type DoctorAppointment, type PrescriptionListStatusFilter, type PrescriptionTask } from "../prescriptionData";
+import { Activity, AlertTriangle, CheckCircle2, ClipboardList, FileText, MonitorUp, PhoneCall, Sparkles, TrendingUp, UserCheck, UsersRound } from "lucide-react";
 import { PageHeader, SectionHeader, StatCard, StatusBadge } from "../components/UI";
+import type { FollowUpTask } from "../followUpData";
+import { isFollowUpVisibleInPending } from "../followUpData";
 import type { Role } from "../types";
-import { roleMeta } from "../accessControl";
-import { clinicalSnapshotChen, getPrescriptionVersionDetail, getSingleTrainingReportDetail, minimalSafetyEvents } from "../clinicalSharedData";
-import { stageReportData } from "../patient/stageReportData";
-import { formatDateTime, formatSignedDateTime, formatTime } from "../utils/dateTime";
-import { daysUntil, effectiveFollowUpStatus, isFollowUpVisibleInPending, type FollowUpStatus, type FollowUpTask } from "../followUpData";
 import type { ManagedPatient } from "./PatientArchivePage";
 import type { FollowUpView } from "./FollowUpManagementPage";
 
-export function DashboardPage({
-  role,
-  tasks,
-  patients,
-  followUpTasks,
-  onOpenFollowUps,
-  onOpenPrescriptionList,
-  onOpenReports,
-  onOpen,
-  onGenerate,
-  onConfirm,
-  onSign
-}: {
+export function DashboardPage({ role, patients, followUpTasks, onOpenFollowUps, onOpenReports, onOpenTraining }: {
   role: Exclude<Role, "PATIENT">;
-  tasks: PrescriptionTask[];
   patients: ManagedPatient[];
   followUpTasks: FollowUpTask[];
   onOpenFollowUps: (view?: FollowUpView, taskId?: string) => void;
-  onOpenPrescriptionList: (status?: PrescriptionListStatusFilter) => void;
   onOpenReports: () => void;
-  onOpen: (taskId: string) => void;
-  onGenerate: (taskId: string) => void;
-  onConfirm: (taskId: string) => void;
-  onSign: (taskId: string) => void;
+  onOpenTraining: () => void;
 }) {
-  const allPendingPrescriptionTasks = tasks.filter((task) => task.status !== "completed");
-  const currentAccount = roleMeta[role].account;
-  const pendingPrescriptionTasks = role === "DOCTOR"
-    ? allPendingPrescriptionTasks.filter((task) => task.assignedDoctor === currentAccount)
-    : allPendingPrescriptionTasks;
-  const accessibleTaskIds = new Set(tasks.map((task) => task.id));
-  const visibleAppointments = role === "DOCTOR"
-    ? doctorAppointments.filter((appointment) => accessibleTaskIds.has(appointment.linkedTaskId))
-    : doctorAppointments;
-  if (role === "REHAB_EXECUTION") {
-    return (
-      <section data-testid="page-VIEW-DASHBOARD">
-        <PageHeader eyebrow="康复执行岗 · 当前康复中心" title="周康复师，上午好" description="聚合今天需要执行的训练、训练后确认与异常上报任务；临床复核和处方签署由医生负责。" action={<StatusBadge tone="green"><MonitorUp className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />
-        <div className="mb-5 grid grid-cols-5 gap-4">
-          <StatCard label="今日训练计划" value="15" note="上午 9 人 · 下午 6 人" icon={<Activity className="h-5 w-5" />} />
-          <StatCard label="待接诊" value="3" note="2 人已签到" tone="orange" icon={<UserCheck className="h-5 w-5" />} />
-          <StatCard label="在训患者" value="2" note="功率车 01、02" tone="green" icon={<MonitorUp className="h-5 w-5" />} />
-          <StatCard label="训练后确认" value="3" note="复测与离场确认" icon={<PhoneCall className="h-5 w-5" />} />
-          <StatCard label="异常待上报" value="1" note="训练中胸闷主诉" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
-        </div>
-        <div className="grid grid-cols-[1.15fr_0.85fr] gap-5">
-          <section className="card p-5"><SectionHeader title="下一步执行任务" description="按到期时间和风险等级排序。" /><div className="space-y-3">{[
-            ["10:20", "陈女士", "功率车训练前准备", "待连接设备", "orange"],
-            ["10:30", "李秀兰", "训练后生命体征确认", "待记录", "blue"],
-            ["11:00", "周海明", "训练中断后异常上报", "重点关注", "red"]
-          ].map(([time, patient, task, status, tone]) => <div className="flex items-center gap-3 rounded-xl border border-slate-100 p-3" key={String(time) + patient}><span className="w-12 font-mono text-[10px] text-slate-400">{time}</span><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><CalendarClock className="h-4 w-4" /></span><div className="flex-1"><b className="text-slate-800">{patient}</b><p className="mt-1 text-[10px] text-slate-400">{task}</p></div><StatusBadge tone={tone as "orange" | "blue" | "red"}>{status}</StatusBadge></div>)}</div></section>
-          <section className="card p-5"><SectionHeader title="执行权限边界" /><div className="space-y-3">{["可修改基础资料、生命体征和训练记录", "可完成训练后确认并上报异常", "诊断、危险分组和处方字段只读", "不能复核或签署临床处方"].map((item, index) => <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3" key={item}>{index < 2 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span className="text-xs font-medium text-slate-700">{item}</span></div>)}</div></section>
-        </div>
-      </section>
-    );
-  }
-  const reviewCounts = {
-    single: visibleAppointments.reduce((total, item) => total + item.singleReportIds.length, 0),
-    stage: visibleAppointments.reduce((total, item) => total + item.stageReportIds.length, 0),
-    abnormal: visibleAppointments.filter((item) => item.reportReviewStatus === "异常优先").length
-  };
-  const taskRankings = [
-    ["阶段报告", reviewCounts.stage, "AI汇总"],
-    ["单次报告", reviewCounts.single, "训练来源"],
-    ["异常复核", reviewCounts.abnormal, "医生确认"]
-  ] as const;
-  const reminders = [
-    ["异常复核提醒", "陈女士训练中胸闷主诉已进入处方调方依据，请优先查看阶段报告。", "09:48", "red"],
-    ["阶段数据已齐", "李先生已有4次训练记录，可选择本阶段记录生成AI阶段报告草稿。", "10:10", "orange"],
-    ["数据补录提醒", "孙女士缺少 CPET 与 6 分钟步行数据，当前只能保存草稿，不能签署。", "08:24", "blue"]
-  ] as const;
-  const trend = [34, 46, 42, 58, 54, 73, 66];
-  return (
-    <section data-testid="page-VIEW-DASHBOARD">
-      {role === "ADMIN" && <PageHeader
-        eyebrow="心脏康复执行与报告系统 · 管理员视图"
-        title="林管理员，上午好"
-        description="查看训练执行、阶段报告和随访运行情况；患者主数据与正式处方仍以医院现有系统和纸质文书为准。"
-        action={<button type="button" className="btn-secondary"><RefreshCw className="h-4 w-4" />刷新</button>}
-      />}
-      {role === "DOCTOR" && <PageHeader
-        eyebrow="训练数据与报告 · 医生视图"
-        title="王医生，上午好"
-        description="优先处理阶段报告、训练异常和随访升级；本系统不承担首次建档和正式处方开具。"
-        action={<StatusBadge tone="blue"><FileText className="h-3.5 w-3.5" />报告优先</StatusBadge>}
-      />}
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <OverviewMetric icon={<UsersRound className="h-5 w-5" />} label="总患者数" value="168" note="本月新增 12" />
-        <OverviewMetric icon={<ClipboardList className="h-5 w-5" />} label="累计训练记录" value="42" note="设备与人工记录" />
-        <OverviewMetric icon={<Sparkles className="h-5 w-5" />} label="待生成阶段报告" value={String(reviewCounts.stage)} note="点击进入 · 选择训练记录" tone="orange" emphasized completed={reviewCounts.stage === 0} onClick={onOpenReports} />
-        <OverviewMetric icon={<TrendingUp className="h-5 w-5" />} label="平均训练完成率" value="83%" note="本月平均" tone="green" />
-        <OverviewMetric icon={<AlertTriangle className="h-5 w-5" />} label="训练异常记录数" value="5" note="等待处理" tone="red" />
-      </div>
-
-      {role === "DOCTOR" ? (
-        <>
-          <div className="mb-4 grid items-stretch gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-            <StageReportCoreCard stageCount={reviewCounts.stage} singleCount={reviewCounts.single} abnormalCount={reviewCounts.abnormal} />
-            <TrendCard values={trend} compact />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <FollowUpReminderCard patients={patients} tasks={followUpTasks} onViewAll={() => onOpenFollowUps("pending")} onOpen={(taskId) => onOpenFollowUps("pending", taskId)} />
-            <StageReportQueueCard tasks={pendingPrescriptionTasks} onViewAll={onOpenReports} />
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="mb-5 grid grid-cols-[1.08fr_0.92fr] gap-5">
-            <TrendCard values={trend} />
-            <RankingCard items={taskRankings} />
-          </div>
-          <div className="mb-5 grid grid-cols-[1.1fr_0.9fr] gap-5">
-            <ReminderCard items={reminders} />
-            <StageReportCoreCard stageCount={reviewCounts.stage} singleCount={reviewCounts.single} abnormalCount={reviewCounts.abnormal} />
-          </div>
-        </>
-      )}
-
-    </section>
-  );
-}
-
-function StageReportCoreCard({ stageCount, singleCount, abnormalCount }: { stageCount: number; singleCount: number; abnormalCount: number }) {
-  return <section className="card flex h-full flex-col overflow-hidden"><div className="border-b border-slate-100 px-5 py-4"><SectionHeader title="阶段报告核心任务" description="将多次训练汇总为趋势、依从性和异常结论；不再设置独立预约工作流。" /></div><div className="grid flex-1 grid-cols-3 gap-3 p-5"><div className="rounded-xl bg-blue-50 p-4"><p className="text-[10px] font-bold text-blue-600">阶段报告</p><p className="mt-2 text-2xl font-bold text-blue-950">{stageCount}</p><p className="mt-1 text-[10px] text-blue-600">待生成/复核</p></div><div className="rounded-xl bg-emerald-50 p-4"><p className="text-[10px] font-bold text-emerald-600">单次报告来源</p><p className="mt-2 text-2xl font-bold text-emerald-950">{singleCount}</p><p className="mt-1 text-[10px] text-emerald-600">已进入周期汇总</p></div><div className="rounded-xl bg-red-50 p-4"><p className="text-[10px] font-bold text-red-600">异常优先</p><p className="mt-2 text-2xl font-bold text-red-950">{abnormalCount}</p><p className="mt-1 text-[10px] text-red-600">需医生确认</p></div></div><p className="border-t border-slate-100 px-5 py-3 text-[10px] leading-5 text-slate-500">核心观察：心率波动、训练完成率、处方执行次数与阶段变化。预约仅作为外部流程，不在本验证版单独建设。</p></section>;
-}
-
-function AppointmentDetail({
-  appointment,
-  task,
-  onBack,
-  onOpen,
-  onGenerate,
-  onConfirm,
-  onSign
-}: {
-  appointment: DoctorAppointment;
-  task: PrescriptionTask;
-  onBack: () => void;
-  onOpen: (taskId: string) => void;
-  onGenerate: (taskId: string) => void;
-  onConfirm: (taskId: string) => void;
-  onSign: (taskId: string) => void;
-}) {
-  const [reportType, setReportType] = useState<"single" | "stage">(appointment.stageReportIds.length ? "stage" : "single");
-  const [exercise, setExercise] = useState("功率车连续训练");
-  const [frequency, setFrequency] = useState("每周 3 次");
-  const [targetHr, setTargetHr] = useState("100–116 bpm");
-  const [power, setPower] = useState("50–70 W");
-  const [times, setTimes] = useState("5 + 22 + 5 分钟");
-  const [rpe, setRpe] = useState("11–13");
-  const [diet, setDiet] = useState("低盐低脂，训练前避免过饱，训练后少量多次饮水。");
-  const singleReport = getSingleTrainingReportDetail(appointment.singleReportIds[0]);
-  const latestBp = singleReport.bpMeasurements[singleReport.bpMeasurements.length - 1]?.value ?? "未采集";
-  const previousVersion = getPrescriptionVersionDetail(task.previousVersionId?.match(/V[1-4]/)?.[0] ?? "V4");
-  const linkedSafetyEvent = minimalSafetyEvents.find((event) => event.patientId === appointment.patientId);
-  const canConfirm = task.status === "pending_review" && !task.missingFields?.length;
-
-  function printFinalReport() {
-    document.body.classList.add("printing-prescription");
-    window.print();
-    window.setTimeout(() => document.body.classList.remove("printing-prescription"), 300);
-  }
-
-  return (
-    <section data-testid="page-VIEW-APPOINTMENT-DETAIL">
-      <PageHeader eyebrow="今日计划患者处方闭环" title={`${appointment.patientName} · ${formatTime(appointment.scheduledStartAt)} 计划`} description="当前没有接入 HIS/排班数据，此处仅展示演示训练计划；医生从报告依据进入处方复核。" action={<button type="button" className="btn-secondary" onClick={onBack}><ArrowLeft className="h-4 w-4" />返回今日计划</button>} />
-      <div className="grid grid-cols-[0.7fr_1.05fr_0.85fr] gap-5">
-        <section className="card p-5">
-          <SectionHeader title="患者与报告入口" description={appointment.purpose} />
-          <div className="grid grid-cols-2 gap-3">
-            {[["姓名", appointment.patientName], ["患者号", appointment.patientNo], ["阶段", appointment.stage], ["风险", appointment.risk]].map(([label, value]) => <InfoTile key={label} label={label} value={value} />)}
-          </div>
-          <div className="mt-5 flex rounded-lg bg-slate-100 p-1">
-            <button type="button" onClick={() => setReportType("stage")} disabled={!appointment.stageReportIds.length} className={`flex-1 rounded-md px-3 py-2 text-xs font-bold disabled:text-slate-300 ${reportType === "stage" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>阶段性报告</button>
-            <button type="button" onClick={() => setReportType("single")} className={`flex-1 rounded-md px-3 py-2 text-xs font-bold ${reportType === "single" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>单次报告</button>
-          </div>
-          <div className="mt-4 space-y-3">
-            {appointment.stageReportIds.map((id) => <button type="button" key={id} onClick={() => setReportType("stage")} className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left hover:bg-blue-50"><FileText className="h-4 w-4 text-blue-600" /><span className="flex-1 text-xs font-bold text-slate-700">{id}</span><StatusBadge tone="orange">待复核</StatusBadge></button>)}
-            {appointment.singleReportIds.map((id) => <button type="button" key={id} onClick={() => setReportType("single")} className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left hover:bg-blue-50"><Activity className="h-4 w-4 text-emerald-600" /><span className="flex-1 text-xs font-bold text-slate-700">{id}</span><StatusBadge tone="blue">单次</StatusBadge></button>)}
-          </div>
-        </section>
-
-        <section className="card p-5">
-          {reportType === "stage" ? (
-            <>
-              <SectionHeader title="阶段性报告摘要" description="医生看临床判断，患者版说明会进入最终报告。" />
-              <div className="rounded-xl bg-blue-50 p-4"><p className="text-xs font-bold text-blue-700">医生摘要</p><p className="mt-2 text-sm font-bold leading-6 text-slate-800">{stageReportData.clinicalConclusion.summary}</p></div>
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                {[["完成", "11 / 12次"], ["靶区", "84%"], ["异常", "1项已复核"]].map(([label, value]) => <InfoTile key={label} label={label} value={value} />)}
-              </div>
-              <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-800">患者版会说明：运动耐量提升、血压/血氧总体稳定、下一阶段建议维持强度，并附饮食和停止运动提醒。</div>
-              {linkedSafetyEvent && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-xs leading-5 text-red-800"><b>关联异常：</b>{linkedSafetyEvent.type} · {linkedSafetyEvent.metricSnapshot}<br /><b>现场处置：</b>{linkedSafetyEvent.fieldAction}<br /><b>医生复核：</b>{linkedSafetyEvent.doctorReview}</div>}
-            </>
-          ) : (
-            <>
-              <SectionHeader title="单次报告摘要" description={singleReport.dataSourceNote} action={<StatusBadge tone={singleReport.dataMode === "demo" ? "orange" : "blue"}>{singleReport.dataMode === "demo" ? "Demo 数据" : "设备采样"}</StatusBadge>} />
-              <div className="grid grid-cols-3 gap-3">
-                {[["运动", singleReport.exercise], ["平均心率", `${singleReport.hrStats.average} bpm`], ["靶区时间", `${singleReport.targetZoneMinutes}分钟`], ["血压", latestBp], ["血氧", singleReport.spo2Summary], ["安全", singleReport.safetySummary]].map(([label, value]) => <InfoTile key={label} label={label} value={value} />)}
-              </div>
-              <div className="mt-4 rounded-xl border border-slate-100 p-3 text-xs leading-5 text-slate-600">心电：{singleReport.ecgSummary}</div>
-              {linkedSafetyEvent && <div className="mt-3 rounded-xl border border-red-100 bg-red-50 p-3 text-xs leading-5 text-red-800"><b>异常闭环：</b>{linkedSafetyEvent.patientComplaint}；{linkedSafetyEvent.fieldAction}；{linkedSafetyEvent.doctorReviewStatus}。</div>}
-            </>
-          )}
-        </section>
-
-        <section id="printable-prescription" className="card p-5">
-          <SectionHeader title="AI运动参数建议" description={`依据：${task.sourceLabel}`} action={<StatusBadge tone={task.status === "completed" ? "green" : "orange"}>{prescriptionStatusLabels[task.status]}</StatusBadge>} />
-          <div className="space-y-3">
-            <EditLine label="运动项目" value={exercise} setValue={setExercise} disabled={task.status === "completed"} />
-            <EditLine label="频次" value={frequency} setValue={setFrequency} disabled={task.status === "completed"} />
-            <EditLine label="热身 + 训练 + 放松" value={times} setValue={setTimes} disabled={task.status === "completed"} />
-            <EditLine label="靶心率" value={targetHr} setValue={setTargetHr} disabled={task.status === "completed"} />
-            <EditLine label="功率/阻力" value={power} setValue={setPower} disabled={task.status === "completed"} />
-            <EditLine label="RPE" value={rpe} setValue={setRpe} disabled={task.status === "completed"} />
-            <label><span className="field-label">饮食与注意事项</span><textarea value={diet} onChange={(event) => setDiet(event.target.value)} disabled={task.status === "completed"} className="text-field min-h-20 resize-none disabled:bg-slate-50" /></label>
-          </div>
-          <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">上一版：{previousVersion.version} · {previousVersion.targetPower.join("–")}W · {previousVersion.targetHr.join("–")} bpm。AI建议仅为草稿，医生确认后才能签名。</div>
-          {task.missingFields?.length && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">缺失关键数据：{task.missingFields.join("、")}。可保存草稿，禁止确认和签名。</div>}
-          <div className="mt-5 flex flex-wrap gap-2">
-            {task.status === "pending_generation" && <button type="button" className="btn-primary" onClick={() => onGenerate(task.id)}><Sparkles className="h-4 w-4" />生成 AI 处方草稿</button>}
-            {task.status === "pending_review" && <button type="button" className="btn-primary" disabled={!canConfirm} onClick={() => onConfirm(task.id)}><PenTool className="h-4 w-4" />医生确认参数</button>}
-            {task.status === "pending_signature" && <button type="button" className="btn-primary" onClick={() => onSign(task.id)}><Signature className="h-4 w-4" />数字签名</button>}
-            {task.status === "completed" && <button type="button" className="btn-primary" onClick={printFinalReport}><Printer className="h-4 w-4" />打印最终报告</button>}
-            <button type="button" className="btn-secondary" onClick={() => onOpen(task.id)}><BadgeCheck className="h-4 w-4" />进入完整复核页</button>
-          </div>
-          {task.status === "completed" && <div className="print-only"><h1>心脏康复最终处方报告</h1><p>患者：{appointment.patientName}　患者号：{task.patientNo}　处方号：{task.prescriptionNo}　版本：{task.versionNo}</p><p>报告依据：{task.sourceLabel}　签署人：{task.signedBy ?? task.confirmedBy ?? "待签署"}　签署时间：{formatSignedDateTime(task.signedAt)}</p><p>处方参数：{exercise}，{frequency}，{times}，靶心率 {targetHr}，功率 {power}，RPE {rpe}</p><p>注意事项：{diet}</p></div>}
-        </section>
-      </div>
-    </section>
-  );
-}
-
-function InfoTile({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold text-slate-400">{label}</p><p className="mt-2 text-xs font-bold leading-5 text-slate-800">{value}</p></div>;
-}
-
-function OverviewMetric({ icon, label, value, note, tone = "blue", onClick, emphasized = false, completed = false }: { icon: React.ReactNode; label: string; value: string; note: string; tone?: "blue" | "orange" | "red" | "green"; onClick?: () => void; emphasized?: boolean; completed?: boolean }) {
-  const classes = {
-    blue: "bg-blue-50 text-blue-700",
-    orange: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
-    green: "bg-emerald-50 text-emerald-700"
-  };
-  const content = emphasized ? (
-      <div className="flex items-center gap-3">
-        <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${completed ? "bg-emerald-100 text-emerald-700" : classes.orange}`}>{completed ? <CheckCircle2 className="h-5 w-5" /> : icon}</span>
-        <div className="min-w-0 flex-1">
-          <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-200 text-amber-900"}`}>{completed ? "已完成" : "待处理"}</span>
-          <p className={`mt-1 text-[10px] font-bold ${completed ? "text-emerald-700" : "text-amber-800"}`}>{label}</p>
-          <p className="mt-0.5 truncate text-[10px] text-slate-500">{completed ? "当前已处理完毕" : note}</p>
-        </div>
-        <div className="text-right">
-          <b className={`block text-3xl ${completed ? "text-emerald-800" : "text-amber-950"}`}>{value}</b>
-          <span className={`mt-1 inline-flex items-center gap-1 text-[10px] font-black ${completed ? "text-emerald-700" : "text-amber-800"}`}>点击处理<ArrowRight className="h-3 w-3" /></span>
-        </div>
-      </div>
-  ) : (
-      <div className="flex items-center gap-3">
-        <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${classes[tone]}`}>{icon}</span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold text-slate-400">{label}</p>
-          <p className="mt-1 text-xs text-slate-500">{note}</p>
-        </div>
-        <b className="text-3xl text-slate-950">{value}</b>
-      </div>
-  );
-  const className = emphasized
-    ? `w-full rounded-xl border-2 px-4 py-3.5 text-left shadow-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-4 active:translate-y-px ${completed ? "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 focus-visible:ring-emerald-100" : "border-amber-300 bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-amber-100/80 hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-lg focus-visible:ring-amber-200"}`
-    : "w-full rounded-xl border border-slate-100 bg-white px-4 py-4 text-left shadow-sm";
-  return onClick
-    ? <button type="button" onClick={onClick} className={`${className} cursor-pointer`} aria-label={`${label} ${value}，点击进入处方管理查看未完成处方`}>{content}</button>
-    : <article className={className}>{content}</article>;
-}
-
-function TrendCard({ values, compact = false }: { values: number[]; compact?: boolean }) {
-  const points = values.map((value, index) => `${20 + index * 72},${150 - value}`).join(" ");
-  return (
-    <section className={`card ${compact ? "p-4" : "p-5"}`}>
-      <SectionHeader title="本周康复闭环趋势" description="参考资料页的数据趋势结构，展示训练完成、报告回流和处方复核的综合变化。" action={<StatusBadge tone="blue"><BarChart3 className="h-3.5 w-3.5" />近 7 天</StatusBadge>} />
-      <div className={`${compact ? "mt-1 h-28 p-2" : "mt-2 h-44 p-4"} rounded-xl border border-slate-100 bg-gradient-to-b from-slate-50 to-white`}>
-        <svg viewBox="0 0 480 170" className="h-full w-full" role="img" aria-label="本周康复闭环趋势折线图">
-          {[30, 70, 110, 150].map((y) => <line key={y} x1="0" x2="480" y1={y} y2={y} stroke="#e2e8f0" strokeWidth="1" />)}
-          <polyline points={points} fill="none" stroke="#0ea5e9" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-          {values.map((value, index) => <circle key={`${value}-${index}`} cx={20 + index * 72} cy={150 - value} r="5" fill="#0ea5e9" stroke="white" strokeWidth="3" />)}
-        </svg>
-      </div>
-      <div className={`${compact ? "mt-1" : "mt-3"} grid grid-cols-7 text-center text-[10px] font-bold text-slate-400`}>{["周一", "周二", "周三", "周四", "周五", "周六", "今日"].map((day) => <span key={day}>{day}</span>)}</div>
-    </section>
-  );
-}
-
-function RankingCard({ items, compact = false }: { items: readonly (readonly [string, number, string])[]; compact?: boolean }) {
-  const max = Math.max(...items.map((item) => item[1]));
-  return (
-    <section className={`card ${compact ? "p-4" : "p-5"}`}>
-      <SectionHeader title="医生待办任务构成" description="用排行榜形式展示今日最需要医生注意的工作类型。" />
-      <div className={`${compact ? "mt-2 h-32 gap-7" : "mt-6 h-44 gap-10"} flex items-end justify-center`}>
-        {items.map(([label, value, note], index) => (
-          <div key={label} className={`flex ${compact ? "w-20" : "w-24"} flex-col items-center`}>
-            <span className={`${compact ? "mb-1 text-xs" : "mb-2 text-sm"} font-bold text-slate-900`}>{value}</span>
-            <div className={`${compact ? "w-12" : "w-16"} rounded-t-xl bg-gradient-to-b from-sky-500 to-medical-700 shadow-sm`} style={{ height: `${compact ? Math.max(26, (value / max) * 68) : Math.max(42, (value / max) * 128)}px` }} />
-            <span className={`${compact ? "mt-1 px-1.5 py-0.5" : "mt-3 px-2 py-1"} rounded-full bg-slate-100 text-[9px] font-bold text-slate-500`}>NO.{index + 1}</span>
-            <b className="mt-1 text-xs text-slate-800">{label}</b>
-            <span className="mt-0.5 text-[10px] text-slate-400">{note}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ReminderCard({ items }: { items: readonly (readonly [string, string, string, string])[] }) {
-  const dotClasses: Record<string, string> = { red: "bg-red-500", orange: "bg-amber-500", blue: "bg-sky-500" };
-  return (
-    <section className="card overflow-hidden">
-      <div className="px-5 pt-5"><SectionHeader title="提醒信息" description="把异常、到期和数据缺失放在医生首页，不让关键事项藏在列表里。" action={<button type="button" className="text-xs font-bold text-medical-700">查看全部</button>} /></div>
-      <div className="divide-y divide-slate-100">
-        {items.map(([title, detail, time, tone]) => (
-          <div key={title} className="grid grid-cols-[1fr_auto] gap-4 px-5 py-4">
-            <div className="flex gap-3">
-              <span className={`mt-1.5 h-2 w-2 rounded-full ${dotClasses[tone] ?? dotClasses.blue}`} />
-              <div>
-                <p className="text-sm font-bold text-slate-900">{title}</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">{detail}</p>
-              </div>
-            </div>
-            <span className="font-mono text-[10px] text-slate-400">{time}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function FollowUpReminderCard({ patients, tasks, onViewAll, onOpen }: { patients: ManagedPatient[]; tasks: FollowUpTask[]; onViewAll: () => void; onOpen: (taskId: string) => void }) {
+  const pendingFollowUps = followUpTasks.filter((task) => isFollowUpVisibleInPending(task));
   const patientMap = new Map(patients.map((patient) => [patient.patient_demo_id, patient]));
-  const riskPriority: Record<string, number> = { 高危: 0, 中危: 1, 低危: 2, 待评估: 3 };
-  const actionableTasks = tasks.filter((task) => isFollowUpVisibleInPending(task));
-  const visibleTasks = [...actionableTasks].sort((left, right) => {
-    const statusOrder: Record<FollowUpStatus, number> = { review_required: 0, overdue: 1, due: 2, rescheduled: 3, upcoming: 4, completed: 5 };
-    const leftPatient = patientMap.get(left.patientId);
-    const rightPatient = patientMap.get(right.patientId);
-    return statusOrder[effectiveFollowUpStatus(left)] - statusOrder[effectiveFollowUpStatus(right)]
-      || riskPriority[leftPatient?.risk_level ?? "待评估"] - riskPriority[rightPatient?.risk_level ?? "待评估"]
-      || left.currentDueDate.localeCompare(right.currentDueDate);
-  }).slice(0, 3);
-  return <section className="card overflow-hidden"><div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4"><SectionHeader title="随访待办" description="提前7天提醒，逾期和高风险患者优先。" /><button type="button" onClick={onViewAll} className="shrink-0 text-xs font-bold text-medical-700">查看全部（{actionableTasks.length}）</button></div><div className="divide-y divide-slate-100">{visibleTasks.map((task) => {
-    const patient = patientMap.get(task.patientId);
-    if (!patient) return null;
-    const status = effectiveFollowUpStatus(task);
-    const distance = daysUntil(task.currentDueDate);
-    return <button key={task.id} type="button" onClick={() => onOpen(task.id)} className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-3 text-left hover:bg-blue-50"><span className={`flex h-9 w-9 items-center justify-center rounded-lg ${status === "overdue" ? "bg-red-50 text-red-600" : status === "due" ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"}`}><PhoneCall className="h-4 w-4" /></span><span className="min-w-0"><span className="flex items-center gap-2"><b className="text-xs text-slate-900">{patient.name}</b><StatusBadge tone={patient.risk_level === "高危" ? "red" : patient.risk_level === "中危" ? "orange" : "green"}>{patient.risk_level}</StatusBadge></span><span className="mt-1 block text-[10px] text-slate-500">出院后{task.milestoneMonth}个月 · 计划 {task.currentDueDate}</span></span><span className={`text-[10px] font-bold ${status === "overdue" ? "text-red-600" : "text-blue-700"}`}>{distance < 0 ? `逾期${Math.abs(distance)}天` : distance === 0 ? "今日沟通" : `${distance}天后`}</span></button>;
-  })}{!visibleTasks.length && <div className="px-5 py-12 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" /><p className="mt-3 text-xs font-bold text-slate-700">7天内没有随访待办</p></div>}</div></section>;
+  if (role === "REHAB_EXECUTION") {
+    return <section data-testid="page-VIEW-DASHBOARD">
+      <PageHeader eyebrow="康复执行岗 · 当前康复中心" title="周康复师，上午好" description="按患者实际到诊完成项目核对、训练前后评估、设备连接和异常上报；不重复录入正式处方。" action={<StatusBadge tone="green"><MonitorUp className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />
+      <div className="mb-5 grid grid-cols-5 gap-4">
+        <StatCard label="今日到诊" value="12" note="以现场签到为准" icon={<UserCheck className="h-5 w-5" />} />
+        <StatCard label="待选择项目" value="3" note="对照纸质处方" tone="orange" icon={<ClipboardList className="h-5 w-5" />} />
+        <StatCard label="在训患者" value="2" note="功率车 01、02" tone="green" icon={<MonitorUp className="h-5 w-5" />} />
+        <StatCard label="训练后确认" value="3" note="复测后生成单次报告" icon={<CheckCircle2 className="h-5 w-5" />} />
+        <StatCard label="异常待上报" value="1" note="胸闷主诉" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
+      </div>
+      <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+        <TaskCard onOpenTraining={onOpenTraining} />
+        <BoundaryCard />
+      </div>
+    </section>;
+  }
+
+  return <section data-testid="page-VIEW-DASHBOARD">
+    <PageHeader eyebrow={role === "ADMIN" ? "训练数据与报告系统 · 管理视图" : "训练数据与报告 · 医生视图"} title={role === "ADMIN" ? "林管理员，上午好" : "王医生，上午好"} description={role === "ADMIN" ? "查看系统运行和报告发布情况；管理员不能代替医生完成临床签署。" : "优先处理阶段报告、训练异常和随访升级；正式处方继续在医院原系统完成。"} action={<StatusBadge tone="blue"><FileText className="h-3.5 w-3.5" />报告优先</StatusBadge>} />
+    <div className="mb-5 grid grid-cols-5 gap-4">
+      <StatCard label="患者数据" value={String(patients.length)} note="OCR与人工核对" icon={<UsersRound className="h-5 w-5" />} />
+      <StatCard label="累计训练记录" value="42" note="设备与人工记录" icon={<Activity className="h-5 w-5" />} />
+      <StatCard label="待生成阶段报告" value="3" note="选择具体训练记录" tone="orange" icon={<Sparkles className="h-5 w-5" />} />
+      <StatCard label="平均完成率" value="83%" note="本月训练" tone="green" icon={<TrendingUp className="h-5 w-5" />} />
+      <StatCard label="异常待复核" value="1" note="训练中主诉" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
+    </div>
+    <div className="grid gap-5 lg:grid-cols-2">
+      <section className="card p-5"><SectionHeader title="阶段报告待办" description="AI只汇总已选训练记录，医生确认后形成正式结论。" />
+        <div className="mt-4 space-y-3">{[
+          ["陈女士", "最近4次训练数据已齐", "含1次胸闷事件", "orange"],
+          ["李先生", "已有6次完成记录", "可生成阶段草稿", "blue"],
+          ["赵女士", "阶段末评估未采集", "只能保存草稿", "orange"]
+        ].map(([name, detail, note, tone]) => <button type="button" onClick={onOpenReports} key={name} className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left hover:border-blue-200 hover:bg-blue-50"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 font-bold text-blue-700">{name.slice(0, 1)}</span><span className="flex-1"><b className="text-sm text-slate-900">{name}</b><span className="mt-1 block text-[10px] text-slate-500">{detail} · {note}</span></span><StatusBadge tone={tone as "orange" | "blue"}>{tone === "orange" ? "待处理" : "可生成"}</StatusBadge></button>)}</div>
+        <button type="button" onClick={onOpenReports} className="btn-primary mt-4 w-full">进入阶段报告</button>
+      </section>
+      <section className="card p-5"><SectionHeader title="随访待办" description="出院报告发布后自动生成提醒；以短信/在线消息和人工电话为主。" />
+        <div className="mt-4 space-y-3">{pendingFollowUps.slice(0, 3).map((task) => <button type="button" key={task.id} onClick={() => onOpenFollowUps("pending", task.id)} className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left hover:border-emerald-200 hover:bg-emerald-50"><PhoneCall className="h-4 w-4 text-emerald-600" /><span className="flex-1"><b className="text-sm text-slate-900">{patientMap.get(task.patientId)?.name ?? "待核对患者"}</b><span className="mt-1 block text-[10px] text-slate-500">{task.milestoneMonth}个月随访 · 计划 {task.currentDueDate}</span></span><StatusBadge tone="orange">待联系</StatusBadge></button>)}</div>
+        {!pendingFollowUps.length && <p className="mt-4 rounded-xl bg-slate-50 p-5 text-center text-xs text-slate-400">当前没有待随访任务</p>}
+        <button type="button" onClick={() => onOpenFollowUps("pending")} className="btn-secondary mt-4 w-full">查看全部随访</button>
+      </section>
+    </div>
+  </section>;
 }
 
-function StageReportQueueCard({
-  tasks,
-  onViewAll
-}: {
-  tasks: PrescriptionTask[];
-  onViewAll: () => void;
-}) {
-  const riskPriority = { 高危: 0, 中危: 1, 低危: 2 };
-  const reviewTasks = tasks.filter((task) => task.status === "pending_review" || task.status === "pending_signature");
-  const visibleTasks = [...reviewTasks]
-    .sort((left, right) =>
-      riskPriority[left.risk] - riskPriority[right.risk]
-      || Number(Boolean(right.missingFields?.length)) - Number(Boolean(left.missingFields?.length))
-      || left.updatedAt.localeCompare(right.updatedAt))
-    .slice(0, 3);
-
-  return (
-    <section className="card overflow-hidden">
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
-        <SectionHeader title="待生成阶段报告" description="训练记录达到阶段节点后，由医生选择本次汇总范围并确认AI报告草稿。" />
-        <button type="button" onClick={onViewAll} className="shrink-0 text-xs font-bold text-medical-700">查看全部（{reviewTasks.length}）</button>
-      </div>
-      <div className="divide-y divide-slate-100">
-        {visibleTasks.map((task) => {
-          const hasSafetyEvent = minimalSafetyEvents.some((event) => event.patientId === task.patientId);
-          return (
-            <button key={task.id} type="button" onClick={onViewAll} className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-blue-50">
-              <span className={`h-2 w-2 rounded-full ${task.risk === "高危" || hasSafetyEvent ? "bg-red-500" : task.missingFields?.length ? "bg-sky-500" : "bg-amber-500"}`} />
-              <span className="min-w-0">
-                <span className="flex flex-wrap items-center gap-2"><b className="text-sm text-slate-900">{task.patientName}</b><StatusBadge tone={task.risk === "高危" ? "red" : task.risk === "中危" ? "orange" : "green"}>{task.risk}</StatusBadge><StatusBadge tone="blue">训练记录已汇总</StatusBadge>{!!task.missingFields?.length && <StatusBadge tone="red">数据待补</StatusBadge>}{hasSafetyEvent && <StatusBadge tone="red">训练异常</StatusBadge>}</span>
-                <span className="mt-1 block truncate text-xs text-slate-500">{task.stage} · 可选择最近4次或自定义训练记录生成报告</span>
-              </span>
-              <span className="text-right"><span className="block font-mono text-[10px] text-slate-400">{formatTime(task.updatedAt)}</span><span className="mt-1 block text-[10px] font-bold text-medical-700">生成报告</span></span>
-            </button>
-          );
-        })}
-        {!visibleTasks.length && <div className="px-5 py-12 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" /><p className="mt-3 text-xs font-bold text-slate-700">当前没有待生成的阶段报告</p></div>}
-      </div>
-    </section>
-  );
+function TaskCard({ onOpenTraining }: { onOpenTraining: () => void }) {
+  return <section className="card p-5"><SectionHeader title="下一步执行任务" description="按实际到诊与风险顺序处理，不依赖预约数据。" /><div className="mt-4 space-y-3">{[
+    ["陈女士", "选择本次训练项目", "待核对"],
+    ["李秀兰", "训练后生命体征复测", "待记录"],
+    ["周海明", "训练中断与现场处置", "重点关注"]
+  ].map(([name, task, status]) => <button type="button" onClick={onOpenTraining} key={name} className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left hover:bg-blue-50"><Activity className="h-4 w-4 text-blue-600" /><span className="flex-1"><b className="text-sm text-slate-900">{name}</b><span className="mt-1 block text-[10px] text-slate-500">{task}</span></span><StatusBadge tone={status === "重点关注" ? "red" : "orange"}>{status}</StatusBadge></button>)}</div></section>;
 }
 
-function TodayAppointmentCard({ appointments, onOpen, compact = false }: { appointments: DoctorAppointment[]; onOpen: (taskId: string) => void; compact?: boolean }) {
-  const [showAll, setShowAll] = useState(false);
-  const visibleAppointments = showAll ? appointments : appointments.slice(0, 3);
-  const hasMore = appointments.length > 3;
-  return (
-    <section className="card overflow-hidden">
-      <div className={compact ? "px-4 pt-4" : "px-5 pt-5"}>
-        <SectionHeader
-          title="今日训练计划"
-          description="当前未接入 HIS/预约数据，仅展示演示计划，不代表真实预约或到诊状态。"
-          action={hasMore
-            ? <button type="button" onClick={() => setShowAll((current) => !current)} className="text-xs font-bold text-medical-700">{showAll ? "收起" : `查看全部（${appointments.length}）`}</button>
-            : <span className="text-xs font-bold text-slate-400">共 {appointments.length} 人</span>}
-        />
-      </div>
-      <div className="divide-y divide-slate-100">
-        {visibleAppointments.map((appointment) => (
-          <button key={appointment.id} type="button" onClick={() => onOpen(appointment.linkedTaskId)} className={`grid w-full grid-cols-[auto_1fr_auto] items-center text-left hover:bg-blue-50 ${compact ? "gap-2 px-4 py-2.5" : "gap-3 px-5 py-4"}`}>
-            <span className={`flex items-center justify-center rounded-full bg-medical-100 font-bold text-medical-700 ${compact ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm"}`}>{appointment.patientName.slice(0, 1)}</span>
-            <span>
-              <span className="flex items-center gap-2"><b className={`${compact ? "text-xs" : "text-sm"} text-slate-900`}>{appointment.patientName}</b><StatusBadge tone={appointment.risk === "高危" ? "red" : appointment.risk === "中危" ? "orange" : "green"}>{appointment.risk}</StatusBadge></span>
-              <span className={`mt-1 block truncate text-slate-500 ${compact ? "max-w-48 text-[9px]" : "text-xs"}`}>{appointment.stage} · {appointment.purpose}</span>
-            </span>
-            <span className="text-right"><span className="block text-[9px] font-bold text-slate-400">计划时间</span><span className={`mt-1 block font-mono font-bold text-slate-700 ${compact ? "text-xs" : "text-sm"}`}>{formatTime(appointment.scheduledStartAt)}</span></span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function EditLine({ label, value, setValue, disabled }: { label: string; value: string; setValue: (value: string) => void; disabled: boolean }) {
-  return <label><span className="field-label">{label}</span><input value={value} onChange={(event) => setValue(event.target.value)} disabled={disabled} className="text-field disabled:bg-slate-50" /></label>;
+function BoundaryCard() {
+  return <section className="card p-5"><SectionHeader title="执行权限边界" /><div className="mt-4 space-y-3">{[
+    [true, "可核对患者身份、训练项目和次数"],
+    [true, "可记录生命体征、RPE和现场处置"],
+    [false, "不能修改诊断、风险等级和正式处方"],
+    [false, "不能形成医生报告结论或代签"]
+  ].map(([allowed, text]) => <div key={String(text)} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">{allowed ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span className="text-xs font-medium text-slate-700">{text}</span></div>)}</div></section>;
 }

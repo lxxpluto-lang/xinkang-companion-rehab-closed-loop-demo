@@ -391,7 +391,7 @@ const singleTrainingReportSeeds: SingleTrainingReportSeed[] = [
   }
 ];
 
-// 阶段报告要求至少 4 次单次记录；以下两条为同一 Demo 阶段的补充样例，确保列表、阶段汇总和处方版本可以互相追溯。
+// 阶段报告默认预选最近 4 次单次记录；以下两条为同一 Demo 阶段的补充样例，确保列表与阶段汇总可以互相追溯。
 const expandedSingleTrainingReportSeeds: SingleTrainingReportSeed[] = [
   ...singleTrainingReportSeeds,
   {

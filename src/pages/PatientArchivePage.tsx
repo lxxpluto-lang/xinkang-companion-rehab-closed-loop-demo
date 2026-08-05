@@ -35,8 +35,6 @@ import {
   prescriptionVersionDetails,
   singleTrainingReportDetails
 } from "../clinicalSharedData";
-import type { PrescriptionTask } from "../prescriptionData";
-import { prescriptionStatusLabels } from "../prescriptionData";
 import type { PatientClinicalProfile } from "../prescriptionWorkspaceData";
 import type { ClinicalNarrativeRecord } from "../prescriptionWorkspaceData";
 import { hasSppbInput, type AssessmentRecord } from "../assessmentData";
@@ -45,7 +43,7 @@ import { stageReportData } from "../patient/stageReportData";
 import { treatmentInterventionOptions, treatmentStatusLabel, type CardiopulmonaryTreatmentRecord } from "../treatmentData";
 import { formatDate, formatDateTime, formatTime } from "../utils/dateTime";
 
-export type PatientWorkspaceTab = "profile" | "assessments" | "treatments" | "narratives" | "followups" | "prescriptions" | "sessions" | "reports";
+export type PatientWorkspaceTab = "profile" | "assessments" | "treatments" | "followups" | "sessions" | "reports";
 
 export type ManagedPatient = {
   patient_demo_id: string;
@@ -55,7 +53,12 @@ export type ManagedPatient = {
   institution_id: string;
   institution_name: string;
   environment: "测试环境" | "生产环境";
-  record_source: "本地录入" | "OCR批量导入";
+  record_source: "手工补录基础资料" | "OCR单张导入" | "OCR批量导入";
+  source_file_name: string;
+  ocr_confidence: number | null;
+  review_status: "待核对" | "已确认" | "已拒绝";
+  reviewed_by: string;
+  reviewed_at: string;
   record_status: "有效" | "已归档";
   workflow_status: PatientRecordStatus;
   field_status: Record<string, FieldCollectionStatus>;
@@ -122,7 +125,12 @@ export const initialPatients: ManagedPatient[] = demoPatients.map((patient, inde
     institution_id: "ORG-CRH-001",
     institution_name: "心脏康复中心",
     environment: "测试环境",
-    record_source: "本地录入",
+    record_source: "手工补录基础资料",
+    source_file_name: "",
+    ocr_confidence: null,
+    review_status: "已确认",
+    reviewed_by: profile.assigned_doctor,
+    reviewed_at: "2026-07-20 09:35",
     record_status: "有效",
     workflow_status: "confirmed",
     field_status: {
@@ -178,14 +186,14 @@ export function calculateAge(birthDate: string) {
 }
 
 const trainingRecords = [
-  { id: "TR-20260725-012", trainingRecordNo: "CRH-TR-20260725-0012", patientId: "P-DEMO-001", date: "2026-07-25T09:30:00+08:00", project: "功率车", version: "V4.0", duration: "30分钟", target: "84%", status: "已完成", event: "胸闷1次 · 已复核" },
-  { id: "TR-20260723-011", trainingRecordNo: "CRH-TR-20260723-0011", patientId: "P-DEMO-001", date: "2026-07-23T09:20:00+08:00", project: "功率车", version: "V4.0", duration: "30分钟", target: "79%", status: "已完成", event: "无异常" },
-  { id: "TR-20260716-009", trainingRecordNo: "CRH-TR-20260716-0009", patientId: "P-DEMO-001", date: "2026-07-16T09:10:00+08:00", project: "功率车", version: "V3.0", duration: "30分钟", target: "80%", status: "已完成", event: "无异常" }
+  { id: "TR-20260725-012", trainingRecordNo: "CRH-TR-20260725-0012", patientId: "P-DEMO-001", date: "2026-07-25T09:30:00+08:00", project: "功率车", version: "纸质处方核对", duration: "30分钟", target: "84%", status: "已完成", event: "胸闷1次 · 已复核" },
+  { id: "TR-20260723-011", trainingRecordNo: "CRH-TR-20260723-0011", patientId: "P-DEMO-001", date: "2026-07-23T09:20:00+08:00", project: "功率车", version: "纸质处方核对", duration: "30分钟", target: "79%", status: "已完成", event: "无异常" },
+  { id: "TR-20260716-009", trainingRecordNo: "CRH-TR-20260716-0009", patientId: "P-DEMO-001", date: "2026-07-16T09:10:00+08:00", project: "功率车", version: "HIS处方参考", duration: "30分钟", target: "80%", status: "已完成", event: "无异常" }
 ];
 
 const stageReports = [
-  { id: "STAGE-202607", patientId: "P-DEMO-001", period: "2026-06-16 至 2026-07-25", versions: "V1–V4", completion: "11/12次", target: "84%", status: "已审核" },
-  { id: "STAGE-202607-003", patientId: "P-DEMO-003", period: "2026-07-05 至 2026-07-28", versions: "V1–V3", completion: "9/10次", target: "78%", status: "待复核" }
+  { id: "STAGE-202607", patientId: "P-DEMO-001", period: "2026-06-16 至 2026-07-25", sessions: "已选4次训练", completion: "4/4次", target: "84%", status: "已审核" },
+  { id: "STAGE-202607-003", patientId: "P-DEMO-003", period: "2026-07-05 至 2026-07-28", sessions: "已选3次训练", completion: "3/3次", target: "78%", status: "待复核" }
 ];
 
 function riskTone(risk: string): "red" | "orange" | "green" {
@@ -205,7 +213,6 @@ export function PatientArchivePage({
   role,
   currentAccount,
   patients,
-  tasks,
   followUpTasks = [],
   followUpRecords = [],
   clinicalNarratives = [],
@@ -216,17 +223,14 @@ export function PatientArchivePage({
   clinicalProfiles = [],
   onSavePatient,
   onUpdatePatient,
-  onOpenPrescription,
   onOpenFollowUp,
   onOpenAssessment,
   onOpenDischargeReport,
   onSaveTreatmentRecord,
-  onBackToPrescription
 }: {
   role: Exclude<Role, "PATIENT">;
   currentAccount?: string;
   patients: ManagedPatient[];
-  tasks: PrescriptionTask[];
   followUpTasks?: FollowUpTask[];
   followUpRecords?: FollowUpRecord[];
   clinicalNarratives?: ClinicalNarrativeRecord[];
@@ -237,12 +241,10 @@ export function PatientArchivePage({
   clinicalProfiles?: PatientClinicalProfile[];
   onSavePatient: (patient: ManagedPatient, previousDischargeDate: string, dischargeChangeReason: string) => void;
   onUpdatePatient: (patient: ManagedPatient) => void;
-  onOpenPrescription: (taskId: string) => void;
   onOpenFollowUp: (taskId: string) => void;
   onOpenAssessment: (patientId?: string) => void;
   onOpenDischargeReport?: (patientId: string) => void;
   onSaveTreatmentRecord?: (record: CardiopulmonaryTreatmentRecord) => void;
-  onBackToPrescription?: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(initialPatientId ?? null);
   const [activeTab, setActiveTab] = useState<PatientWorkspaceTab>(initialTab);
@@ -256,10 +258,11 @@ export function PatientArchivePage({
   const [similarWarningAccepted, setSimilarWarningAccepted] = useState(false);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [showBatchImport, setShowBatchImport] = useState(false);
+  const [importMode, setImportMode] = useState<"single" | "batch">("single");
   const [batchText, setBatchText] = useState("姓名\t性别\t出生日期\t患者号\t联系电话\n示例患者\t女\t1968-01-01\t000999\t");
   const doctorName = currentAccount ?? "王医生";
   const canImport = role === "DOCTOR" || role === "REHAB_EXECUTION";
-  const canEditClinical = false;
+  const canEditClinical = role !== "ADMIN";
   const canCollectAssessment = role !== "ADMIN";
   const scopedPatients = useMemo(() => patients, [patients]);
   const selected = selectedId ? scopedPatients.find((patient) => patient.patient_demo_id === selectedId) ?? null : null;
@@ -328,6 +331,9 @@ export function PatientArchivePage({
     const auditTime = formatDateTime(now.toISOString());
     let savedPatient: ManagedPatient = {
       ...normalized,
+      review_status: editingMode === "edit" ? "已确认" : normalized.review_status,
+      reviewed_by: editingMode === "edit" ? doctorName : normalized.reviewed_by,
+      reviewed_at: editingMode === "edit" ? auditTime : normalized.reviewed_at,
       workflow_status: normalized.clinical_confirmed ? "confirmed" : "saved",
       field_status: {
         ...normalized.field_status,
@@ -350,7 +356,6 @@ export function PatientArchivePage({
     if (editingMode === "create") {
       const occupiedNumbers = [
         ...patients.map((patient) => Number(patient.patient_no) || 0),
-        ...tasks.map((task) => Number(task.patientId.match(/(\d+)$/)?.[1]) || 0),
         ...clinicalProfiles.map((profile) => Number(profile.patientId.match(/(\d+)$/)?.[1]) || 0)
       ];
       const nextNumber = Math.max(0, ...occupiedNumbers) + 1;
@@ -386,7 +391,7 @@ export function PatientArchivePage({
   }
 
   function openEdit(patient: ManagedPatient) {
-    if (!canEditClinical || patient.assigned_doctor !== doctorName) return;
+    if (!canEditClinical || (role !== "REHAB_EXECUTION" && patient.assigned_doctor !== doctorName)) return;
     setEditingMode("edit");
     setFormError("");
     setSimilarPatientWarning("");
@@ -395,8 +400,6 @@ export function PatientArchivePage({
   }
 
   function openCreate() {
-    return;
-    /* Legacy manual-entry form retained only for rollback comparison; it has no reachable entry in this version.
     const now = formatDateTime(new Date().toISOString());
     setEditingMode("create");
     setFormError("");
@@ -410,7 +413,12 @@ export function PatientArchivePage({
       institution_id: "ORG-CRH-001",
       institution_name: "心脏康复中心",
       environment: "测试环境",
-      record_source: "本地录入",
+      record_source: "手工补录基础资料",
+      source_file_name: "",
+      ocr_confidence: null,
+      review_status: "待核对",
+      reviewed_by: "",
+      reviewed_at: "",
       record_status: "有效",
       workflow_status: "draft",
       field_status: {
@@ -468,7 +476,7 @@ export function PatientArchivePage({
       latest_abnormal: "无",
       report_status: "尚未开始",
       last_followup: "尚未随访"
-    }); */
+    });
   }
 
   function startFirstAssessment(patientId: string) {
@@ -512,11 +520,16 @@ export function PatientArchivePage({
         institution_id: "ORG-CRH-001",
         institution_name: "心脏康复中心",
         environment: "测试环境" as const,
-        record_source: "OCR批量导入" as const,
+        record_source: importMode === "single" ? "OCR单张导入" as const : "OCR批量导入" as const,
+        source_file_name: importMode === "single" ? "单张患者资料.jpg" : "历史扫描资料.pdf",
+        ocr_confidence: index === 0 ? 94 : 82,
+        review_status: "待核对" as const,
+        reviewed_by: "",
+        reviewed_at: "",
         record_status: "有效" as const,
         workflow_status: "incomplete" as const,
         field_status: { name: value("姓名") ? "saved" : "not_collected", gender: value("性别") ? "saved" : "not_collected", birth_date: birthDate ? "saved" : "not_collected", patient_no: importedPatientNo ? "saved" : "not_collected", phone: value("联系电话") ? "saved" : "not_collected" } as Record<string, FieldCollectionStatus>,
-        name: value("姓名", `待核对患者${index + 1}`), id_number: "", id_type: "身份证" as const, phone: value("联系电话"), birth_date: birthDate, age: calculateAge(birthDate), gender: value("性别"), emergency_contact: "", emergency_relation: "", emergency_phone: "", assigned_doctor: value("主管医生", doctorName), diagnosis_summary: "", medical_history: "", procedure_history: "", current_medications: "", drug_allergies: "", exercise_precautions: "待工作人员核对", referral_source: "OCR批量导入", discharge_date: "", planned_rehab_date: "", risk_level: "待评估", rehab_group: "待分组", rehab_stage: "待评估", consent_status: "未记录", consent_time: "", consent_method: "", height_cm: "", weight_kg: "", record_note: "OCR识别草稿，待工作人员核对", clinical_confirmed: false, clinical_confirmed_by: "", clinical_confirmed_role: "", clinical_confirmed_at: "", created_by: doctorName, created_at: now, updated_by: doctorName, updated_at: now, audit_log: [`${now} ${doctorName}通过OCR批量导入，数据待核对`], assessment: { cpet: "待评估", six_mwt: "待评估", resting_hr: 0 }, prescription_version: "尚未开始", training_status: "尚未开始", latest_abnormal: "无", report_status: "尚未开始", last_followup: "尚未随访"
+        name: value("姓名", `待核对患者${index + 1}`), id_number: "", id_type: "身份证" as const, phone: value("联系电话"), birth_date: birthDate, age: calculateAge(birthDate), gender: value("性别"), emergency_contact: "", emergency_relation: "", emergency_phone: "", assigned_doctor: value("主管医生", doctorName), diagnosis_summary: "", medical_history: "", procedure_history: "", current_medications: "", drug_allergies: "", exercise_precautions: "待工作人员核对", referral_source: importMode === "single" ? "OCR单张导入" : "OCR批量导入", discharge_date: "", planned_rehab_date: "", risk_level: "待评估", rehab_group: "待分组", rehab_stage: "待评估", consent_status: "未记录", consent_time: "", consent_method: "", height_cm: "", weight_kg: "", record_note: "OCR识别草稿，待工作人员核对", clinical_confirmed: false, clinical_confirmed_by: "", clinical_confirmed_role: "", clinical_confirmed_at: "", created_by: doctorName, created_at: now, updated_by: doctorName, updated_at: now, audit_log: [`${now} ${doctorName}通过${importMode === "single" ? "单张" : "批量"}OCR导入，数据待核对`], assessment: { cpet: "待评估", six_mwt: "待评估", resting_hr: 0 }, prescription_version: "尚未开始", training_status: "尚未开始", latest_abnormal: "无", report_status: "尚未开始", last_followup: "尚未随访"
       } satisfies ManagedPatient;
     });
     created.forEach((patient) => onSavePatient(patient, "", ""));
@@ -532,21 +545,18 @@ export function PatientArchivePage({
           clinicalProfile={selectedClinicalProfile}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          tasks={tasks.filter((task) => task.patientId === selected.patient_demo_id && (role !== "DOCTOR" || task.assignedDoctor === doctorName))}
           followUpTasks={followUpTasks.filter((task) => task.patientId === selected.patient_demo_id)}
           followUpRecords={followUpRecords.filter((record) => record.patientId === selected.patient_demo_id)}
           clinicalNarratives={clinicalNarratives.filter((record) => record.patientId === selected.patient_demo_id)}
           assessmentRecords={assessmentRecords.filter((record) => record.patientId === selected.patient_demo_id)}
           treatmentRecords={treatmentRecords.filter((record) => record.patientId === selected.patient_demo_id)}
           onBack={() => { setSelectedId(null); setActiveTab("profile"); }}
-          onBackToPrescription={onBackToPrescription}
           onEdit={() => openEdit(selected)}
           onArchive={() => archivePatient(selected)}
-          canEdit={canEditClinical && selected.assigned_doctor === doctorName}
+          canEdit={canEditClinical && (role === "REHAB_EXECUTION" || selected.assigned_doctor === doctorName)}
           canCollectAssessment={canCollectAssessment}
           justCreated={canEditClinical && justCreatedId === selected.patient_demo_id}
           onStartAssessment={() => startFirstAssessment(selected.patient_demo_id)}
-          onOpenPrescription={onOpenPrescription}
           onOpenFollowUp={onOpenFollowUp}
           onOpenAssessment={onOpenAssessment}
           onOpenDischargeReport={onOpenDischargeReport}
@@ -554,7 +564,7 @@ export function PatientArchivePage({
         />
       ) : (
         <>
-          <PageHeader eyebrow="患者数据索引" title="患者训练数据" description="患者主档与正式病历由院内 HIS 维护；本系统只接收院方编号、必要基础信息和训练数据，不提供手工建档入口。" action={<div className="flex items-center gap-2"><StatusBadge tone="orange">脱敏演示数据</StatusBadge>{canImport && <button type="button" onClick={() => setShowBatchImport(true)} className="btn-primary"><Upload className="h-4 w-4" />OCR 批量导入</button>}</div>} />
+          <PageHeader eyebrow="患者数据索引" title="患者训练数据" description="患者主档与正式病历由院内 HIS 维护；本系统仅导入训练所需的基础资料，并由工作人员人工核对。" action={<div className="flex flex-wrap items-center gap-2"><StatusBadge tone="orange">脱敏演示数据</StatusBadge>{canImport && <><button type="button" onClick={() => { setImportMode("single"); setShowBatchImport(true); }} className="btn-primary"><Upload className="h-4 w-4" />OCR 新增患者</button><button type="button" onClick={() => { setImportMode("batch"); setShowBatchImport(true); }} className="btn-secondary">历史资料批量导入</button><button type="button" onClick={openCreate} className="btn-secondary">手工补录基础资料</button></>}</div>} />
           <section className="card overflow-hidden">
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-4">
               <label className="relative block min-w-[280px] flex-1">
@@ -584,13 +594,13 @@ export function PatientArchivePage({
           </section>
         </>
       )}
-      {editDraft && <PatientEditModal patient={editDraft} setPatient={setEditDraft} mode={editingMode} formError={formError} similarWarning={similarPatientWarning} onAcceptSimilar={() => { setSimilarWarningAccepted(true); setSimilarPatientWarning(""); }} onClose={() => setEditDraft(null)} onSave={savePatient} />}
-      {showBatchImport && <BatchImportModal text={batchText} onChange={setBatchText} onClose={() => setShowBatchImport(false)} onImport={importBatchPatients} />}
+      {editDraft && <PatientEditModal patient={editDraft} setPatient={setEditDraft} mode={editingMode} allowClinicalFields={role === "DOCTOR"} formError={formError} similarWarning={similarPatientWarning} onAcceptSimilar={() => { setSimilarWarningAccepted(true); setSimilarPatientWarning(""); }} onClose={() => setEditDraft(null)} onSave={savePatient} />}
+      {showBatchImport && <BatchImportModal mode={importMode} text={batchText} onChange={setBatchText} onClose={() => setShowBatchImport(false)} onImport={importBatchPatients} />}
     </section>
   );
 }
 
-function BatchImportModal({ text, onChange, onClose, onImport }: { text: string; onChange: (value: string) => void; onClose: () => void; onImport: () => void }) {
+function BatchImportModal({ mode, text, onChange, onClose, onImport }: { mode: "single" | "batch"; text: string; onChange: (value: string) => void; onClose: () => void; onImport: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [recognizing, setRecognizing] = useState(false);
   const [recognized, setRecognized] = useState(false);
@@ -605,29 +615,26 @@ function BatchImportModal({ text, onChange, onClose, onImport }: { text: string;
       setRecognizing(false);
     }, 650);
   }
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm"><section className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold text-violet-600">历史纸质资料 · OCR 批量导入</p><h2 className="mt-1 text-lg font-bold text-slate-950">扫描多份资料，生成待核对数据草稿</h2><p className="mt-1 text-xs text-slate-500">支持图片或 PDF 批量选择，仅识别姓名、性别、年龄/出生日期和院方编号等必要信息，不要求身份证号。</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div><label className="mt-5 flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-violet-300 bg-violet-50/60 p-4 text-center"><Upload className="h-6 w-6 text-violet-600" /><b className="mt-2 text-xs text-violet-900">选择多张扫描图片或 PDF</b><span className="mt-1 text-[10px] text-violet-600">识别结果必须逐条人工核对</span><input type="file" multiple accept="image/*,.pdf" className="sr-only" onChange={(event) => { setFiles(Array.from(event.target.files ?? [])); setRecognized(false); onChange("姓名\t性别\t出生日期\t患者号\t联系电话\t主管医生\n"); }} /></label>{files.length > 0 && <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 p-3"><span className="text-xs text-slate-600">已选择 <b>{files.length}</b> 份资料</span><button type="button" onClick={recognizeFiles} disabled={recognizing} className="btn-secondary">{recognizing ? "OCR 识别中…" : "开始 OCR 识别"}</button></div>}{recognized && <><textarea value={text} onChange={(event) => onChange(event.target.value)} className="mt-4 min-h-40 w-full rounded-xl border border-slate-200 p-3 font-mono text-xs outline-none focus:border-violet-400" /><div className="mt-3 grid grid-cols-3 gap-3 text-xs"><div className="rounded-xl bg-emerald-50 p-3 text-emerald-800"><b>{rows.length}</b><p className="mt-1">识别草稿</p></div><div className="rounded-xl bg-amber-50 p-3 text-amber-800"><b>{rows.filter((row) => row.split(/\t|,/).some((field) => !field.trim())).length}</b><p className="mt-1">存在缺失字段</p></div><div className="rounded-xl bg-slate-50 p-3 text-slate-600"><b>待核对</b><p className="mt-1">不自动确认</p></div></div></>}<div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="btn-secondary">取消</button><button type="button" onClick={onImport} disabled={!recognized || rows.length === 0} className="btn-primary disabled:bg-slate-300"><Upload className="h-4 w-4" />导入待核对草稿</button></div></section></div>;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm"><section className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold text-violet-600">{mode === "single" ? "单张患者资料 · OCR 新增" : "历史纸质资料 · OCR 批量导入"}</p><h2 className="mt-1 text-lg font-bold text-slate-950">{mode === "single" ? "识别一份资料，生成待核对患者数据" : "扫描多份资料，生成待核对数据草稿"}</h2><p className="mt-1 text-xs text-slate-500">仅识别姓名、性别、年龄/出生日期和院方编号等必要信息；识别结果必须人工核对。</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div><label className="mt-5 flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-violet-300 bg-violet-50/60 p-4 text-center"><Upload className="h-6 w-6 text-violet-600" /><b className="mt-2 text-xs text-violet-900">{mode === "single" ? "选择一张扫描图片或 PDF" : "选择多张扫描图片或 PDF"}</b><span className="mt-1 text-[10px] text-violet-600">识别结果必须逐条人工核对</span><input type="file" multiple={mode === "batch"} accept="image/*,.pdf" className="sr-only" onChange={(event) => { setFiles(Array.from(event.target.files ?? [])); setRecognized(false); onChange("姓名\t性别\t出生日期\t患者号\t联系电话\t主管医生\n"); }} /></label>{files.length > 0 && <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 p-3"><span className="text-xs text-slate-600">已选择 <b>{files.length}</b> 份资料</span><button type="button" onClick={recognizeFiles} disabled={recognizing} className="btn-secondary">{recognizing ? "OCR 识别中…" : "开始 OCR 识别"}</button></div>}{recognized && <><textarea value={text} onChange={(event) => onChange(event.target.value)} className="mt-4 min-h-40 w-full rounded-xl border border-slate-200 p-3 font-mono text-xs outline-none focus:border-violet-400" /><div className="mt-3 grid grid-cols-3 gap-3 text-xs"><div className="rounded-xl bg-emerald-50 p-3 text-emerald-800"><b>{rows.length}</b><p className="mt-1">识别草稿</p></div><div className="rounded-xl bg-amber-50 p-3 text-amber-800"><b>{rows.filter((row) => row.split(/\t|,/).some((field) => !field.trim())).length}</b><p className="mt-1">存在缺失字段</p></div><div className="rounded-xl bg-slate-50 p-3 text-slate-600"><b>待核对</b><p className="mt-1">不自动确认</p></div></div></>}<div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="btn-secondary">取消</button><button type="button" onClick={onImport} disabled={!recognized || rows.length === 0} className="btn-primary disabled:bg-slate-300"><Upload className="h-4 w-4" />导入待核对草稿</button></div></section></div>;
 }
 
-function PatientDetail({ patient, clinicalProfile, activeTab, setActiveTab, tasks, followUpTasks, followUpRecords, clinicalNarratives, assessmentRecords, treatmentRecords, onBack, onBackToPrescription, onEdit, onArchive, canEdit, canCollectAssessment, justCreated, onStartAssessment, onOpenPrescription, onOpenFollowUp, onOpenAssessment, onOpenDischargeReport, onSaveTreatmentRecord }: {
+function PatientDetail({ patient, clinicalProfile, activeTab, setActiveTab, followUpTasks, followUpRecords, clinicalNarratives, assessmentRecords, treatmentRecords, onBack, onEdit, onArchive, canEdit, canCollectAssessment, justCreated, onStartAssessment, onOpenFollowUp, onOpenAssessment, onOpenDischargeReport, onSaveTreatmentRecord }: {
   patient: ManagedPatient;
   clinicalProfile?: PatientClinicalProfile;
   activeTab: PatientWorkspaceTab;
   setActiveTab: (tab: PatientWorkspaceTab) => void;
-  tasks: PrescriptionTask[];
   followUpTasks: FollowUpTask[];
   followUpRecords: FollowUpRecord[];
   clinicalNarratives: ClinicalNarrativeRecord[];
   assessmentRecords: AssessmentRecord[];
   treatmentRecords: CardiopulmonaryTreatmentRecord[];
   onBack: () => void;
-  onBackToPrescription?: () => void;
   onEdit: () => void;
   onArchive: () => void;
   canEdit: boolean;
   canCollectAssessment: boolean;
   justCreated: boolean;
   onStartAssessment: () => void;
-  onOpenPrescription: (taskId: string) => void;
   onOpenFollowUp: (taskId: string) => void;
   onOpenAssessment: (patientId?: string) => void;
   onOpenDischargeReport?: (patientId: string) => void;
@@ -643,7 +650,7 @@ function PatientDetail({ patient, clinicalProfile, activeTab, setActiveTab, task
   ];
   return (
     <div className="space-y-4">
-      <PageHeader eyebrow="患者详情页面" title={`${patient.name} · ${patient.patient_code}`} description={`患者号 ${patient.hospital_patient_no} · 主管医生 ${patient.assigned_doctor} · ${patient.environment}`} action={<div className="flex gap-2">{canEdit && patient.record_status !== "已归档" && <button type="button" onClick={onArchive} className="btn-secondary text-rose-700">归档患者</button>}{onBackToPrescription && <button type="button" onClick={onBackToPrescription} className="btn-primary"><ArrowLeft className="h-4 w-4" />返回当前处方</button>}<button type="button" onClick={onBack} className="btn-secondary">返回患者列表</button></div>} />
+      <PageHeader eyebrow="患者训练数据详情" title={`${patient.name} · ${patient.patient_code}`} description={`患者号 ${patient.hospital_patient_no} · 数据来源 ${patient.record_source} · ${patient.review_status}`} action={<div className="flex gap-2">{canEdit && patient.record_status !== "已归档" && <button type="button" onClick={onArchive} className="btn-secondary text-rose-700">归档患者</button>}<button type="button" onClick={onBack} className="btn-secondary">返回患者列表</button></div>} />
       {justCreated && <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" /><div><b className="text-sm text-emerald-900">患者档案创建成功</b><p className="mt-1 text-xs text-emerald-700">未自动生成运动处方。可继续发起首次评估，或返回患者列表。</p></div></div><div className="flex gap-2"><button type="button" onClick={onBack} className="btn-secondary">返回患者列表</button><button type="button" onClick={onStartAssessment} className="btn-primary">发起首次评估<ArrowRight className="h-4 w-4" /></button></div></section>}
       <section className="card p-4">
         <div className="flex items-start gap-4">
@@ -654,28 +661,26 @@ function PatientDetail({ patient, clinicalProfile, activeTab, setActiveTab, task
           {canEdit && <button type="button" onClick={onEdit} className="btn-secondary"><Pencil className="h-4 w-4" />编辑信息</button>}
         </div>
       </section>
-      <DataChain patient={patient} clinicalProfile={clinicalProfile} tasks={tasks} followUpTasks={followUpTasks} clinicalNarratives={clinicalNarratives} assessmentRecords={assessmentRecords} />
+      <DataChain patient={patient} clinicalProfile={clinicalProfile} followUpTasks={followUpTasks} clinicalNarratives={clinicalNarratives} assessmentRecords={assessmentRecords} />
       <nav className="card flex gap-1 p-1.5" aria-label="患者详情栏目">
         {tabs.map(({ key, label, icon: Icon }) => <button key={key} type="button" onClick={() => setActiveTab(key)} className={`flex min-h-9 flex-1 items-center justify-center gap-2 rounded-lg text-xs font-bold ${activeTab === key ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}><Icon className="h-4 w-4" />{label}</button>)}
       </nav>
       {activeTab === "profile" && <ProfileTab patient={patient} clinicalProfile={clinicalProfile} />}
       {activeTab === "assessments" && <AssessmentTab records={assessmentRecords} canEdit={canCollectAssessment} onOpenAssessment={onOpenAssessment} />}
       {activeTab === "treatments" && <TreatmentRecordsTab patientId={patient.patient_demo_id} patientNo={patient.patient_no} records={treatmentRecords} canEdit={canCollectAssessment} onSave={onSaveTreatmentRecord} />}
-      {activeTab === "narratives" && <NarrativesTab records={clinicalNarratives} />}
       {activeTab === "followups" && <FollowUpsTab patient={patient} tasks={followUpTasks} records={followUpRecords} canEdit={canEdit} onEditPatient={onEdit} onOpenFollowUp={onOpenFollowUp} />}
-      {activeTab === "prescriptions" && <PrescriptionsTab tasks={tasks} onOpen={onOpenPrescription} />}
       {activeTab === "sessions" && <SessionsTab patientId={patient.patient_demo_id} />}
-      {activeTab === "reports" && <ReportsTab patientId={patient.patient_demo_id} clinicalProfile={clinicalProfile} onOpenPrescription={onOpenPrescription} tasks={tasks} onOpenDischargeReport={onOpenDischargeReport} />}
+      {activeTab === "reports" && <ReportsTab patientId={patient.patient_demo_id} clinicalProfile={clinicalProfile} onOpenDischargeReport={onOpenDischargeReport} />}
     </div>
   );
 }
 
-function DataChain({ patient, clinicalProfile, tasks, followUpTasks, clinicalNarratives, assessmentRecords }: { patient: ManagedPatient; clinicalProfile?: PatientClinicalProfile; tasks: PrescriptionTask[]; followUpTasks: FollowUpTask[]; clinicalNarratives: ClinicalNarrativeRecord[]; assessmentRecords: AssessmentRecord[] }) {
+function DataChain({ patient, clinicalProfile, followUpTasks, clinicalNarratives, assessmentRecords }: { patient: ManagedPatient; clinicalProfile?: PatientClinicalProfile; followUpTasks: FollowUpTask[]; clinicalNarratives: ClinicalNarrativeRecord[]; assessmentRecords: AssessmentRecord[] }) {
   const completedFollowUps = followUpTasks.filter((task) => effectiveFollowUpStatus(task) === "completed").length;
   const nodes = [
     { label: "OCR基础数据", detail: patient.workflow_status === "confirmed" ? "已确认" : patient.workflow_status === "incomplete" ? "待补全" : patient.workflow_status === "archived" ? "已归档" : "已保存", ready: Boolean(patient.patient_code) && patient.workflow_status !== "archived" },
     { label: "体能评估", detail: assessmentRecords.length ? `${assessmentRecords.length}次 · ${assessmentRecords.some((record) => record.status === "doctor_reviewed") ? "已复核" : "待复核"}` : clinicalProfile?.rehabAssessment.status ?? "待补充", ready: assessmentRecords.some((record) => record.status === "doctor_reviewed") || clinicalProfile?.rehabAssessment.status === "已复核" },
-    { label: "本次项目选择", detail: tasks.length ? "康复师对照纸质处方" : "到诊后选择", ready: tasks.length > 0 },
+    { label: "本次项目选择", detail: patient.training_status && patient.training_status !== "尚未开始" ? "康复师已对照纸质处方" : "到诊后选择", ready: Boolean(patient.training_status && patient.training_status !== "尚未开始") },
     { label: "训练记录", detail: patient.training_status || "待开始", ready: patient.training_status !== "尚未开始" },
     { label: "阶段报告", detail: patient.report_status || "待生成", ready: patient.report_status !== "尚未开始" },
     { label: "出院/随访", detail: `${completedFollowUps}/${followUpTasks.length} 完成`, ready: completedFollowUps > 0 }
@@ -693,9 +698,9 @@ function ProfileTab({ patient, clinicalProfile }: { patient: ManagedPatient; cli
   const maskedId = clinicalProfile?.idNumberMasked ?? (patient.id_number.length > 8 ? `${patient.id_number.slice(0, 4)}********${patient.id_number.slice(-4)}` : patient.id_number || "未录入");
   return <div className="space-y-4">
     <ClinicalOverviewCard patient={patient} clinicalProfile={clinicalProfile} />
-    <section className="card p-5"><SectionHeader title="系统属性" description="由系统生成或根据登录上下文写入，不在建档表单中人工修改。" /><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[
-      ["康复档案编码", patient.patient_code], ["数据环境", patient.environment], ["档案来源", patient.record_source], ["数据状态", patient.workflow_status === "confirmed" ? "已确认" : patient.workflow_status === "incomplete" ? "待补全" : patient.workflow_status === "archived" ? "已归档" : "已保存"],
-      ["档案状态", patient.workflow_status === "confirmed" ? "已确认" : patient.workflow_status === "incomplete" ? "待补全" : patient.workflow_status === "archived" ? "已归档" : "已保存"], ["主管医生", patient.assigned_doctor], ["创建信息", `${patient.created_by} · ${patient.created_at}`], ["最后修改", `${patient.updated_by} · ${patient.updated_at}`]
+    <section className="card p-5"><SectionHeader title="数据来源与核对" description="OCR识别结果必须人工核对；来源、文件、置信度和核对人均保留。" /><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[
+      ["患者数据编码", patient.patient_code], ["数据环境", patient.environment], ["数据来源", patient.record_source], ["源文件", patient.source_file_name || "手工补录"],
+      ["OCR置信度", patient.ocr_confidence == null ? "不适用" : `${patient.ocr_confidence}%`], ["核对状态", patient.review_status], ["核对人", patient.reviewed_by || "待核对"], ["核对时间", patient.reviewed_at || "待核对"]
     ].map(([label, value]) => <Summary key={label} label={label} value={value} />)}</div></section>
     <section className="card p-5"><SectionHeader title="基础档案与临床信息" /><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[
       ["患者号", patient.hospital_patient_no], ["证件号码", maskedId], ["联系电话", clinicalProfile?.contact ?? maskedPhone], ["出生日期", patient.birth_date],
@@ -703,7 +708,7 @@ function ProfileTab({ patient, clinicalProfile }: { patient: ManagedPatient; cli
       ["CPET", clinicalProfile?.cpet ?? patient.assessment.cpet], ["6分钟步行", clinicalProfile?.sixMinuteWalk ?? patient.assessment.six_mwt], ["最近随访", patient.last_followup], ["特殊用药", clinicalProfile?.specialMedications ?? specialMedication],
       ["紧急联系人", patient.emergency_contact || "未录入"]
     ].map(([label, value]) => <Summary key={label} label={label} value={value} />)}</div><div className="mt-4 grid gap-3 md:grid-cols-2"><DetailText label="诊断摘要" value={(clinicalProfile?.diagnosis ?? patient.diagnosis_summary) || "待补充"} /><DetailText label="运动禁忌与注意事项" value={patient.exercise_precautions || "待补充"} /></div>{clinicalProfile?.auditSummary && <p className="mt-3 text-[10px] text-blue-600">{clinicalProfile.auditSummary} · {clinicalProfile.updatedBy} · {formatDateTime(clinicalProfile.updatedAt)}</p>}</section>
-    <section className="card p-5"><SectionHeader title="档案状态与记录" description="患者档案可先保存，再按评估和处方执行情况逐步补全。" /><div className="grid grid-cols-2 gap-3 md:grid-cols-4"><Summary label="数据状态" value={patient.workflow_status === "confirmed" ? "已确认" : patient.workflow_status === "incomplete" ? "待补全" : patient.workflow_status === "archived" ? "已归档" : "已保存"} /><Summary label="最近修改人" value={patient.updated_by || "待记录"} /><Summary label="最近修改时间" value={patient.updated_at || "待记录"} /><Summary label="审计记录" value={`${patient.audit_log.length} 条`} /></div></section>
+    <section className="card p-5"><SectionHeader title="数据状态与记录" description="基础资料可先保存，再按评估、训练和报告逐步补全。" /><div className="grid grid-cols-2 gap-3 md:grid-cols-4"><Summary label="数据状态" value={patient.workflow_status === "confirmed" ? "已确认" : patient.workflow_status === "incomplete" ? "待补全" : patient.workflow_status === "archived" ? "已归档" : "已保存"} /><Summary label="最近修改人" value={patient.updated_by || "待记录"} /><Summary label="最近修改时间" value={patient.updated_at || "待记录"} /><Summary label="审计记录" value={`${patient.audit_log.length} 条`} /></div></section>
   </div>;
 }
 
@@ -714,7 +719,7 @@ function ClinicalOverviewCard({ patient, clinicalProfile }: { patient: ManagedPa
     ["身高", clinicalProfile?.heightCm == null ? "未采集" : `${clinicalProfile.heightCm} cm`], ["体重", clinicalProfile?.weightKg == null ? "未采集" : `${clinicalProfile.weightKg} kg`], ["BMI", clinicalProfile?.bmi == null ? "未采集" : `${clinicalProfile.bmi}`]
   ];
   const rehabRows = [
-    ["康复阶段", clinicalProfile?.rehabStage ?? patient.rehab_stage], ["运动风险等级", clinicalProfile?.riskLevel ?? patient.risk_level], ["出院日期", (clinicalProfile?.dischargeDate ?? patient.discharge_date) || "未采集"], ["上次随访", (clinicalProfile?.previousFollowUpDate ?? patient.last_followup) || "未采集"], ["下次随访", clinicalProfile?.nextFollowUpDate ?? "未安排"], ["当前处方", clinicalProfile?.currentPrescriptionVersion ?? patient.prescription_version], ["训练状态", clinicalProfile?.trainingStatus ?? patient.training_status], ["最近异常", clinicalProfile?.latestAbnormal ?? patient.latest_abnormal]
+    ["康复阶段", clinicalProfile?.rehabStage ?? patient.rehab_stage], ["运动风险等级", clinicalProfile?.riskLevel ?? patient.risk_level], ["出院日期", (clinicalProfile?.dischargeDate ?? patient.discharge_date) || "未采集"], ["上次随访", (clinicalProfile?.previousFollowUpDate ?? patient.last_followup) || "未采集"], ["下次随访", clinicalProfile?.nextFollowUpDate ?? "未安排"], ["训练执行依据", patient.prescription_version === "尚未开始" ? "待康复师核对" : "纸质/HIS处方"], ["训练状态", clinicalProfile?.trainingStatus ?? patient.training_status], ["最近异常", clinicalProfile?.latestAbnormal ?? patient.latest_abnormal]
   ];
   const assessmentRows = [
     ["CPET 状态", cpetStatusLabel(clinicalProfile?.cpetStatus)], ["无氧阈心率", clinicalMetricLabel(metric?.cpet.anaerobicThresholdHr)], ["峰值心率", clinicalMetricLabel(metric?.cpet.peakHr)], ["静息心率", clinicalMetricLabel(metric?.restingVitals.metric)], ["最近一次 SPPB", metric && metric.status !== "待补充" ? `${metric.sppb.balanceScore + metric.sppb.gaitScore + metric.sppb.chairStandScore}/12` : "未评估"], ["6 分钟步行", clinicalProfile?.sixMinuteWalk ?? "未评估"], ["最近评估日期", metric?.status === "待补充" ? "未评估" : metric?.assessedAt?.slice(0, 10) ?? "未评估"]
@@ -745,14 +750,9 @@ function FollowUpsTab({ patient, tasks, records, canEdit, onEditPatient, onOpenF
   })}</div></section><section className="card p-5"><SectionHeader title="沟通时间线" description="包含成功随访和未接通后的再次联系安排。" />{records.length ? <div className="space-y-3">{[...records].sort((left, right) => right.contactedAt.localeCompare(left.contactedAt)).map((record) => <article key={record.recordId} className="rounded-xl border border-slate-100 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><b className="text-xs text-slate-900">{record.milestoneMonth}个月随访</b><StatusBadge tone={record.contactResult === "reached" ? "green" : "orange"}>{contactResultLabels[record.contactResult]}</StatusBadge></div><span className="text-[10px] text-slate-400">{formatDateTime(record.contactedAt)} · {record.operator}</span></div><p className="mt-3 text-xs leading-5 text-slate-600">{record.contactResult === "reached" ? `${record.clinicalAssessment}${record.disposition ? `；${dispositionLabels[record.disposition]}` : ""}` : `${record.notes}；下次联系 ${record.nextContactDate}`}</p><p className="mt-2 font-mono text-[9px] text-slate-400">记录ID {record.recordId} · 关联任务 {record.taskId}</p></article>)}</div> : <EmptyState text="该患者暂无随访沟通记录" />}</section></div>;
 }
 
-function PrescriptionsTab({ tasks, onOpen }: { tasks: PrescriptionTask[]; onOpen: (taskId: string) => void }) {
-  const rows = tasks.length ? tasks : [];
-  return <section className="card overflow-hidden"><div className="px-5 pt-5"><SectionHeader title="处方执行依据" description="展示从纸质处方或医院现有系统同步的执行版本；本系统不新建或修改正式临床处方。" /></div><div className="grid grid-cols-[1.1fr_0.6fr_0.8fr_1fr_0.8fr_0.7fr] bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>处方号</span><span>版本</span><span>处方类型</span><span>依据</span><span>更新时间</span><span>操作</span></div>{rows.map((task) => <button type="button" key={task.id} onClick={() => onOpen(task.id)} className="grid w-full grid-cols-[1.1fr_0.6fr_0.8fr_1fr_0.8fr_0.7fr] items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50"><span className="font-mono text-[10px]">{task.prescriptionNo}</span><b>{task.versionNo}</b><span>{task.kind === "initial" ? "初始执行版" : "调整执行版"}</span><span>{task.sourceLabel}</span><span>{formatDate(task.updatedAt)} · {prescriptionStatusLabels[task.status]}</span><span className="font-bold text-blue-700">{task.status === "completed" ? "查看记录" : "核对执行项"}</span></button>)}{!rows.length && <EmptyState text="该患者暂无处方执行依据" />}</section>;
-}
-
 function SessionsTab({ patientId }: { patientId: string }) {
   const rows = trainingRecords.filter((item) => item.patientId === patientId);
-  return <section className="card overflow-hidden"><div className="px-5 pt-5"><SectionHeader title="每次训练记录" /></div><div className="grid grid-cols-[1.15fr_0.95fr_0.6fr_0.6fr_0.55fr_0.9fr_0.55fr] bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>训练记录号</span><span>训练时间</span><span>项目</span><span>处方版本</span><span>时长</span><span>异常/处置</span><span>状态</span></div>{rows.map((row) => <div key={row.id} className="grid grid-cols-[1.15fr_0.95fr_0.6fr_0.6fr_0.55fr_0.9fr_0.55fr] items-center border-t border-slate-100 px-5 py-3 text-xs"><span className="font-mono text-[10px]">{row.trainingRecordNo}</span><span>{formatDateTime(row.date)}</span><b>{row.project}</b><span>{row.version}</span><span>{row.duration}</span><span>{row.event}</span><StatusBadge tone="green">{row.status}</StatusBadge></div>)}{!rows.length && <EmptyState text="该患者暂无训练记录" />}</section>;
+  return <section className="card overflow-hidden"><div className="px-5 pt-5"><SectionHeader title="每次训练记录" description="训练项目由康复师对照纸质/HIS处方选择；系统不保存完整正式处方。" /></div><div className="grid grid-cols-[1.15fr_0.95fr_0.6fr_0.6fr_0.55fr_0.9fr_0.55fr] bg-slate-50 px-5 py-2.5 text-[10px] font-bold text-slate-400"><span>训练记录号</span><span>训练时间</span><span>项目</span><span>执行来源</span><span>时长</span><span>异常/处置</span><span>状态</span></div>{rows.map((row) => <div key={row.id} className="grid grid-cols-[1.15fr_0.95fr_0.6fr_0.6fr_0.55fr_0.9fr_0.55fr] items-center border-t border-slate-100 px-5 py-3 text-xs"><span className="font-mono text-[10px]">{row.trainingRecordNo}</span><span>{formatDateTime(row.date)}</span><b>{row.project}</b><span>{row.version}</span><span>{row.duration}</span><span>{row.event}</span><StatusBadge tone="green">{row.status}</StatusBadge></div>)}{!rows.length && <EmptyState text="该患者暂无训练记录" />}</section>;
 }
 
 function TreatmentRecordsTab({ patientId, patientNo, records, canEdit, onSave }: { patientId: string; patientNo: string; records: CardiopulmonaryTreatmentRecord[]; canEdit: boolean; onSave?: (record: CardiopulmonaryTreatmentRecord) => void }) {
@@ -762,7 +762,7 @@ function TreatmentRecordsTab({ patientId, patientNo, records, canEdit, onSave }:
 }
 
 function TreatmentRecordCard({ record }: { record: CardiopulmonaryTreatmentRecord }) {
-  return <article className="rounded-xl border border-slate-100 bg-slate-50/70 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="flex items-center gap-2"><b className="text-sm text-slate-900">{record.treatmentNo}</b><StatusBadge tone={record.status === "therapist_confirmed" ? "green" : record.status === "doctor_reviewed" ? "blue" : "orange"}>{treatmentStatusLabel(record.status)}</StatusBadge></div><p className="mt-1 font-mono text-[10px] text-slate-400">{record.treatmentId} · {formatDateTime(record.treatmentAt)} · {record.therapist}</p></div><div className="text-right text-[10px] text-slate-500">关联训练：{record.sessionId || "未关联"}<br />处方版本：{record.prescriptionVersionId || "未关联"}</div></div><div className="mt-4 grid gap-3 md:grid-cols-3"><VitalSummary title="训练前评估" vitals={record.preAssessment} symptom={`静息胸痛 VAS ${record.preAssessment.chestPainRestVas ?? "—"}`} /><div className="rounded-xl border border-white bg-white p-3"><p className="text-[10px] font-bold text-slate-400">实施训练情况</p><div className="mt-2 flex flex-wrap gap-1.5">{record.interventions.filter((intervention) => intervention.selected).map((intervention) => <span key={intervention.code} className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">{intervention.label}</span>)}</div><p className="mt-2 text-xs leading-5 text-slate-600">{record.treatmentSummary || "未填写治疗小结"}</p></div><VitalSummary title="训练后评估" vitals={record.postAssessment} symptom={`Borg ${record.postAssessment.borg ?? "—"} · 活动后胸痛 VAS ${record.preAssessment.chestPainActivityVas ?? "—"}`} /></div>{(record.adverseEvent || record.fieldAction) && <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs text-amber-800"><b>异常与处置：</b>{record.adverseEvent || "无异常"} {record.fieldAction ? `；${record.fieldAction}` : ""}</div>}</article>;
+  return <article className="rounded-xl border border-slate-100 bg-slate-50/70 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="flex items-center gap-2"><b className="text-sm text-slate-900">{record.treatmentNo}</b><StatusBadge tone={record.status === "therapist_confirmed" ? "green" : record.status === "doctor_reviewed" ? "blue" : "orange"}>{treatmentStatusLabel(record.status)}</StatusBadge></div><p className="mt-1 font-mono text-[10px] text-slate-400">{record.treatmentId} · {formatDateTime(record.treatmentAt)} · {record.therapist}</p></div><div className="text-right text-[10px] text-slate-500">关联训练：{record.sessionId || "未关联"}<br />执行依据：{record.prescriptionVersionId ? "纸质/HIS处方" : "未核对"}</div></div><div className="mt-4 grid gap-3 md:grid-cols-3"><VitalSummary title="训练前评估" vitals={record.preAssessment} symptom={`静息胸痛 VAS ${record.preAssessment.chestPainRestVas ?? "—"}`} /><div className="rounded-xl border border-white bg-white p-3"><p className="text-[10px] font-bold text-slate-400">实施训练情况</p><div className="mt-2 flex flex-wrap gap-1.5">{record.interventions.filter((intervention) => intervention.selected).map((intervention) => <span key={intervention.code} className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">{intervention.label}</span>)}</div><p className="mt-2 text-xs leading-5 text-slate-600">{record.treatmentSummary || "未填写治疗小结"}</p></div><VitalSummary title="训练后评估" vitals={record.postAssessment} symptom={`Borg ${record.postAssessment.borg ?? "—"} · 活动后胸痛 VAS ${record.preAssessment.chestPainActivityVas ?? "—"}`} /></div>{(record.adverseEvent || record.fieldAction) && <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs text-amber-800"><b>异常与处置：</b>{record.adverseEvent || "无异常"} {record.fieldAction ? `；${record.fieldAction}` : ""}</div>}</article>;
 }
 
 function VitalSummary({ title, vitals, symptom }: { title: string; vitals: { bloodPressure: string; heartRate: number | null; spo2: number | null; respiratoryRate: number | null; rhythm: string }; symptom: string }) {
@@ -785,21 +785,21 @@ function SmallInput({ label, value, onChange, type = "text" }: { label: string; 
   return <label><span className="field-label">{label}</span><input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="text-field" /></label>;
 }
 
-function ReportsTab({ patientId, clinicalProfile, tasks, onOpenPrescription, onOpenDischargeReport }: { patientId: string; clinicalProfile?: PatientClinicalProfile; tasks: PrescriptionTask[]; onOpenPrescription: (taskId: string) => void; onOpenDischargeReport?: (patientId: string) => void }) {
+function ReportsTab({ patientId, clinicalProfile, onOpenDischargeReport }: { patientId: string; clinicalProfile?: PatientClinicalProfile; onOpenDischargeReport?: (patientId: string) => void }) {
   const [reportType, setReportType] = useState<"stage" | "single">("stage");
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [selectedSingleId, setSelectedSingleId] = useState<string | null>(null);
   const stages = stageReports.filter((item) => item.patientId === patientId);
   const singles = singleTrainingReportDetails.filter((item) => item.patientId === patientId);
-  if (selectedStageId) return <StageReportDetail reportId={selectedStageId} clinicalProfile={clinicalProfile} onBack={() => setSelectedStageId(null)} taskId={tasks.find((task) => task.sourceType === "stage_report")?.id} onOpenPrescription={onOpenPrescription} />;
+  if (selectedStageId) return <StageReportDetail reportId={selectedStageId} clinicalProfile={clinicalProfile} onBack={() => setSelectedStageId(null)} />;
   if (selectedSingleId) {
     const report = singles.find((item) => item.id === selectedSingleId);
     if (report) return <SingleReportDetail report={report} clinicalProfile={clinicalProfile} onBack={() => setSelectedSingleId(null)} />;
   }
-  return <section className="space-y-4"><section className="card overflow-hidden"><div className="flex items-center justify-between px-5 pt-5"><SectionHeader title="训练报告" description="单次报告由每次训练自动生成；阶段报告由医生选择若干次训练记录后生成AI草稿。" /><div className="flex rounded-lg bg-slate-100 p-1"><button type="button" onClick={() => setReportType("stage")} className={`rounded-md px-4 py-2 text-[10px] font-bold ${reportType === "stage" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>阶段性报告</button><button type="button" onClick={() => setReportType("single")} className={`rounded-md px-4 py-2 text-[10px] font-bold ${reportType === "single" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>单次报告</button></div></div>{reportType === "stage" ? <><ReportHeader labels={["报告周期", "汇总训练记录", "完成情况", "靶区达标", "状态", "操作"]} />{stages.map((row) => <button type="button" key={row.id} onClick={() => setSelectedStageId(row.id)} className="grid w-full grid-cols-6 items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50"><span>{row.period}</span><b>{row.versions.replace("V1–V4", "最近4次")}</b><span>{row.completion}</span><b className="text-blue-700">{row.target}</b><StatusBadge tone="green">{row.status}</StatusBadge><span className="font-bold text-blue-700">查看阶段报告<ArrowRight className="ml-1 inline h-3.5 w-3.5" /></span></button>)}{!stages.length && <EmptyState text="该患者暂无阶段性报告" />}</> : <><ReportHeader labels={["训练时间", "运动项目", "运动类型", "总时长", "状态", "操作"]} />{singles.map((row) => <button type="button" key={row.id} onClick={() => setSelectedSingleId(row.id)} className="grid w-full grid-cols-6 items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50"><span>{row.dateTime}</span><b>{row.exercise}</b><span>{row.trainingType}</span><span>{row.totalMinutes}分钟</span><StatusBadge tone="green">{row.status}</StatusBadge><span className="font-bold text-blue-700">查看单次报告<ArrowRight className="ml-1 inline h-3.5 w-3.5" /></span></button>)}{!singles.length && <EmptyState text="该患者暂无单次报告" />}</>}</section><section className="card flex items-center justify-between border border-emerald-100 bg-emerald-50/60 p-4"><div><p className="text-xs font-bold text-emerald-700">康复出院报告</p><p className="mt-1 text-xs text-slate-600">医生生成并发布出院报告后，系统自动记录出院日期并触发随访提醒。</p></div>{onOpenDischargeReport && <button type="button" onClick={() => onOpenDischargeReport(patientId)} className="btn-primary">进入康复报告<ArrowRight className="h-4 w-4" /></button>}</section></section>;
+  return <section className="space-y-4"><section className="card overflow-hidden"><div className="flex items-center justify-between px-5 pt-5"><SectionHeader title="训练报告" description="单次报告由每次训练自动生成；阶段报告由医生选择具体训练记录后生成AI草稿。" /><div className="flex rounded-lg bg-slate-100 p-1"><button type="button" onClick={() => setReportType("stage")} className={`rounded-md px-4 py-2 text-[10px] font-bold ${reportType === "stage" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>阶段性报告</button><button type="button" onClick={() => setReportType("single")} className={`rounded-md px-4 py-2 text-[10px] font-bold ${reportType === "single" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>单次报告</button></div></div>{reportType === "stage" ? <><ReportHeader labels={["报告周期", "汇总训练记录", "完成情况", "靶区达标", "状态", "操作"]} />{stages.map((row) => <button type="button" key={row.id} onClick={() => setSelectedStageId(row.id)} className="grid w-full grid-cols-6 items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50"><span>{row.period}</span><b>{row.sessions}</b><span>{row.completion}</span><b className="text-blue-700">{row.target}</b><StatusBadge tone="green">{row.status}</StatusBadge><span className="font-bold text-blue-700">查看阶段报告<ArrowRight className="ml-1 inline h-3.5 w-3.5" /></span></button>)}{!stages.length && <EmptyState text="该患者暂无阶段性报告" />}</> : <><ReportHeader labels={["训练时间", "运动项目", "运动类型", "总时长", "状态", "操作"]} />{singles.map((row) => <button type="button" key={row.id} onClick={() => setSelectedSingleId(row.id)} className="grid w-full grid-cols-6 items-center border-t border-slate-100 px-5 py-3 text-left text-xs hover:bg-blue-50"><span>{row.dateTime}</span><b>{row.exercise}</b><span>{row.trainingType}</span><span>{row.totalMinutes}分钟</span><StatusBadge tone="green">{row.status}</StatusBadge><span className="font-bold text-blue-700">查看单次报告<ArrowRight className="ml-1 inline h-3.5 w-3.5" /></span></button>)}{!singles.length && <EmptyState text="该患者暂无单次报告" />}</>}</section><section className="card flex items-center justify-between border border-emerald-100 bg-emerald-50/60 p-4"><div><p className="text-xs font-bold text-emerald-700">康复出院报告</p><p className="mt-1 text-xs text-slate-600">医生确认并发布后，系统自动记录出院日期、生成患者康复手册并触发随访提醒。</p></div>{onOpenDischargeReport && <button type="button" onClick={() => onOpenDischargeReport(patientId)} className="btn-primary">进入康复报告<ArrowRight className="h-4 w-4" /></button>}</section></section>;
 }
 
-function StageReportDetail({ reportId, clinicalProfile, taskId, onBack, onOpenPrescription }: { reportId: string; clinicalProfile?: PatientClinicalProfile; taskId?: string; onBack: () => void; onOpenPrescription: (taskId: string) => void }) {
+function StageReportDetail({ reportId, clinicalProfile, onBack }: { reportId: string; clinicalProfile?: PatientClinicalProfile; onBack: () => void }) {
   const selectedSessions = stageReportData.sessions.slice(-4);
   const completed = selectedSessions.filter((item) => item.completed).length;
   const planned = selectedSessions.length;
@@ -831,12 +831,12 @@ function SingleReportDetail({ report, clinicalProfile, onBack }: { report: typeo
   return <section className="card p-5"><div className="flex items-center justify-between"><div className="flex items-center gap-3"><button type="button" onClick={onBack} className="btn-secondary"><ArrowLeft className="h-4 w-4" />返回报告列表</button><div><p className="text-[10px] font-bold text-blue-600">单次报告号 · {report.singleReportNo}</p><h2 className="mt-1 text-lg font-bold">{report.exercise} · {formatDateTime(report.actualStartAt)}</h2><p className="mt-1 font-mono text-[10px] text-slate-400">训练记录号 {report.trainingRecordNo}</p></div></div><StatusBadge tone="orange">{report.dataMode === "demo" ? "Demo 数据" : "设备采样"}</StatusBadge></div><div className="mt-5 grid grid-cols-6 gap-3"><Metric label="总时长" value={`${report.totalMinutes}分`} /><Metric label="实际运动" value={`${report.activeMinutes}分`} /><Metric label="靶区时间" value={`${report.targetZoneMinutes}分`} /><Metric label="实际平均心率" value={`${report.hrStats.average}`} note="bpm · 设备" /><Metric label="实际峰值心率" value={`${report.hrStats.peak}`} note="bpm · 设备" /><Metric label="安全摘要" value={report.safetySummary} /></div>{clinicalProfile && <><div className="mt-4 grid grid-cols-4 gap-3"><Metric label="康复阶段" value={clinicalProfile.rehabStage} /><Metric label="运动风险等级" value={clinicalProfile.riskLevel} /><Metric label="CPET 状态" value={cpetStatusLabel(clinicalProfile.cpetStatus)} /><Metric label="静息心率（基线）" value={clinicalMetricLabel(assessment?.restingVitals.metric)} note="评估来源" /></div><div className="mt-4 grid grid-cols-3 gap-3"><DetailText label="无氧阈心率（CPET）" value={clinicalMetricLabel(assessment?.cpet.anaerobicThresholdHr)} /><DetailText label="峰值心率（CPET）" value={clinicalMetricLabel(assessment?.cpet.peakHr)} /><DetailText label="本次训练前 / 后心率" value={`${report.hrStats.resting} bpm → 训练后测量见治疗记录`} /></div></>}<p className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-800">{report.dataSourceNote}</p><div className="mt-4 overflow-hidden rounded-xl border border-slate-100"><div className="grid grid-cols-[1fr_1fr_1fr_1fr] bg-slate-50 px-4 py-2.5 text-[10px] font-bold text-slate-400"><span>分期指标</span><span>热身期</span><span>训练期</span><span>放松期</span></div>{report.phaseVitals.map((row) => <div key={row.metric} className="grid grid-cols-[1fr_1fr_1fr_1fr] border-t border-slate-100 px-4 py-3 text-xs text-slate-600"><b>{row.metric}</b><span>{row.warmup}</span><span>{row.training}</span><span>{row.cooldown}</span></div>)}</div></section>;
 }
 
-function PatientEditModal({ patient, setPatient, mode, formError, similarWarning, onAcceptSimilar, onClose, onSave }: { patient: ManagedPatient; setPatient: (patient: ManagedPatient) => void; mode: "create" | "edit"; formError: string; similarWarning: string; onAcceptSimilar: () => void; onClose: () => void; onSave: () => void }) {
+function PatientEditModal({ patient, setPatient, mode, allowClinicalFields, formError, similarWarning, onAcceptSimilar, onClose, onSave }: { patient: ManagedPatient; setPatient: (patient: ManagedPatient) => void; mode: "create" | "edit"; allowClinicalFields: boolean; formError: string; similarWarning: string; onAcceptSimilar: () => void; onClose: () => void; onSave: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const age = calculateAge(patient.birth_date);
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 backdrop-blur-sm sm:p-6">
     <form onSubmit={(event) => { event.preventDefault(); onSave(); }} className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6"><div><div className="flex items-center gap-2"><p className="text-[10px] font-bold text-blue-600">患者档案</p><StatusBadge tone="orange">测试环境</StatusBadge></div><h2 className="mt-1 text-lg font-bold">{mode === "create" ? "新增患者" : "编辑患者档案"}</h2><p className="mt-1 text-[10px] text-slate-500">基础必填信息优先；更多临床与康复资料可按需展开补充。</p></div><button type="button" title="关闭" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6"><div><div className="flex items-center gap-2"><p className="text-[10px] font-bold text-blue-600">患者基础资料</p><StatusBadge tone="orange">测试环境</StatusBadge></div><h2 className="mt-1 text-lg font-bold">{mode === "create" ? "手工补录基础资料" : "核对患者基础资料"}</h2><p className="mt-1 text-[10px] text-slate-500">仅补录训练识别所需字段，不在本系统维护完整病历、诊断和医嘱。</p></div><button type="button" title="关闭" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
       <div className="overflow-y-auto px-5 py-5 sm:px-6">
         <section className="rounded-xl border border-blue-100 bg-blue-50/60 p-4"><div className="mb-3 flex items-center gap-2"><LockKeyhole className="h-4 w-4 text-blue-600" /><b className="text-xs text-blue-900">系统属性</b><span className="text-[10px] text-blue-600">自动生成，不可填写</span></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><ReadOnlyField label="康复档案编码" value={patient.patient_code || "保存后生成"} copyable={Boolean(patient.patient_code)} /><ReadOnlyField label="患者号" value={patient.hospital_patient_no || "保存后生成"} /><ReadOnlyField label="档案来源" value={patient.record_source} /><ReadOnlyField label="数据状态" value={patient.workflow_status === "confirmed" ? "已确认" : patient.workflow_status === "incomplete" ? "待补全" : "已保存"} /></div></section>
 
@@ -854,9 +854,9 @@ function PatientEditModal({ patient, setPatient, mode, formError, similarWarning
           <label className="sm:col-span-2"><span className="field-label">建档备注</span><input value={patient.record_note} onChange={(event) => setPatient({ ...patient, record_note: event.target.value })} className="text-field" placeholder="选填，仅记录必要的建档说明" /></label>
         </div></section>
 
-        <button type="button" onClick={() => setExpanded((value) => !value)} className="mt-5 flex w-full items-center justify-between border-y border-slate-100 py-4 text-left"><span><b className="text-xs text-slate-800">补充临床与康复信息</b><span className="ml-2 text-[10px] text-slate-400">选填，可在患者详情中继续完善</span></span><ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} /></button>
+        {allowClinicalFields && <button type="button" onClick={() => setExpanded((value) => !value)} className="mt-5 flex w-full items-center justify-between border-y border-slate-100 py-4 text-left"><span><b className="text-xs text-slate-800">补充临床与康复信息</b><span className="ml-2 text-[10px] text-slate-400">仅医生可核对诊断和风险字段</span></span><ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} /></button>}
 
-        {expanded && <div className="space-y-5 pt-5">
+        {allowClinicalFields && expanded && <div className="space-y-5 pt-5">
           <section><SectionHeader title="联系人与接诊信息" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><EditField label="紧急联系人" value={patient.emergency_contact} onChange={(value) => setPatient({ ...patient, emergency_contact: value })} /><EditField label="与患者关系" value={patient.emergency_relation} onChange={(value) => setPatient({ ...patient, emergency_relation: value })} /><EditField label="紧急联系人电话" value={patient.emergency_phone} inputMode="numeric" placeholder="患者无手机时必填" onChange={(value) => setPatient({ ...patient, emergency_phone: value })} /><EditField label="转诊来源" value={patient.referral_source} onChange={(value) => setPatient({ ...patient, referral_source: value })} /><EditField label="出院日期" type="date" value={patient.discharge_date} onChange={(value) => setPatient({ ...patient, discharge_date: value })} /><EditField label="计划开始康复日期" type="date" value={patient.planned_rehab_date} onChange={(value) => setPatient({ ...patient, planned_rehab_date: value })} /><EditField label="身高（cm）" type="number" value={patient.height_cm} onChange={(value) => setPatient({ ...patient, height_cm: value })} /><EditField label="体重（kg）" type="number" value={patient.weight_kg} onChange={(value) => setPatient({ ...patient, weight_kg: value })} /></div></section>
           <section><SectionHeader title="临床与康复信息" description="CPET、6MWT 等评估数据不在快速建档中录入。" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><label><span className="field-label">危险分层</span><select value={patient.risk_level} onChange={(event) => setPatient({ ...patient, risk_level: event.target.value })} className="text-field"><option>待评估</option><option>低危</option><option>中危</option><option>高危</option></select></label><label><span className="field-label">康复分组</span><select value={patient.rehab_group} onChange={(event) => setPatient({ ...patient, rehab_group: event.target.value })} className="text-field"><option>待分组</option><option>运动康复 A 组</option><option>运动康复 B 组</option><option>重点监护组</option></select></label><EditField label="主要诊断" value={patient.diagnosis_summary} onChange={(value) => setPatient({ ...patient, diagnosis_summary: value })} /><EditField label="既往病史" value={patient.medical_history} onChange={(value) => setPatient({ ...patient, medical_history: value })} /><EditField label="手术 / 介入治疗史" value={patient.procedure_history} onChange={(value) => setPatient({ ...patient, procedure_history: value })} /><EditField label="当前用药" value={patient.current_medications} onChange={(value) => setPatient({ ...patient, current_medications: value })} /><EditField label="药物过敏史" value={patient.drug_allergies} onChange={(value) => setPatient({ ...patient, drug_allergies: value })} /><label className="sm:col-span-2"><span className="field-label">运动禁忌或注意事项</span><textarea value={patient.exercise_precautions} onChange={(event) => setPatient({ ...patient, exercise_precautions: event.target.value })} className="text-field min-h-20 py-2" /></label></div></section>
         </div>}
@@ -864,7 +864,7 @@ function PatientEditModal({ patient, setPatient, mode, formError, similarWarning
         {formError && <div className="mt-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{formError}</div>}
         {similarWarning && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4"><div className="flex items-start gap-2 text-xs font-semibold text-amber-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{similarWarning}</div><button type="button" onClick={onAcceptSimilar} className="mt-3 text-xs font-bold text-amber-800 underline">确认不是同一人，继续建档</button></div>}
       </div>
-      <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-4 sm:px-6"><p className="hidden text-[10px] text-slate-400 sm:block">保存后不会自动生成运动处方</p><div className="ml-auto flex gap-2"><button type="button" onClick={onClose} className="btn-secondary">取消</button><button type="submit" className="btn-primary"><Save className="h-4 w-4" />{mode === "create" ? "创建档案" : "保存修改"}</button></div></div>
+      <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-4 sm:px-6"><p className="hidden text-[10px] text-slate-400 sm:block">保存后仅形成待核对患者数据，不生成正式处方</p><div className="ml-auto flex gap-2"><button type="button" onClick={onClose} className="btn-secondary">取消</button><button type="submit" className="btn-primary"><Save className="h-4 w-4" />{mode === "create" ? "保存补录资料" : "保存核对结果"}</button></div></div>
     </form>
   </div>;
 }

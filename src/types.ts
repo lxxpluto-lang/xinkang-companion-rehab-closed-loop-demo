@@ -4,7 +4,6 @@ export type DoctorPageKey =
   | "followups"
   | "assessment"
   | "report"
-  | "prescriptions"
   | "training"
   | "orgPermissions"
   | "videoConfig"
@@ -92,4 +91,68 @@ export type PatientClinicalOverview = {
   currentPrescriptionVersion?: string;
   trainingStatus?: string;
   latestAbnormal?: string;
+};
+
+export type VitalSnapshot = {
+  measuredAt: string;
+  heartRate: number | null;
+  bloodPressure: string | null;
+  spo2: number | null;
+  respiratoryRate: number | null;
+  symptoms: string[];
+};
+
+export type DeviceMetricSummary = {
+  averageHeartRate: number | null;
+  peakHeartRate: number | null;
+  minimumSpo2: number | null;
+  averagePower: number | null;
+  peakPower: number | null;
+  distanceMeters: number | null;
+  activeMinutes: number | null;
+  dataCompleteness: number;
+};
+
+export type TrainingExecutionRecord = {
+  executionId: string;
+  patientId: string;
+  selectedExerciseIds: string[];
+  source: "paper_prescription" | "his_reference";
+  plannedSessionCount: number | null;
+  currentSessionNo: number | null;
+  selectedBy: string;
+  selectedAt: string;
+};
+
+export type TrainingSessionRecord = {
+  sessionId: string;
+  executionId: string;
+  patientId: string;
+  exerciseItems: string[];
+  preAssessment: VitalSnapshot;
+  deviceMetrics: DeviceMetricSummary;
+  postAssessment: VitalSnapshot;
+  rpe: number | null;
+  safetyEvents: string[];
+  dataCompleteness: number;
+  status: "preparing" | "running" | "completed" | "terminated";
+};
+
+export type StageReport = {
+  reportId: string;
+  patientId: string;
+  selectedSessionIds: string[];
+  generatedSummary: string;
+  status: "draft" | "pending_doctor_review" | "confirmed";
+  confirmedBy?: string;
+  confirmedAt?: string;
+};
+
+export type PatientImportRecord = {
+  patientId: string;
+  source: "ocr_single" | "ocr_batch" | "manual_supplement";
+  sourceFileName?: string;
+  confidence?: number;
+  reviewStatus: "pending" | "confirmed" | "rejected";
+  reviewedBy?: string;
 };

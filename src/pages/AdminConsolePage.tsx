@@ -14,7 +14,7 @@ import { roleActions, roleMeta } from "../accessControl";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { DoctorPageKey, PermissionAction, Role } from "../types";
 
-type AdminConsolePageKey = Exclude<DoctorPageKey, "dashboard" | "patients" | "followups" | "report" | "prescriptions" | "training" | "videoConfig">;
+type AdminConsolePageKey = Exclude<DoctorPageKey, "dashboard" | "patients" | "assessment" | "followups" | "report" | "training" | "videoConfig">;
 type OrgPermissionSheet = "organization" | "permissions";
 
 const actionLabels: Record<PermissionAction, string> = {
@@ -176,7 +176,7 @@ function PermissionSheet() {
             {[
               ["菜单范围", selectedRole === "ADMIN" ? "核心业务 + 4 个后台菜单" : "核心业务 + 授权后台菜单"],
               ["数据范围", roleMeta[selectedRole].scope === "ALL" ? "全部验证数据" : roleMeta[selectedRole].scope === "TEAM" ? "医疗团队" : "当前康复中心"],
-              ["患者档案", selectedRole === "DOCTOR" ? "团队患者共享查看；本人主管患者可建档和维护" : selectedRole === "ADMIN" ? "全部患者只读查看" : "中心患者基础资料与训练记录可维护"],
+              ["患者数据", selectedRole === "DOCTOR" ? "团队患者共享查看；本人患者资料可核对" : selectedRole === "ADMIN" ? "全部患者只读查看" : "中心患者基础资料、评估与训练事实可维护"],
               ["随访管理", selectedRole === "DOCTOR" ? "仅本人患者可沟通、改期和完成" : selectedRole === "ADMIN" ? "全院随访只读查看" : "无随访管理入口"],
               ["视频资源", selectedRole === "ADMIN" ? "发布、下架、删除" : "草稿、编辑、提交发布"],
               ["签署动作", selectedRole === "DOCTOR" || selectedRole === "ADMIN" ? "可签署本人任务" : "不可签署"]

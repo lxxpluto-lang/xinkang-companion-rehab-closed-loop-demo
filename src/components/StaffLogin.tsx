@@ -13,9 +13,9 @@ const demoAccounts: Array<{
   scope: string;
   permissions: string[];
 }> = [
-  { username: "admin", name: "林管理员", role: "ADMIN", icon: ShieldCheck, scope: "全部数据", permissions: ["全部患者档案查看", "全院随访只读查看", "组织权限配置", "报告打印签名"] },
-  { username: "doctor.wang", name: "王医生", role: "DOCTOR", icon: Stethoscope, scope: "本人患者", permissions: ["新建患者档案", "本人患者随访", "本人处方任务", "临床复核与签署"] },
-  { username: "rehab.zhou", name: "周康复师", role: "REHAB_EXECUTION", icon: UserRoundCog, scope: "当前康复中心", permissions: ["训练执行与现场记录", "患者档案只读查看", "报告结果查看", "视频草稿维护"] }
+  { username: "admin", name: "林管理员", role: "ADMIN", icon: ShieldCheck, scope: "全部数据", permissions: ["患者数据只读查看", "全院随访只读查看", "组织权限配置", "签名模板配置"] },
+  { username: "doctor.wang", name: "王医生", role: "DOCTOR", icon: Stethoscope, scope: "本人患者", permissions: ["患者资料核对", "本人患者随访", "阶段与出院报告确认", "本人临床签署"] },
+  { username: "rehab.zhou", name: "周康复师", role: "REHAB_EXECUTION", icon: UserRoundCog, scope: "当前康复中心", permissions: ["训练执行与现场记录", "患者基础资料核对", "评估与人工随访", "视频草稿维护"] }
 ];
 
 export function StaffLogin({

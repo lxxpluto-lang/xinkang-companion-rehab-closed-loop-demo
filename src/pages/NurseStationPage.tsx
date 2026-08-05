@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Activity, AlertTriangle, Bike, CheckCircle2, ClipboardCheck, Gauge, HeartPulse, Radio, Signal, Timer, UserCheck, Wifi } from "lucide-react";
+import { Activity, AlertTriangle, Bike, CheckCircle2, ClipboardCheck, Gauge, HeartPulse, Radio, Search, Signal, Timer, UserCheck, Wifi } from "lucide-react";
 import { PageHeader, SectionHeader, StatCard, StatusBadge } from "../components/UI";
 import type { Role } from "../types";
 import { minimalSafetyEvents } from "../clinicalSharedData";
@@ -20,8 +20,14 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
   const [exerciseRecords, setExerciseRecords] = useState<Record<string, string[]>>({ "NS-01": ["功率车"], "NS-02": ["功率车"], "NS-03": ["椭圆机"], "NS-04": ["哑铃"] });
   const [sessionTarget, setSessionTarget] = useState<Record<string, number>>({ "NS-01": 4, "NS-02": 6, "NS-03": 4, "NS-04": 8 });
   const [savedSelection, setSavedSelection] = useState<string | null>(null);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [currentSessionNo, setCurrentSessionNo] = useState<Record<string, number>>({ "NS-01": 3, "NS-02": 2, "NS-03": 1, "NS-04": 5 });
+  const [workflowStep, setWorkflowStep] = useState<"select" | "pre" | "device" | "training" | "post" | "reported">("select");
+  const [preVitals, setPreVitals] = useState({ bp: "126/78", hr: "73", spo2: "98", rr: "17", symptoms: "无明显不适" });
+  const [postVitals, setPostVitals] = useState({ bp: "132/80", hr: "84", spo2: "98", rr: "19", symptoms: "" });
+  const [rpe, setRpe] = useState("");
   const selected = useMemo(() => stationTasks.find((item) => item.id === selectedId) ?? stationTasks[0], [selectedId]);
-  const canExecute = role === "ADMIN" || role === "REHAB_EXECUTION";
+  const canExecute = role === "REHAB_EXECUTION";
   const linkedSafetyEvent = minimalSafetyEvents.find((event) => event.patientName === selected.patient);
   const displayPatient = (task: typeof stationTasks[number]) => role !== "DOCTOR" || task.id === "NS-01" ? task.patient : `患者 ${task.patient.slice(0, 1)}**`;
   const toggleArrival = (id: string) => setArrived((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
@@ -40,6 +46,13 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
         <StatCard label="已完成训练" value="7" note="完成率 58%" icon={<CheckCircle2 className="h-5 w-5" />} />
         <StatCard label="异常 / 设备提醒" value="1" note="椭圆机等待连接" tone="orange" icon={<AlertTriangle className="h-5 w-5" />} />
       </div>
+
+      <section className="card mb-5 flex flex-wrap items-center gap-3 p-4">
+        <div className="min-w-[260px] flex-1"><p className="text-[10px] font-bold text-blue-600">患者实际到诊</p><p className="mt-1 text-sm font-bold text-slate-900">搜索或扫码选择患者后创建本次执行记录</p></div>
+        <label className="relative min-w-[320px]"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={patientSearch} onChange={(event) => setPatientSearch(event.target.value)} placeholder="输入患者姓名或院方编号" className="text-field pl-9" /></label>
+        <button type="button" disabled={!canExecute} className="btn-secondary disabled:cursor-not-allowed">扫码识别</button>
+        <StatusBadge tone="blue">不依赖预约数据</StatusBadge>
+      </section>
 
       <div className="grid grid-cols-[1.12fr_0.88fr] gap-5">
         <section className="card overflow-hidden">
@@ -60,11 +73,12 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
 
         <div className="space-y-4">
           <section className="card p-4">
-            <SectionHeader title="本次训练项目核对" description="康复师只需对照患者手中的纸质处方选择项目和计划次数，不录入诊断、处方参数或医生意见。" action={<StatusBadge tone="blue">第 {Math.min(3, sessionTarget[selected.id] ?? 1)} / {sessionTarget[selected.id] ?? 1} 次</StatusBadge>} />
+            <SectionHeader title="本次训练项目核对" description="康复师只需对照患者手中的纸质处方选择项目和计划次数，不录入诊断、处方参数或医生意见。" action={<StatusBadge tone="blue">第 {currentSessionNo[selected.id] ?? 1} / {sessionTarget[selected.id] ?? 1} 次</StatusBadge>} />
             <div className="mt-3 flex flex-wrap gap-2">{executableExercises.map((exercise) => { const checked = (exerciseRecords[selected.id] ?? []).includes(exercise); return <button type="button" key={exercise} disabled={!canExecute} onClick={() => toggleExercise(exercise)} className={`rounded-xl border px-3 py-2 text-xs font-bold ${checked ? "border-blue-300 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-500"} disabled:cursor-not-allowed`}>{checked ? "✓ " : "+ "}{exercise}</button>; })}</div>
-            <div className="mt-4 flex flex-wrap items-end gap-3"><label><span className="field-label">本阶段计划训练次数</span><input type="number" min="1" max="30" disabled={!canExecute} value={sessionTarget[selected.id] ?? 1} onChange={(event) => setSessionTarget((items) => ({ ...items, [selected.id]: Math.max(1, Number(event.target.value) || 1) }))} className="text-field w-36" /></label><button type="button" disabled={!canExecute || !(exerciseRecords[selected.id] ?? []).length} onClick={() => { setSavedSelection(selected.id); window.setTimeout(() => setSavedSelection(null), 1600); }} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300">保存本次执行项目</button><span className="pb-2 text-[10px] text-slate-400">保存后进入训练，并累计本次打卡。</span></div>
-            {savedSelection === selected.id && <p className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-xs font-bold text-emerald-700">已记录：{(exerciseRecords[selected.id] ?? []).join("、")}。本次训练完成后自动生成单次报告。</p>}
+            <div className="mt-4 flex flex-wrap items-end gap-3"><label><span className="field-label">本阶段计划训练次数</span><input type="number" min="1" max="30" disabled={!canExecute} value={sessionTarget[selected.id] ?? 1} onChange={(event) => setSessionTarget((items) => ({ ...items, [selected.id]: Math.max(1, Number(event.target.value) || 1) }))} className="text-field w-36" /></label><label><span className="field-label">本次序号</span><input type="number" min="1" max={sessionTarget[selected.id] ?? 30} disabled={!canExecute} value={currentSessionNo[selected.id] ?? 1} onChange={(event) => setCurrentSessionNo((items) => ({ ...items, [selected.id]: Math.max(1, Number(event.target.value) || 1) }))} className="text-field w-28" /></label><button type="button" disabled={!canExecute || !(exerciseRecords[selected.id] ?? []).length} onClick={() => { setSavedSelection(selected.id); setWorkflowStep("pre"); window.setTimeout(() => setSavedSelection(null), 1600); }} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300">确认项目并进入训练前评估</button></div>
+            {savedSelection === selected.id && <p className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-xs font-bold text-emerald-700">已记录：第 {currentSessionNo[selected.id] ?? 1}/{sessionTarget[selected.id] ?? 1} 次，{(exerciseRecords[selected.id] ?? []).join("、")}。下一步采集训练前生命体征。</p>}
           </section>
+          {canExecute && workflowStep !== "select" && <ExecutionWorkflow step={workflowStep} setStep={setWorkflowStep} preVitals={preVitals} setPreVitals={setPreVitals} postVitals={postVitals} setPostVitals={setPostVitals} rpe={rpe} setRpe={setRpe} />}
           <section className="card overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="text-[10px] font-bold text-blue-600">动态设备视图</p><h2 className="mt-1 text-lg font-bold text-slate-900">{selected.station} · {displayPatient(selected)}</h2></div><StatusBadge tone={selected.status === "在训" ? "green" : "orange"}>{selected.status}</StatusBadge></div>
             <div className="grid grid-cols-[0.92fr_1.08fr]">
@@ -103,6 +117,34 @@ export function NurseStationPage({ role }: { role: Exclude<Role, "PATIENT"> }) {
       </div>
     </section>
   );
+}
+
+function ExecutionWorkflow({ step, setStep, preVitals, setPreVitals, postVitals, setPostVitals, rpe, setRpe }: {
+  step: "select" | "pre" | "device" | "training" | "post" | "reported";
+  setStep: (step: "select" | "pre" | "device" | "training" | "post" | "reported") => void;
+  preVitals: { bp: string; hr: string; spo2: string; rr: string; symptoms: string };
+  setPreVitals: (value: { bp: string; hr: string; spo2: string; rr: string; symptoms: string }) => void;
+  postVitals: { bp: string; hr: string; spo2: string; rr: string; symptoms: string };
+  setPostVitals: (value: { bp: string; hr: string; spo2: string; rr: string; symptoms: string }) => void;
+  rpe: string;
+  setRpe: (value: string) => void;
+}) {
+  const order = ["pre", "device", "training", "post", "reported"] as const;
+  const labels = ["训练前评估", "设备连接", "训练执行", "训练后评估", "单次报告"];
+  const activeIndex = order.indexOf(step as typeof order[number]);
+  return <section className="card p-4">
+    <div className="grid grid-cols-5 gap-2">{labels.map((label, index) => <div key={label} className={`rounded-lg px-2 py-2 text-center text-[10px] font-bold ${index <= activeIndex ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400"}`}>{index + 1}. {label}</div>)}</div>
+    {step === "pre" && <div className="mt-4"><SectionHeader title="训练前评估" description="血压为间歇测量；RPE不设默认值，由患者主动选择。" /><VitalEditor value={preVitals} onChange={setPreVitals} /><div className="mt-3 flex items-end justify-between"><label><span className="field-label">训练前主观用力感 RPE（6–20）</span><select value={rpe} onChange={(event) => setRpe(event.target.value)} className="text-field w-52"><option value="">请选择，不设默认值</option>{Array.from({ length: 15 }, (_, index) => index + 6).map((value) => <option key={value}>{value}</option>)}</select></label><button type="button" disabled={!rpe || !preVitals.bp || !preVitals.hr} onClick={() => setStep("device")} className="btn-primary disabled:bg-slate-300">保存并检查设备</button></div></div>}
+    {step === "device" && <div className="mt-4"><SectionHeader title="设备连接检查" description="背包与训练设备均连接后才能开始训练。" /><div className="grid grid-cols-2 gap-3"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800"><b>✓ 生理数据背包已连接</b><p className="mt-1">心率、血氧与心电信号正常</p></div><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800"><b>✓ 功率车已连接</b><p className="mt-1">功率、踏频、速度与距离可采集</p></div></div><div className="mt-3 flex justify-end"><button type="button" onClick={() => setStep("training")} className="btn-primary">进入视频训练</button></div></div>}
+    {step === "training" && <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4"><div className="flex items-center justify-between"><div><b className="text-sm text-blue-950">训练数据采集中</b><p className="mt-1 text-xs text-blue-700">完成后进入生命体征复测；暂停、终止和异常将写入单次报告。</p></div><button type="button" onClick={() => setStep("post")} className="btn-primary">模拟训练完成</button></div></div>}
+    {step === "post" && <div className="mt-4"><SectionHeader title="训练后评估" description="复测生命体征并记录患者主诉和最终RPE。" /><VitalEditor value={postVitals} onChange={setPostVitals} /><div className="mt-3 flex items-end justify-between"><label><span className="field-label">训练后RPE（6–20）</span><select value={rpe} onChange={(event) => setRpe(event.target.value)} className="text-field w-52"><option value="">请选择，不设默认值</option>{Array.from({ length: 15 }, (_, index) => index + 6).map((value) => <option key={value}>{value}</option>)}</select></label><button type="button" disabled={!rpe || !postVitals.bp || !postVitals.hr} onClick={() => setStep("reported")} className="btn-primary disabled:bg-slate-300">完成并生成单次报告</button></div></div>}
+    {step === "reported" && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex items-center justify-between"><div><b className="text-sm text-emerald-900">单次报告已自动生成</b><p className="mt-1 text-xs text-emerald-700">已记录训练前后生命体征、设备指标、RPE、异常和处置；患者仅确认本次到场与训练次数。</p></div><StatusBadge tone="orange">待康复师确认 / 医生复核</StatusBadge></div></div>}
+  </section>;
+}
+
+function VitalEditor({ value, onChange }: { value: { bp: string; hr: string; spo2: string; rr: string; symptoms: string }; onChange: (value: { bp: string; hr: string; spo2: string; rr: string; symptoms: string }) => void }) {
+  const field = (key: keyof typeof value, label: string, placeholder = "") => <label key={key}><span className="field-label">{label}</span><input value={value[key]} onChange={(event) => onChange({ ...value, [key]: event.target.value })} placeholder={placeholder} className="text-field" /></label>;
+  return <div className="mt-3 grid grid-cols-5 gap-3">{field("bp", "血压 mmHg", "如126/78")}{field("hr", "心率 bpm")}{field("spo2", "血氧 %")}{field("rr", "呼吸率 次/分")}{field("symptoms", "主诉/症状", "无明显不适")}</div>;
 }
 
 function NurseMetric({ icon: Icon, label, value, unit, highlight = false }: { icon: typeof Activity; label: string; value: string; unit: string; highlight?: boolean }) {

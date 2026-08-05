@@ -13,7 +13,7 @@ export const demoPatients = [
       six_mwt: "6MWT 428 m（模拟）",
       resting_hr: patientMasterChen.restingHr
     },
-    prescription_version: "V1.0",
+    prescription_version: "第12次训练",
     training_status: "主训练中",
     latest_abnormal: "胸闷主诉待复核",
     report_status: "待审核"
@@ -25,7 +25,7 @@ export const demoPatients = [
     diagnosis_summary: "稳定性冠心病，Ⅱ期院内康复",
     risk_level: "低危",
     assessment: { cpet: "待补充", six_mwt: "462 m（模拟）", resting_hr: 68 },
-    prescription_version: "V1.2",
+    prescription_version: "第8次训练",
     training_status: "等待核验",
     latest_abnormal: "无",
     report_status: "已发布"
@@ -37,7 +37,7 @@ export const demoPatients = [
     diagnosis_summary: "冠心病 CABG 术后康复",
     risk_level: "中危",
     assessment: { cpet: "峰值 VO₂ 16.9 mL/kg/min（模拟）", six_mwt: "396 m（模拟）", resting_hr: 75 },
-    prescription_version: "V0.9",
+    prescription_version: "第10次训练",
     training_status: "已完成",
     latest_abnormal: "设备断连 1 次",
     report_status: "AI 草稿"
@@ -49,31 +49,10 @@ export const demoPatients = [
     diagnosis_summary: "冠心病 PCI 术后康复评估",
     risk_level: "高危",
     assessment: { cpet: "未完成", six_mwt: "待补充", resting_hr: 79 },
-    prescription_version: "草稿",
+    prescription_version: "待核对",
     training_status: "阻断",
     latest_abnormal: "处方未确认",
     report_status: "未生成"
-  }
-];
-
-export const prescriptions = [
-  {
-    prescription_id: "RX-DEMO-001",
-    patient_demo_id: "P-DEMO-001",
-    version: "V1.0",
-    status: "doctor_confirmed",
-    training_type: "功率车有氧训练",
-    phases: [
-      { name: "热身", duration_min: 5, power_w: "20–30" },
-      { name: "主训练", duration_min: 20, power_w: "40–60" },
-      { name: "放松", duration_min: 5, power_w: "15–25" }
-    ],
-    target_hr: "92–118 bpm（模拟值）",
-    power_range: "40–60 W（模拟值）",
-    rpe_target: "11–13",
-    notes: "训练中如出现胸痛、胸闷、明显气促或头晕，应立即报告医护；演示规则不可作为临床阈值。",
-    confirmed_by: "演示医生",
-    confirmed_at: "2026-07-28 09:05"
   }
 ];
 

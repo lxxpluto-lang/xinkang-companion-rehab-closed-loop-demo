@@ -177,32 +177,10 @@ function FollowUpModal({ task, patient, record, readOnly, currentAccount, role, 
   const [disposition, setDisposition] = useState<FollowUpDisposition | "">(record?.disposition ?? "");
   const [notes, setNotes] = useState(record?.notes ?? "");
   const [nextContactDate, setNextContactDate] = useState(record?.nextContactDate ?? "");
-  const [sourceText, setSourceText] = useState(record?.sourceText ?? "");
-  const [aiDraftText, setAiDraftText] = useState(record?.aiDraft?.summary ?? "");
-  const [aiGeneratedAt, setAiGeneratedAt] = useState(record?.aiDraft?.generatedAt ?? "");
-  const [aiConfirmed, setAiConfirmed] = useState(Boolean(record?.aiDraft?.acceptedAt));
   const [error, setError] = useState("");
   const reached = contactResult === "reached";
   const highRisk = symptoms.includes("持续胸痛") || symptoms.includes("晕厥") || recentHospitalization;
   const callablePhone = /^1\d{10}$/.test(patient.phone);
-
-  function generateAiDraft() {
-    const source = [
-      symptoms.length ? `症状：${symptoms.join("、")}` : "症状：未报告明显不适",
-      `用药依从性：${medicationAdherence}`,
-      `运动依从性：${exerciseAdherence}`,
-      trainingFrequency.trim() ? `训练频率：${trainingFrequency.trim()}` : "训练频率：未提供",
-      trainingDuration.trim() ? `训练时长：${trainingDuration.trim()}` : "训练时长：未提供",
-      vitalSigns.trim() ? `生命体征：${vitalSigns.trim()}` : "生命体征：未提供",
-      patientDifficulty.trim() ? `患者困难：${patientDifficulty.trim()}` : "患者困难：未报告",
-      recentHospitalization ? "近期有急诊就诊或再次住院" : "近期无急诊或再住院",
-      notes.trim() ? `沟通备注：${notes.trim()}` : "沟通备注：无"
-    ].join("；");
-    setSourceText(source);
-    setAiDraftText(`${source}。建议${highRisk ? "提交医生复核并结合风险信息安排进一步处置" : "继续当前康复计划并按节点完成下一次随访"}。该内容仅为草稿，需由临床人员确认。`);
-    setAiGeneratedAt(new Date().toISOString());
-    setAiConfirmed(false);
-  }
 
   function submit() {
     setError("");
@@ -210,7 +188,6 @@ function FollowUpModal({ task, patient, record, readOnly, currentAccount, role, 
     if (reached && !disposition) return setError("已接通随访必须选择后续处理措施。");
     if (reached && !assessment.trim()) return setError("请填写本次临床判断后再完成随访。");
     if (highRisk && disposition === "continue_plan") return setError("存在高风险信息，不能仅选择继续原计划；请明确复诊、处方评估或紧急就医措施。");
-    if (aiDraftText.trim() && !aiConfirmed) return setError("已生成 AI 摘要草稿，请先核对并勾选确认。");
     if (!reached && (!nextContactDate || !notes.trim())) return setError("联系未成功时必须填写下次联系日期和情况说明。");
     if (!reached && nextContactDate <= todayDate()) return setError("下次联系日期必须晚于今天。");
     const createdAt = new Date().toISOString();
@@ -237,16 +214,6 @@ function FollowUpModal({ task, patient, record, readOnly, currentAccount, role, 
       nextContactDate: reached ? undefined : nextContactDate,
       operator: currentAccount,
       createdAt
-      ,sourceText: sourceText || undefined
-      ,aiDraft: aiDraftText.trim() ? {
-        draftId: record?.aiDraft?.draftId ?? `FU-AI-${Date.now()}`,
-        generatedAt: aiGeneratedAt || createdAt,
-        summary: aiDraftText.trim(),
-        modelVersion: "FollowUp-Summary-Demo-1.0",
-        status: record?.aiDraft?.summary === aiDraftText.trim() ? "accepted" : "edited",
-        acceptedBy: currentAccount,
-        acceptedAt: createdAt
-      } : undefined
     });
   }
 
@@ -264,7 +231,6 @@ function FollowUpModal({ task, patient, record, readOnly, currentAccount, role, 
       {reached ? <div className="space-y-5 pt-5"><section><SectionHeader title="症状与事件" /><div className="flex flex-wrap gap-2">{symptomOptions.map((symptom) => <label key={symptom} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${symptoms.includes(symptom) ? "border-blue-300 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600"}`}><input disabled={readOnly} type="checkbox" checked={symptoms.includes(symptom)} onChange={(event) => setSymptoms((items) => event.target.checked ? [...items, symptom] : items.filter((item) => item !== symptom))} />{symptom}</label>)}</div><label className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800"><input disabled={readOnly} type="checkbox" checked={recentHospitalization} onChange={(event) => setRecentHospitalization(event.target.checked)} />近期有急诊就诊或再次住院</label></section><section><SectionHeader title="依从性与训练执行" /><div className="grid gap-4 sm:grid-cols-2"><label><span className="field-label">用药依从性</span><select disabled={readOnly} value={medicationAdherence} onChange={(event) => setMedicationAdherence(event.target.value)} className="text-field disabled:bg-slate-50">{followUpFieldConfig.medicationAdherence.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className="field-label">运动依从性</span><select disabled={readOnly} value={exerciseAdherence} onChange={(event) => setExerciseAdherence(event.target.value)} className="text-field disabled:bg-slate-50">{followUpFieldConfig.exerciseAdherence.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className="field-label">训练频率</span><input disabled={readOnly} value={trainingFrequency} onChange={(event) => setTrainingFrequency(event.target.value)} className="text-field disabled:bg-slate-50" placeholder="如：每周 3 次" /></label><label><span className="field-label">单次训练时长</span><input disabled={readOnly} value={trainingDuration} onChange={(event) => setTrainingDuration(event.target.value)} className="text-field disabled:bg-slate-50" placeholder="如：每次 30 分钟" /></label><label><span className="field-label">患者自报生命体征</span><input disabled={readOnly} value={vitalSigns} onChange={(event) => setVitalSigns(event.target.value)} className="text-field disabled:bg-slate-50" placeholder="选填，如家庭血压、心率" /></label><label><span className="field-label">患者遇到的困难</span><input disabled={readOnly} value={patientDifficulty} onChange={(event) => setPatientDifficulty(event.target.value)} className="text-field disabled:bg-slate-50" placeholder="如：时间安排、动作不熟悉" /></label><label><span className="field-label">处理措施 *</span><select disabled={readOnly} value={disposition} onChange={(event) => setDisposition(event.target.value as FollowUpDisposition)} className="text-field disabled:bg-slate-50"><option value="">请选择</option>{Object.entries(dispositionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="sm:col-span-2"><span className="field-label">康复师建议</span><textarea disabled={readOnly} value={therapistAdvice} onChange={(event) => setTherapistAdvice(event.target.value)} className="text-field min-h-16 py-2 disabled:bg-slate-50" placeholder="记录本次沟通后的训练或宣教建议" /></label><label className="sm:col-span-2"><span className="field-label">临床判断 *</span><textarea disabled={readOnly} value={assessment} onChange={(event) => setAssessment(event.target.value)} className="text-field min-h-20 py-2 disabled:bg-slate-50" /></label><label className="sm:col-span-2"><span className="field-label">沟通备注</span><textarea disabled={readOnly} value={notes} onChange={(event) => setNotes(event.target.value)} className="text-field min-h-16 py-2 disabled:bg-slate-50" /></label></div></section></div> : <section className="mt-5"><SectionHeader title="再次联系安排" description="联系失败不算完成，原计划日期和本次尝试会继续保留。" /><div className="grid gap-4 sm:grid-cols-2"><label><span className="field-label">下次联系日期 *</span><input disabled={readOnly} type="date" min={new Date().toISOString().slice(0, 10)} value={nextContactDate} onChange={(event) => setNextContactDate(event.target.value)} className="text-field disabled:bg-slate-50" /></label><label><span className="field-label">情况说明 *</span><textarea disabled={readOnly} value={notes} onChange={(event) => setNotes(event.target.value)} className="text-field min-h-20 py-2 disabled:bg-slate-50" /></label></div></section>}
 
       {highRisk && <div className="mt-5 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-xs leading-5 text-red-800"><AlertTriangle className="h-5 w-5 shrink-0" /><div><b>发现高风险信息</b><p className="mt-1">请明确提前复诊、处方调整评估或紧急就医措施。本系统不替代医生诊断及急救处置。</p></div></div>}
-      {!readOnly && reached && <section className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4"><SectionHeader title="AI 摘要草稿（需人工确认）" description="保留原始信息、草稿、修改内容、确认人和时间；AI 不自动诊断或发布处方。" /><div className="flex flex-wrap gap-2"><button type="button" onClick={generateAiDraft} className="btn-secondary">生成 AI 摘要草稿</button>{aiGeneratedAt && <span className="self-center text-[10px] text-slate-400">生成于 {new Date(aiGeneratedAt).toLocaleString("zh-CN")}</span>}</div>{sourceText && <p className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-[11px] leading-5 text-slate-600"><b>原始信息：</b>{sourceText}</p>}<textarea value={aiDraftText} onChange={(event) => { setAiDraftText(event.target.value); setAiConfirmed(false); }} disabled={readOnly} className="text-field mt-3 min-h-20 py-2 disabled:bg-white" placeholder="点击生成草稿，或手工补充摘要" />{aiDraftText.trim() && <label className="mt-3 flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={aiConfirmed} onChange={(event) => setAiConfirmed(event.target.checked)} />我已核对并确认 AI 摘要</label>}</section>}
       {error && <div className="mt-4 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700"><AlertTriangle className="h-4 w-4 shrink-0" />{error}</div>}
       </>}
       {!!task.rescheduleHistory.length && <section className="mt-5"><SectionHeader title="改期记录" /><div className="space-y-2">{task.rescheduleHistory.map((item, index) => <div key={`${item.changedAt}-${index}`} className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">{item.fromDate} → {item.toDate} · {item.reason} · {item.changedBy}</div>)}</div></section>}

@@ -1,7 +1,6 @@
 import {
   Building2,
   CalendarCheck2,
-  ClipboardList,
   FileChartColumn,
   FileSignature,
   LayoutDashboard,
@@ -30,7 +29,6 @@ export const navItems: NavItem[] = [
   { key: "report", label: "阶段与出院报告", icon: FileChartColumn, group: "business", roles: clinicalRoles },
   { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: clinicalRoles },
   { key: "patients", label: "患者数据", icon: UsersRound, group: "business", roles: clinicalRoles },
-  { key: "assessment", label: "OCR体能评估", icon: ClipboardList, group: "business", roles: clinicalRoles },
   { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: ["ADMIN", "DOCTOR", "REHAB_EXECUTION"] },
   { key: "orgPermissions", label: "组织权限", icon: Building2, group: "admin", roles: ["ADMIN"] },
   { key: "documentConfig", label: "报告打印签名", icon: FileSignature, group: "admin", roles: ["ADMIN"] }
@@ -43,10 +41,10 @@ export const roleMeta: Record<Role, { label: string; account: string; scope: Dat
   PATIENT: { label: "患者", account: "陈女士", scope: "SELF_TASK", note: "仅本人数据" }
 };
 
-const allActions: PermissionAction[] = ["VIEW", "CREATE", "EDIT", "REVIEW", "SIGN", "PUBLISH", "UNPUBLISH", "DELETE", "RESTORE", "PERMANENT_DELETE", "PRINT", "EXPORT", "GRANT"];
+const adminActions: PermissionAction[] = ["VIEW", "CREATE", "EDIT", "REVIEW", "PUBLISH", "UNPUBLISH", "DELETE", "RESTORE", "PERMANENT_DELETE", "PRINT", "EXPORT", "GRANT"];
 
 export const roleActions: Record<Role, PermissionAction[]> = {
-  ADMIN: allActions,
+  ADMIN: adminActions,
   DOCTOR: ["VIEW", "CREATE", "EDIT", "REVIEW", "SIGN", "PRINT", "EXPORT"],
   REHAB_EXECUTION: ["VIEW", "CREATE", "EDIT", "EXPORT"],
   PATIENT: ["VIEW"]

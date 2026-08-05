@@ -11,10 +11,7 @@ import { NurseStationPage } from "./pages/NurseStationPage";
 import { FollowUpManagementPage, type FollowUpView } from "./pages/FollowUpManagementPage";
 import { RehabDischargeReportPage } from "./pages/RehabDischargeReportPage";
 import { initialPatients, PatientArchivePage, type ManagedPatient, type PatientWorkspaceTab } from "./pages/PatientArchivePage";
-import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
-import { PrescriptionWorkspacePage, type PrescriptionWorkspaceTab } from "./pages/PrescriptionWorkspacePage";
 import { initialTrainingVideos, VideoLibraryPage, type TrainingVideo } from "./pages/VideoLibraryPage";
-import { initialPrescriptionTasks, type PrescriptionListStatusFilter, type PrescriptionTask } from "./prescriptionData";
 import {
   addDays,
   contactResultLabels,
@@ -30,8 +27,7 @@ import {
   initialPatientClinicalProfiles,
   initialPrescriptionContents,
   type ClinicalNarrativeRecord,
-  type PatientClinicalProfile,
-  type PrescriptionContent
+  type PatientClinicalProfile
 } from "./prescriptionWorkspaceData";
 import type { DoctorPageKey, Role, TrainingState } from "./types";
 import { createDemoAssessmentRecords, type AssessmentRecord } from "./assessmentData";
@@ -51,15 +47,10 @@ export default function App() {
   const [system, setSystem] = useState<SystemKey>("chooser");
   const [role, setRole] = useState<StaffRole>("DOCTOR");
   const [doctorPage, setDoctorPage] = useState<DoctorPageKey>("dashboard");
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [patientInitialTab, setPatientInitialTab] = useState<PatientWorkspaceTab>("profile");
-  const [prescriptionEntryStatus, setPrescriptionEntryStatus] = useState<PrescriptionListStatusFilter>("all");
-  const [prescriptionTasks, setPrescriptionTasks] = useState<PrescriptionTask[]>(initialPrescriptionTasks);
-  const [prescriptionWorkspaceTab, setPrescriptionWorkspaceTab] = useState<PrescriptionWorkspaceTab>("narrative");
   const [patientClinicalProfiles, setPatientClinicalProfiles] = useState<PatientClinicalProfile[]>(initialPatientClinicalProfiles);
   const [clinicalNarratives, setClinicalNarratives] = useState<ClinicalNarrativeRecord[]>(initialClinicalNarratives);
-  const [prescriptionContents, setPrescriptionContents] = useState<Record<string, PrescriptionContent>>(initialPrescriptionContents);
   const [patients, setPatients] = useState<ManagedPatient[]>(initialPatients);
   const [followUpTasks, setFollowUpTasks] = useState<FollowUpTask[]>(seededFollowUpData.tasks);
   const [followUpRecords, setFollowUpRecords] = useState<FollowUpRecord[]>(seededFollowUpData.records);
@@ -73,16 +64,11 @@ export default function App() {
   const [trainingVideos, setTrainingVideos] = useState<TrainingVideo[]>(initialTrainingVideos);
 
   const currentAccount = roleMeta[role].account;
-  const scopedPrescriptionTasks = role === "DOCTOR"
-    ? prescriptionTasks.filter((task) => task.assignedDoctor === currentAccount)
-    : prescriptionTasks;
   const scopedFollowUpTasks = role === "DOCTOR"
     ? followUpTasks.filter((task) => task.assignedDoctor === currentAccount)
     : followUpTasks;
-  const selectedTask = scopedPrescriptionTasks.find((task) => task.id === selectedTaskId);
-  const selectedClinicalProfile = selectedTask ? patientClinicalProfiles.find((profile) => profile.patientId === selectedTask.patientId) : undefined;
   const publishedTrainingVideos = trainingVideos.filter((video) => video.status === "PUBLISHED" && video.url);
-  const publishedPatientPrescription = prescriptionTasks.some((task) => task.id === "RX-TASK-001" && task.status === "completed" && task.signatureStatus === "signed") ? prescriptionContents["RX-TASK-001"] : undefined;
+  const publishedPatientPrescription = initialPrescriptionContents["RX-TASK-001"];
 
   function resetViewScroll() {
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
@@ -90,10 +76,6 @@ export default function App() {
 
   function navigateDoctor(page: DoctorPageKey) {
     if (!canAccessPage(role, page)) return;
-    if (page === "prescriptions") {
-      setSelectedTaskId(null);
-      setPrescriptionEntryStatus("all");
-    }
     if (page === "followups") {
       setFollowUpEntryView("pending");
       setSelectedFollowUpTaskId(null);
@@ -106,24 +88,7 @@ export default function App() {
   function changeRole(nextRole: StaffRole) {
     setRole(nextRole);
     if (!canAccessPage(nextRole, doctorPage)) setDoctorPage(firstPageForRole(nextRole));
-    setSelectedTaskId(null);
     setSelectedFollowUpTaskId(null);
-  }
-
-  function openTask(taskId: string) {
-    const task = prescriptionTasks.find((item) => item.id === taskId);
-    if (!task || (role === "DOCTOR" && task.assignedDoctor !== currentAccount)) return;
-    setSelectedTaskId(null);
-    setSelectedPatientId(task.patientId);
-    setDoctorPage("report");
-    resetViewScroll();
-  }
-
-  function openPrescriptionList(status: PrescriptionListStatusFilter = "all") {
-    setSelectedTaskId(null);
-    setPrescriptionEntryStatus(status);
-    setDoctorPage("report");
-    resetViewScroll();
   }
 
   function openPatient(patientId: string) {
@@ -150,11 +115,6 @@ export default function App() {
     setSelectedPatientId(patientId);
     setDoctorPage("report");
     resetViewScroll();
-  }
-
-  function openPatientFromPrescription(patientId: string, returnTab: PrescriptionWorkspaceTab) {
-    setPrescriptionWorkspaceTab(returnTab);
-    openPatient(patientId);
   }
 
   function openFollowUps(view: FollowUpView = "pending", taskId?: string) {
@@ -236,87 +196,6 @@ export default function App() {
     setClinicalNarratives((records) => records.some((item) => item.narrativeId === narrative.narrativeId) ? records : [narrative, ...records]);
   }
 
-  function returnToSelectedPrescription() {
-    if (!selectedTaskId) return;
-    setDoctorPage("prescriptions");
-    resetViewScroll();
-  }
-
-  function generateDraft(taskId: string) {
-    const targetTask = prescriptionTasks.find((task) => task.id === taskId);
-    if (!targetTask || (role === "DOCTOR" && targetTask.assignedDoctor !== currentAccount)) return;
-    const assessment = patientClinicalProfiles.find((profile) => profile.patientId === targetTask.patientId)?.rehabAssessment;
-    const assessmentTotal = assessment ? assessment.sppb.balanceScore + assessment.sppb.gaitScore + assessment.sppb.chairStandScore : 0;
-    const generatedAt = "2026-07-30T10:46:00+08:00";
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? {
-      ...task,
-      aiDraftStatus: "generated",
-      status: "pending_review",
-      draftedAt: generatedAt,
-      updatedAt: generatedAt,
-      aiDraft: {
-        draftId: `AI-${task.prescriptionNo}-${generatedAt}`,
-        prescriptionId: task.prescriptionId,
-        generatedAt,
-        evidenceSnapshot: [
-          task.sourceLabel,
-          task.previousVersionId ? `上一版处方 ${task.previousVersionId}` : "基线临床评估",
-          "诊断、特殊用药与风险分层",
-          assessment?.status === "已复核"
-            ? `结构化康复评估：SPPB ${assessmentTotal}/12、6MWT ${assessment.sixMinuteWalk.distanceMeters ?? "待补"}m、峰值VO₂ ${assessment.cpet.peakVo2 ?? "待补"}`
-            : `结构化康复评估：${assessment?.status ?? "待补充"}`,
-          ...(task.risk === "高危" ? ["高危患者人工复核要求"] : [])
-        ],
-        missingData: task.missingFields ?? [],
-        proposedContent: {
-          targetHeartRate: task.risk === "高危" ? "90–104 bpm" : task.risk === "中危" ? "100–116 bpm" : "104–120 bpm",
-          targetPower: task.risk === "高危" ? "30–45 W" : task.risk === "中危" ? "48–62 W" : "50–70 W",
-          frequency: "每周 3 次",
-          duration: task.kind === "initial" ? "25 分钟/次" : "30 分钟/次",
-          clinicalAdvice: task.missingFields?.length
-            ? "关键评估尚未补齐，仅生成待补充草稿，不提供强度上调结论。"
-            : "结合风险分层与近期训练反馈生成，需由医生逐项确认。"
-        },
-        modelVersion: "CardiacRx-Demo-1.0",
-        promptVersion: "rx-draft-2026.07",
-        status: "generated"
-      }
-    } : task));
-    openTask(taskId);
-  }
-
-  function confirmTask(taskId: string) {
-    const targetTask = prescriptionTasks.find((task) => task.id === taskId);
-    if (!targetTask || (role === "DOCTOR" && targetTask.assignedDoctor !== currentAccount)) return;
-    const actor = roleMeta[role].account;
-    const now = new Date().toISOString();
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, reviewStatus: "confirmed", signatureStatus: "signed", status: "completed", draftState: "signed", confirmedBy: actor, confirmedAt: now, reviewedAt: now, signedBy: actor, signedAt: now, effectiveFrom: now, updatedAt: now, version: task.version.replace(" 草稿", ""), aiDraft: task.aiDraft ? { ...task.aiDraft, status: "accepted" } : undefined } : task));
-  }
-
-  function signTask(taskId: string) {
-    const targetTask = prescriptionTasks.find((task) => task.id === taskId);
-    if (!targetTask || (role === "DOCTOR" && targetTask.assignedDoctor !== currentAccount)) return;
-    const actor = roleMeta[role].account;
-    const now = new Date().toISOString();
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, signatureStatus: "signed", status: "completed", draftState: "signed", signedBy: actor, signedAt: now, effectiveFrom: now, updatedAt: now, version: task.version.replace(" 草稿", "") } : task));
-  }
-
-  function resetDemo() {
-    setPrescriptionTasks(initialPrescriptionTasks);
-    setPatientClinicalProfiles(initialPatientClinicalProfiles);
-    setClinicalNarratives(initialClinicalNarratives);
-    setPrescriptionContents(initialPrescriptionContents);
-    setPatients(initialPatients);
-    setFollowUpTasks(seededFollowUpData.tasks);
-    setFollowUpRecords(seededFollowUpData.records);
-    setAssessmentRecords(seededAssessmentRecords);
-    setTreatmentRecords(initialTreatmentRecords);
-    setRehabReports([]);
-    setSelectedTaskId(null);
-    setTrainingState("ready");
-    setAnomaly(false);
-  }
-
   function saveAssessmentRecord(record: AssessmentRecord) {
     setAssessmentRecords((items) => items.some((item) => item.assessmentId === record.assessmentId)
       ? items.map((item) => item.assessmentId === record.assessmentId ? record : item)
@@ -360,25 +239,8 @@ export default function App() {
     }
   }
 
-  function saveClinicalProfile(profile: PatientClinicalProfile) {
-    setPatientClinicalProfiles((profiles) => profiles.map((item) => item.patientId === profile.patientId ? profile : item));
-  }
-
-  function saveClinicalNarrative(record: ClinicalNarrativeRecord) {
-    setClinicalNarratives((records) => records.some((item) => item.narrativeId === record.narrativeId)
-      ? records.map((item) => item.narrativeId === record.narrativeId ? record : item)
-      : [record, ...records]);
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === record.taskId ? { ...task, currentNarrativeId: record.narrativeId, draftState: "saved", lastDraftSavedAt: record.encounterAt, updatedAt: record.encounterAt } : task));
-  }
-
-  function savePrescriptionContent(taskId: string, content: PrescriptionContent) {
-    const savedAt = "2026-07-30T11:00:00+08:00";
-    setPrescriptionContents((items) => ({ ...items, [taskId]: content }));
-    setPrescriptionTasks((tasks) => tasks.map((task) => task.id === taskId ? { ...task, draftState: "saved", lastDraftSavedAt: savedAt, updatedAt: savedAt } : task));
-  }
-
   if (standaloneView === "patient-reports") {
-    return <main className="doctor-shell min-h-screen p-6"><div className="doctor-main mx-auto max-w-[1440px]"><PatientArchivePage role="DOCTOR" currentAccount="王医生" patients={patients} tasks={prescriptionTasks} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} initialPatientId={standalonePatientId} initialTab="reports" onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenPrescription={openTask} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onOpenDischargeReport={openDischargeReport} onSaveTreatmentRecord={saveTreatmentRecord} /></div></main>;
+    return <main className="doctor-shell min-h-screen p-6"><div className="doctor-main mx-auto max-w-[1440px]"><PatientArchivePage role="DOCTOR" currentAccount="王医生" patients={patients} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} initialPatientId={standalonePatientId} initialTab="reports" onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onOpenDischargeReport={openDischargeReport} onSaveTreatmentRecord={saveTreatmentRecord} /></div></main>;
   }
 
   if (system === "chooser") return <SystemChooser onChoose={(target) => setSystem(target === "doctor" ? "staffLogin" : "patient")} />;
@@ -392,20 +254,17 @@ export default function App() {
   }
 
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
-    dashboard: <DashboardPage role={role} tasks={scopedPrescriptionTasks} patients={patients} followUpTasks={scopedFollowUpTasks} onOpenFollowUps={openFollowUps} onOpenPrescriptionList={openPrescriptionList} onOpenReports={() => navigateDoctor("report")} onOpen={openTask} onGenerate={generateDraft} onConfirm={confirmTask} onSign={signTask} />,
-    prescriptions: selectedTask && selectedClinicalProfile
-      ? <PrescriptionWorkspacePage task={selectedTask} profile={selectedClinicalProfile} narratives={clinicalNarratives} content={prescriptionContents[selectedTask.id]} initialTab={prescriptionWorkspaceTab} onBack={() => setSelectedTaskId(null)} onConfirm={confirmTask} onGenerate={generateDraft} onOpenPatient={openPatientFromPrescription} onSaveProfile={saveClinicalProfile} onSaveNarrative={saveClinicalNarrative} onSaveContent={savePrescriptionContent} />
-      : <PrescriptionManagementPage key={role} role={role} currentDoctor={currentAccount} tasks={scopedPrescriptionTasks} initialStatusFilter={prescriptionEntryStatus} onOpen={openTask} onGenerate={generateDraft} />,
-    patients: <PatientArchivePage key={`${role}-${selectedPatientId ?? "list"}-${patientInitialTab}`} role={role} currentAccount={currentAccount} patients={patients} tasks={prescriptionTasks} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} initialPatientId={selectedPatientId} initialTab={patientInitialTab} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenPrescription={openTask} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onOpenDischargeReport={openDischargeReport} onSaveTreatmentRecord={saveTreatmentRecord} onBackToPrescription={selectedTaskId ? returnToSelectedPrescription : undefined} />,
+    dashboard: <DashboardPage role={role} patients={patients} followUpTasks={scopedFollowUpTasks} onOpenFollowUps={openFollowUps} onOpenReports={() => navigateDoctor("report")} onOpenTraining={() => navigateDoctor("training")} />,
+    patients: <PatientArchivePage key={`${role}-${selectedPatientId ?? "list"}-${patientInitialTab}`} role={role} currentAccount={currentAccount} patients={patients} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} initialPatientId={selectedPatientId} initialTab={patientInitialTab} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onOpenDischargeReport={openDischargeReport} onSaveTreatmentRecord={saveTreatmentRecord} />,
     assessment: <AssessmentWorkspacePage key={`${role}-${selectedPatientId ?? "all"}`} role={role} currentAccount={currentAccount} patients={patients} records={assessmentRecords} initialPatientId={selectedPatientId} onSave={saveAssessmentRecord} onBack={closeAssessment} />,
-    report: <RehabDischargeReportPage role={role} currentAccount={currentAccount} patients={patients} assessments={assessmentRecords} tasks={prescriptionTasks} followUps={followUpTasks} followUpRecords={followUpRecords} reports={rehabReports} initialPatientId={selectedPatientId} onSave={saveRehabReport} />,
+    report: <RehabDischargeReportPage role={role} currentAccount={currentAccount} patients={patients} assessments={assessmentRecords} followUps={followUpTasks} followUpRecords={followUpRecords} reports={rehabReports} initialPatientId={selectedPatientId} onSave={saveRehabReport} />,
     followups: <FollowUpManagementPage key={`${role}-${followUpEntryView}-${selectedFollowUpTaskId ?? "list"}`} role={role} currentAccount={currentAccount} patients={patients} tasks={followUpTasks} records={followUpRecords} initialView={followUpEntryView} initialTaskId={selectedFollowUpTaskId} onSaveRecord={saveFollowUpRecord} onOpenPatient={openPatient} />,
     training: <NurseStationPage role={role} />,
     videoConfig: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />
   };
 
   for (const page of adminConsolePages) {
-    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "assessment" | "followups" | "report" | "prescriptions" | "training" | "videoConfig">} />;
+    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "assessment" | "followups" | "report" | "training" | "videoConfig">} />;
   }
 
   return (
