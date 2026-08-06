@@ -180,6 +180,32 @@ export type AssessmentInputMode = "batch_ocr" | "single_ocr" | "manual";
 export type RecordStatus = "draft" | "completed";
 export type SharedContentStatus = "draft" | "sent";
 
+export type ClinicalDataSource =
+  | "DEVICE_CAPTURED"
+  | "RULE_DERIVED"
+  | "MANUAL_ENTRY"
+  | "AI_SUGGESTED";
+
+export type SourcedClinicalValue<T> = {
+  value: T | null;
+  source: ClinicalDataSource;
+  sourceRecordId?: string;
+  capturedAt?: string;
+  confirmedBy?: string;
+};
+
+export type AiSuggestion = {
+  suggestionId: string;
+  patientId: string;
+  type: "PRESCRIPTION" | "TREATMENT_ADVICE" | "STAGE_SUMMARY";
+  sourceRecordIds: string[];
+  missingFields: string[];
+  content: string;
+  status: "DRAFT" | "CONFIRMED" | "REJECTED";
+  generatedAt: string;
+  confirmedBy?: string;
+};
+
 export type TreatmentSignature = {
   mode: "uploaded" | "print_hand_sign";
   signerRole: "REHAB_EXECUTION";

@@ -4,7 +4,7 @@ import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { AssessmentRecord } from "../assessmentData";
 import type { RehabReport } from "../dischargeHandbookData";
 import { effectiveFollowUpStatus, type FollowUpRecord, type FollowUpTask } from "../followUpData";
-import { stageReportData } from "../patient/stageReportData";
+import { getStageReportData, type TrainingSession } from "../patient/stageReportData";
 import type { StageReport } from "../types";
 import type { ManagedPatient } from "./PatientArchivePage";
 
@@ -12,7 +12,7 @@ type ReportRole = "ADMIN" | "DOCTOR" | "REHAB_EXECUTION";
 type ReportSheet = "stage" | "discharge";
 
 const fullSessionDate = (date: string) => date.length === 5 ? `2026-${date}` : date;
-const groupSessionsByExercise = (sessions: typeof stageReportData.sessions) => sessions.reduce<Record<string, typeof stageReportData.sessions>>((groups, session) => {
+const groupSessionsByExercise = (sessions: TrainingSession[]) => sessions.reduce<Record<string, TrainingSession[]>>((groups, session) => {
   groups[session.exerciseType] = [...(groups[session.exerciseType] ?? []), session];
   return groups;
 }, {});
@@ -58,7 +58,7 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
   const [sheet, setSheet] = useState<ReportSheet>("stage");
   const [patientId, setPatientId] = useState(initialPatientId && scopedPatients.some((item) => item.patient_demo_id === initialPatientId) ? initialPatientId : scopedPatients[0]?.patient_demo_id ?? "");
   const patient = scopedPatients.find((item) => item.patient_demo_id === patientId) ?? scopedPatients[0];
-  const availableSessions = patient?.patient_demo_id === "P-DEMO-001" ? stageReportData.sessions.filter((session) => session.completed) : [];
+  const availableSessions = patient ? getStageReportData(patient.patient_demo_id)?.sessions.filter((session) => session.completed) ?? [] : [];
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>(availableSessions.slice(-4).map((session) => session.id));
   const initialDates = availableSessions.slice(-4).map((session) => fullSessionDate(session.date)).sort();
   const [stageReport, setStageReport] = useState<StageReport>({ reportId: "STAGE-DRAFT-001", patientId: patient?.patient_demo_id ?? "", selectedSessionIds, periodStart: initialDates[0] ?? "", periodEnd: initialDates.at(-1) ?? "", generatedSummary: "", status: "draft" });
@@ -70,7 +70,7 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
   function switchPatient(nextId: string) {
     const next = scopedPatients.find((item) => item.patient_demo_id === nextId);
     if (!next) return;
-    const sessions = next.patient_demo_id === "P-DEMO-001" ? stageReportData.sessions.filter((session) => session.completed) : [];
+    const sessions = getStageReportData(next.patient_demo_id)?.sessions.filter((session) => session.completed) ?? [];
     const selection = sessions.slice(-4).map((session) => session.id);
     setPatientId(nextId);
     setSelectedSessionIds(selection);
@@ -136,7 +136,7 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
   </section>;
 }
 
-function StageSheet({ sessions, selectedIds, report, history, role, onToggle, onGenerate, onConfirm, onNew }: { sessions: typeof stageReportData.sessions; selectedIds: string[]; report: StageReport; history: StageReport[]; role: ReportRole; onToggle: (id: string) => void; onGenerate: () => void; onConfirm: () => void; onNew: () => void }) {
+function StageSheet({ sessions, selectedIds, report, history, role, onToggle, onGenerate, onConfirm, onNew }: { sessions: TrainingSession[]; selectedIds: string[]; report: StageReport; history: StageReport[]; role: ReportRole; onToggle: (id: string) => void; onGenerate: () => void; onConfirm: () => void; onNew: () => void }) {
   const selected = sessions.filter((session) => selectedIds.includes(session.id));
   const totalMinutes = selected.reduce((sum, session) => sum + session.activeMinutes, 0);
   const abnormalCount = selected.filter((session) => session.symptom !== "无明显不适" || session.pauses > 0 || session.terminatedEarly).length;

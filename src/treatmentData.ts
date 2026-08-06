@@ -1,4 +1,4 @@
-import type { ClinicalMetricSource, TreatmentSignature } from "./types";
+import type { AiSuggestion, ClinicalMetricSource, SourcedClinicalValue, TreatmentSignature } from "./types";
 
 export type TreatmentVitalSnapshot = {
   bloodPressure: string;
@@ -48,6 +48,8 @@ export type CardiopulmonaryTreatmentRecord = {
     symptomChange: string;
   };
   treatmentSummary: string;
+  actualMetrics?: Record<string, SourcedClinicalValue<unknown>>;
+  aiAdvice?: AiSuggestion;
   adverseEvent: string;
   fieldAction: string;
   therapist: string;
@@ -113,6 +115,11 @@ export const initialTreatmentRecords: CardiopulmonaryTreatmentRecord[] = [
       symptomChange: "训练中短暂胸闷，暂停观察后缓解"
     },
     treatmentSummary: "完成热身、功率车主训练和放松，训练后生命体征回落。",
+    actualMetrics: {
+      averageHeartRate: { value: 104, source: "DEVICE_CAPTURED", sourceRecordId: "TR-20260725-012", capturedAt: "2026-07-25T09:30:00+08:00" },
+      peakHeartRate: { value: 113, source: "DEVICE_CAPTURED", sourceRecordId: "TR-20260725-012", capturedAt: "2026-07-25T09:30:00+08:00" },
+      activeMinutes: { value: 26, source: "RULE_DERIVED", sourceRecordId: "TR-20260725-012", capturedAt: "2026-07-25T10:03:00+08:00" }
+    },
     adverseEvent: "短暂胸闷，无持续性心律失常记录",
     fieldAction: "康复执行岗暂停观察2分钟，症状缓解后低阻力继续。",
     therapist: "周康复师",

@@ -23,7 +23,6 @@ import {
 import { demoPatients } from "../mockData";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import { singleTrainingReportDetails } from "../clinicalSharedData";
-import { stageReportData } from "../patient/stageReportData";
 import type { AssessmentRecord } from "../assessmentData";
 import type { FollowUpRecord, FollowUpTask } from "../followUpData";
 import type {
@@ -37,6 +36,7 @@ import {
   type TreatmentIntervention,
 } from "../treatmentData";
 import type {
+  ClinicalDataSource,
   FieldCollectionStatus,
   PatientRecordStatus,
   PatientStatus,
@@ -1590,6 +1590,7 @@ export function TreatmentRecordPage({
             </div>
           }
         />}
+        {draft.actualMetrics && Object.keys(draft.actualMetrics).length > 0 && <section className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4"><div className="flex flex-wrap items-center gap-2"><b className="text-sm text-blue-950">实际数据来源</b>{Object.entries(draft.actualMetrics).map(([key, metric]) => <span key={key} className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs text-blue-800">{metricLabel(key)}：{String(metric.value ?? "未采集")} · {sourceLabel(metric.source)}</span>)}</div><p className="mt-2 text-xs text-blue-700">设备采集和规则计算属于事实数据；AI建议不会写入本区域。</p></section>}
         <section className="card overflow-hidden print:shadow-none">
           <div className="grid grid-cols-4 gap-3 border-b border-slate-200 p-5">
             <Info
@@ -2340,6 +2341,7 @@ export function createBlankTreatment(
       symptomChange: "",
     },
     treatmentSummary: "",
+    actualMetrics: {},
     adverseEvent: "",
     fieldAction: "",
     therapist: actor,
@@ -2434,4 +2436,18 @@ function SmallNum({
 }
 function cleanMissing(value: string) {
   return !value || value === "待补充" || value === "未录入" ? "未提供" : value;
+}
+
+function sourceLabel(source: ClinicalDataSource) {
+  if (source === "DEVICE_CAPTURED") return "设备采集";
+  if (source === "RULE_DERIVED") return "规则计算";
+  if (source === "AI_SUGGESTED") return "AI建议";
+  return "人工录入";
+}
+
+function metricLabel(metric: string) {
+  if (metric === "averageHeartRate") return "平均心率";
+  if (metric === "peakHeartRate") return "峰值心率";
+  if (metric === "activeMinutes") return "实际运动时间";
+  return metric;
 }

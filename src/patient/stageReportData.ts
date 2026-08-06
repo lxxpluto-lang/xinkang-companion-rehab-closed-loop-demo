@@ -100,6 +100,7 @@ export type PatientStageConclusion = {
 };
 
 export type StageReportData = {
+  patientId: string;
   reportPeriod: { start: string; end: string; generatedAt: string };
   patientSnapshot: {
     name: string;
@@ -190,6 +191,7 @@ const session = (
 });
 
 export const stageReportData: StageReportData = {
+  patientId: "P-DEMO-001",
   reportPeriod: {
     start: "2026-06-16",
     end: "2026-07-25",
@@ -315,6 +317,14 @@ export const stageReportData: StageReportData = {
     nextFollowUp: "2026-08-06 14:30"
   }
 };
+
+export const stageReportDataByPatient: Partial<Record<string, StageReportData>> = {
+  [stageReportData.patientId]: stageReportData
+};
+
+export function getStageReportData(patientId: string) {
+  return stageReportDataByPatient[patientId];
+}
 
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);

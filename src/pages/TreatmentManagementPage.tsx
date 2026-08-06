@@ -5,7 +5,7 @@ import type { PatientClinicalProfile } from "../prescriptionWorkspaceData";
 import type { CardiopulmonaryTreatmentRecord } from "../treatmentData";
 import type { PrescriptionTask } from "../clinicalWorkflowData";
 import type { StaffRole } from "../types";
-import { stageReportData } from "../patient/stageReportData";
+import { getStageReportData } from "../patient/stageReportData";
 import { createBlankTreatment, type ManagedPatient, TreatmentRecordPage } from "./PatientArchivePage";
 
 type TreatmentTab = "profile" | "current" | "previous" | "prescription" | "stage";
@@ -32,6 +32,7 @@ export function TreatmentManagementPage({ role, currentAccount, patients, profil
   const profile = profiles.find((item) => item.patientId === selectedPatient?.patient_demo_id);
   const patientTreatments = useMemo(() => treatmentRecords.filter((item) => item.patientId === patientId).sort((a, b) => b.treatmentAt.localeCompare(a.treatmentAt)), [patientId, treatmentRecords]);
   const prescription = prescriptionTasks.find((item) => item.patientId === patientId && item.status === "completed") ?? prescriptionTasks.find((item) => item.patientId === patientId);
+  const stageReport = getStageReportData(patientId);
   const [activeTab, setActiveTab] = useState<TreatmentTab>("current");
   const [currentDraft, setCurrentDraft] = useState<CardiopulmonaryTreatmentRecord>(() => selectedPatient ? createBlankTreatment(selectedPatient, currentAccount) : treatmentRecords[0]);
   const [generatedFromStage, setGeneratedFromStage] = useState(false);
@@ -48,34 +49,31 @@ export function TreatmentManagementPage({ role, currentAccount, patients, profil
   }
 
   function generateFromStageReport() {
+    if (!stageReport) return;
     const next = createBlankTreatment(selectedPatient, currentAccount);
-    const resting = profile?.rehabAssessment.restingVitals;
     next.prescriptionVersionId = prescription?.version;
     next.diagnosis = profile?.diagnosis ?? selectedPatient.diagnosis_summary;
     next.specialMedications = profile?.specialMedications ?? selectedPatient.current_medications;
-    next.preAssessment = {
-      ...next.preAssessment,
-      heartRate: resting?.heartRate ?? null,
-      bloodPressure: resting?.systolic && resting.diastolic ? `${resting.systolic}/${resting.diastolic} mmHg` : "",
-      spo2: resting?.spo2 ?? null
+    next.aiAdvice = {
+      suggestionId: `AI-TREATMENT-${selectedPatient.patient_demo_id}-${Date.now()}`,
+      patientId: selectedPatient.patient_demo_id,
+      type: "TREATMENT_ADVICE",
+      sourceRecordIds: stageReport.sessions.filter((item) => item.completed).map((item) => item.id),
+      missingFields: ["本次训练前生命体征", "本次实际训练项目", "本次训练后生命体征", "Borg评分"],
+      content: stageReport.clinicalConclusion.nextPrescription,
+      status: "DRAFT",
+      generatedAt: new Date().toISOString()
     };
-    next.interventions = next.interventions.map((item) => ({
-      ...item,
-      selected: ["endurance", "ecg", "bike"].includes(item.code),
-      durationMinutes: item.code === "bike" ? 30 : item.durationMinutes,
-      notes: item.code === "bike" ? "根据阶段性报告建议：热身5分钟、主训练20分钟、放松5分钟" : item.notes
-    }));
-    next.treatmentSummary = `根据阶段报告（${stageReportData.reportPeriod.start} 至 ${stageReportData.reportPeriod.end}）自动形成治疗记录草稿：${stageReportData.clinicalConclusion.summary}`;
     setCurrentDraft(next);
     setGeneratedFromStage(true);
   }
 
   const tabState: Record<TreatmentTab, string> = {
     profile: profile ? "资料可用" : "资料待补",
-    current: generatedFromStage ? "阶段报告已带入" : "可编辑",
+    current: generatedFromStage ? "AI建议待核对" : "可编辑",
     previous: patientTreatments.length ? `${patientTreatments.length}条历史` : "暂无记录",
     prescription: prescription ? `${prescription.version} · 只读` : "未获取",
-    stage: "报告可用"
+    stage: stageReport ? "报告可用" : "暂无报告"
   };
 
   return <section className="space-y-4 pb-10" data-testid="page-TREATMENT-MANAGEMENT">
@@ -90,7 +88,7 @@ export function TreatmentManagementPage({ role, currentAccount, patients, profil
         <Summary label="康复阶段" value={selectedPatient.rehab_stage} />
         <Summary label="患者状态" value={patientStatusLabel(selectedPatient.patient_status)} />
         <Summary label="当前处方" value={prescription ? `${prescription.prescriptionNo} · ${prescription.version}` : "未获取"} />
-        <Summary label="本次记录" value={generatedFromStage ? "阶段报告已生成草稿" : "待填写"} accent={generatedFromStage} />
+        <Summary label="本次记录" value={generatedFromStage ? "AI建议待核对，事实字段仍为空" : "待填写"} accent={generatedFromStage} />
       </div>
     </header>
 
@@ -99,10 +97,10 @@ export function TreatmentManagementPage({ role, currentAccount, patients, profil
     </nav>
 
     {activeTab === "profile" && <ProfilePanel patient={selectedPatient} profile={profile} />}
-    {activeTab === "current" && <div className="space-y-4"><section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-4"><div className="flex items-start gap-3"><span className="rounded-xl bg-teal-600 p-2.5 text-white"><Sparkles className="h-4 w-4" /></span><div><h2 className="text-sm font-bold text-teal-950">根据阶段性报告生成本次治疗记录</h2><p className="mt-1 text-xs text-teal-800">自动带入患者摘要、既有处方版本、基线生命体征与建议训练项目；康复师必须核对并可继续编辑。</p></div></div><button type="button" className="btn-primary !bg-teal-600 hover:!bg-teal-700" onClick={generateFromStageReport}><Sparkles className="h-4 w-4" />生成治疗记录草稿</button></section><TreatmentRecordPage key={currentDraft.treatmentId} patient={selectedPatient} record={currentDraft} role={role} embedded onBack={() => undefined} onSave={(record) => { setCurrentDraft(record); onSave(record); }} onCorrect={setCurrentDraft} /></div>}
+    {activeTab === "current" && <div className="space-y-4"><section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4"><div className="flex items-start gap-3"><span className="rounded-xl bg-blue-600 p-2.5 text-white"><Sparkles className="h-4 w-4" /></span><div><h2 className="text-sm font-bold text-blue-950">根据阶段性报告生成治疗建议</h2><p className="mt-1 text-sm text-blue-800">AI只生成下一阶段建议；本次生命体征、实际项目、Borg和处置仍由设备或康复师记录。</p></div></div><button type="button" className="btn-primary" disabled={!stageReport} onClick={generateFromStageReport}><Sparkles className="h-4 w-4" />{stageReport ? "生成AI治疗建议" : "暂无阶段报告"}</button></section>{currentDraft.aiAdvice && <AiAdvicePanel advice={currentDraft.aiAdvice} onConfirm={() => setCurrentDraft({ ...currentDraft, aiAdvice: { ...currentDraft.aiAdvice!, status: "CONFIRMED", confirmedBy: currentAccount } })} />}<TreatmentRecordPage key={`${currentDraft.treatmentId}-${currentDraft.aiAdvice?.status ?? "NO_AI"}`} patient={selectedPatient} record={currentDraft} role={role} embedded onBack={() => undefined} onSave={(record) => { setCurrentDraft(record); onSave(record); }} onCorrect={setCurrentDraft} /></div>}
     {activeTab === "previous" && <PreviousTreatmentPanel patient={selectedPatient} record={patientTreatments[0]} role={role} onSave={onSave} />}
     {activeTab === "prescription" && <PrescriptionReadonlyPanel prescription={prescription} />}
-    {activeTab === "stage" && <StageReportPanel />}
+    {activeTab === "stage" && <StageReportPanel patientId={patientId} />}
   </section>;
 }
 
@@ -126,10 +124,16 @@ function PrescriptionReadonlyPanel({ prescription }: { prescription?: Prescripti
   return <section className="card overflow-hidden"><div className="flex items-center justify-between border-b p-5"><SectionHeader title="处方管理（只读）" description="康复师只能查看医生处方及版本，不能编辑、复核或签署。" /><StatusBadge tone={prescription.status === "completed" ? "green" : "orange"}>{prescription.status === "completed" ? "已签署" : "尚未完成"}</StatusBadge></div><div className="grid gap-4 p-5 lg:grid-cols-[0.72fr_1.28fr]"><div className="space-y-3">{[["处方号", prescription.prescriptionNo], ["版本", prescription.version], ["所属医生", prescription.assignedDoctorName], ["康复阶段", prescription.rehabStage], ["危险分组", prescription.risk], ["生成依据", prescription.sourceLabel ?? "未说明"]].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] text-slate-400">{label}</p><p className="mt-1 text-xs font-bold text-slate-700">{value}</p></div>)}</div><div className="rounded-2xl border border-slate-200 p-4"><h3 className="text-sm font-bold">运动处方项目</h3>{draft ? <div className="mt-3 space-y-2">{draft.items.map((item) => <div key={item.category} className="rounded-xl bg-slate-50 p-3"><b className="text-xs">{item.category} · {item.project}</b><p className="mt-1 text-[10px] leading-5 text-slate-500">{item.intensity}｜{item.duration}｜{item.frequency}</p></div>)}</div> : <p className="mt-5 text-xs text-slate-400">处方内容尚未生成。</p>}</div></div></section>;
 }
 
-function StageReportPanel() {
-  const completed = stageReportData.sessions.filter((item) => item.completed).length;
-  const minutes = stageReportData.sessions.reduce((sum, item) => sum + item.activeMinutes, 0);
-  return <section className="card overflow-hidden"><div className="border-b p-5"><SectionHeader title="阶段性报告" description="治疗记录生成时只引用已确认的阶段摘要；原始报告保持只读。" /></div><div className="grid gap-4 p-5 lg:grid-cols-[0.7fr_1.3fr]"><div className="grid grid-cols-2 gap-3"><Metric label="纳入训练" value={`${completed}次`} /><Metric label="实际运动" value={`${minutes}分钟`} /><Metric label="报告周期" value={`${stageReportData.reportPeriod.start.slice(5)} 至 ${stageReportData.reportPeriod.end.slice(5)}`} wide /><Metric label="数据完整率" value="96%" /></div><div className="rounded-2xl border border-teal-100 bg-teal-50 p-5"><p className="text-[10px] font-bold text-teal-600">阶段结论</p><p className="mt-3 text-xs leading-6 text-slate-700">{stageReportData.clinicalConclusion.summary}</p><p className="mt-4 rounded-xl bg-white p-3 text-xs font-semibold text-teal-800">治疗参考：{stageReportData.clinicalConclusion.nextPrescription}</p></div></div></section>;
+function StageReportPanel({ patientId }: { patientId: string }) {
+  const report = getStageReportData(patientId);
+  if (!report) return <section className="card p-10 text-center"><FileBarChart className="mx-auto h-9 w-9 text-slate-300" /><h2 className="mt-3 text-base font-bold text-slate-700">暂无该患者阶段报告</h2><p className="mt-2 text-sm text-slate-500">至少完成并选择两次有效训练后，才能生成患者专属阶段报告。</p></section>;
+  const completed = report.sessions.filter((item) => item.completed).length;
+  const minutes = report.sessions.reduce((sum, item) => sum + item.activeMinutes, 0);
+  return <section className="card overflow-hidden"><div className="border-b p-5"><SectionHeader title="阶段性报告" description="报告只读；AI可根据已关联记录生成下一阶段建议，不能反向修改治疗事实。" /></div><div className="grid gap-4 p-5 lg:grid-cols-[0.7fr_1.3fr]"><div className="grid grid-cols-2 gap-3"><Metric label="纳入训练" value={`${completed}次`} /><Metric label="实际运动" value={`${minutes}分钟`} /><Metric label="报告周期" value={`${report.reportPeriod.start.slice(5)} 至 ${report.reportPeriod.end.slice(5)}`} wide /><Metric label="数据来源" value={`${report.sessions.length}条患者记录`} /></div><div className="rounded-2xl border border-blue-100 bg-blue-50 p-5"><p className="text-xs font-bold text-blue-600">阶段结论</p><p className="mt-3 text-sm leading-6 text-slate-700">{report.clinicalConclusion.summary}</p><p className="mt-4 rounded-xl bg-white p-3 text-sm font-semibold text-blue-800">治疗参考：{report.clinicalConclusion.nextPrescription}</p></div></div></section>;
+}
+
+function AiAdvicePanel({ advice, onConfirm }: { advice: NonNullable<CardiopulmonaryTreatmentRecord["aiAdvice"]>; onConfirm: () => void }) {
+  return <section className="card border-blue-200 p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2"><StatusBadge tone={advice.status === "CONFIRMED" ? "green" : "blue"}>{advice.status === "CONFIRMED" ? "人工已核对" : "AI辅助草稿"}</StatusBadge><span className="text-xs text-slate-500">引用 {advice.sourceRecordIds.length} 条训练记录</span></div><h2 className="mt-3 text-base font-bold text-slate-900">下一阶段治疗建议</h2><p className="mt-2 text-sm leading-6 text-slate-700">{advice.content}</p></div>{advice.status === "DRAFT" && <button type="button" className="btn-secondary" onClick={onConfirm}>确认已核对建议</button>}</div><div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><b>本次仍需现场采集：</b>{advice.missingFields.join("、")}。AI不会自动填写这些事实字段。</div></section>;
 }
 
 function Metric({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {

@@ -1,3 +1,5 @@
+import type { AiSuggestion } from "./types";
+
 export type PrescriptionStatus = "pending_generation" | "pending_review" | "pending_signature" | "completed" | "withdrawn";
 
 export type PrescriptionItem = {
@@ -38,6 +40,7 @@ export type PrescriptionTask = {
   updatedAt: string;
   previous?: PrescriptionDraft;
   aiSuggestion?: PrescriptionDraft;
+  aiSuggestionMeta?: AiSuggestion;
   doctorFinal?: PrescriptionDraft;
 };
 
