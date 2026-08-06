@@ -8,6 +8,7 @@ import { AdminConsolePage } from "./pages/AdminConsolePage";
 import { AssessmentWorkspacePage } from "./pages/AssessmentWorkspacePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
+import { PrescriptionWorkspacePage } from "./pages/PrescriptionWorkspacePage";
 import { AlertManagementPage } from "./pages/AlertManagementPage";
 import { AppointmentManagementPage } from "./pages/AppointmentManagementPage";
 import { NurseStationPage } from "./pages/NurseStationPage";
@@ -73,6 +74,8 @@ export default function App() {
   const [anomaly, setAnomaly] = useState(false);
   const [trainingVideos, setTrainingVideos] = useState<TrainingVideo[]>(initialTrainingVideos);
   const [prescriptionTasks, setPrescriptionTasks] = useState<PrescriptionTask[]>(() => readDemoStore("xinkang-prescription-tasks", initialPrescriptionTasks));
+  const [prescriptionContents, setPrescriptionContents] = useState<Record<string, PrescriptionContent>>(() => readDemoStore("xinkang-prescription-contents", initialPrescriptionContents));
+  const [selectedPrescriptionTaskId, setSelectedPrescriptionTaskId] = useState<string | null>(null);
   const [alertEvents, setAlertEvents] = useState<AlertEvent[]>(() => readDemoStore("xinkang-alert-events", initialAlertEvents));
   const [alertRules, setAlertRules] = useState<AlertRule[]>(() => readDemoStore("xinkang-alert-rules", initialAlertRules));
   const [appointments, setAppointments] = useState<Appointment[]>(() => readDemoStore("xinkang-appointments", initialAppointments));
@@ -96,6 +99,7 @@ export default function App() {
   }, []);
 
   useEffect(() => { localStorage.setItem("xinkang-prescription-tasks", JSON.stringify(prescriptionTasks)); }, [prescriptionTasks]);
+  useEffect(() => { localStorage.setItem("xinkang-prescription-contents", JSON.stringify(prescriptionContents)); }, [prescriptionContents]);
   useEffect(() => { localStorage.setItem("xinkang-alert-events", JSON.stringify(alertEvents)); }, [alertEvents]);
   useEffect(() => { localStorage.setItem("xinkang-alert-rules", JSON.stringify(alertRules)); }, [alertRules]);
   useEffect(() => { localStorage.setItem("xinkang-appointments", JSON.stringify(appointments)); }, [appointments]);
@@ -111,6 +115,7 @@ export default function App() {
       setSelectedFollowUpTaskId(null);
     }
     if (page === "patients") { setSelectedPatientId(null); setPatientInitialTab("profile"); }
+    if (page !== "prescriptions") setSelectedPrescriptionTaskId(null);
     setDoctorPage(page);
     resetViewScroll();
   }
@@ -124,11 +129,20 @@ export default function App() {
     setSelectedFollowUpTaskId(null);
   }
 
-  function openPatient(patientId: string) {
+  function openPatient(patientId: string, tab: PatientWorkspaceTab = "profile") {
     setSelectedPatientId(patientId);
-    setPatientInitialTab("profile");
+    setPatientInitialTab(tab);
     setDoctorPage("patients");
+    setSelectedPrescriptionTaskId(null);
     resetViewScroll();
+  }
+
+  function updatePrescriptionTask(taskId: string, patch: Partial<PrescriptionTask>) {
+    setPrescriptionTasks((items) => items.map((item) => item.id === taskId ? { ...item, ...patch } : item));
+  }
+
+  function savePrescriptionContent(taskId: string, content: PrescriptionContent) {
+    setPrescriptionContents((items) => ({ ...items, [taskId]: content }));
   }
 
   function openAssessment(patientId?: string, recordId?: string) {
@@ -301,7 +315,12 @@ export default function App() {
     assessment: <AssessmentWorkspacePage key={`${role}-${selectedPatientId ?? "all"}-${standaloneRecordId}`} role={role} currentAccount={currentAccount} patients={patients} records={assessmentRecords} initialPatientId={selectedPatientId} initialRecordId={standaloneRecordId || null} onSave={saveAssessmentRecord} onBack={closeAssessment} />,
     followups: <FollowUpManagementPage key={`${role}-${followUpEntryView}-${selectedFollowUpTaskId ?? "list"}`} role={role} currentAccount={currentAccount} patients={patients} tasks={followUpTasks} records={followUpRecords} initialView={followUpEntryView} initialTaskId={selectedFollowUpTaskId} onSaveRecord={saveFollowUpRecord} onOpenPatient={openPatient} />,
     training: <NurseStationPage role={role} />,
-    prescriptions: <PrescriptionManagementPage role={role} accountId={accountId} tasks={prescriptionTasks} setTasks={setPrescriptionTasks} initialStatus={prescriptionInitialStatus} />,
+    prescriptions: (() => {
+      const selectedTask = prescriptionTasks.find((item) => item.id === selectedPrescriptionTaskId);
+      const selectedProfile = selectedTask ? patientClinicalProfiles.find((item) => item.patientId === selectedTask.patientId) : undefined;
+      if (selectedTask && selectedProfile) return <PrescriptionWorkspacePage task={selectedTask} role={role} accountId={accountId} profile={selectedProfile} content={prescriptionContents[selectedTask.id] ?? initialPrescriptionContents[selectedTask.id] ?? initialPrescriptionContents["RX-TASK-001"]} rehabReports={rehabReports} onBack={() => { setSelectedPrescriptionTaskId(null); resetViewScroll(); }} onOpenPatient={(patientId, tab) => openPatient(patientId, (tab === "rehabReport" ? "rehabReports" : tab) as PatientWorkspaceTab)} onUpdateTask={updatePrescriptionTask} onSaveContent={savePrescriptionContent} />;
+      return <PrescriptionManagementPage role={role} accountId={accountId} tasks={prescriptionTasks} initialStatus={prescriptionInitialStatus} onOpen={(taskId) => { setSelectedPrescriptionTaskId(taskId); resetViewScroll(); }} />;
+    })(),
     alerts: <AlertManagementPage role={role} events={alertEvents} setEvents={setAlertEvents} rules={alertRules} setRules={setAlertRules} />,
     appointments: <AppointmentManagementPage role={role} accountId={accountId} appointments={appointments} setAppointments={setAppointments} />,
     videoConfig: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />
