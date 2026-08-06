@@ -51,6 +51,17 @@ body,
   touch-action: manipulation;
 }
 
+.ipad-stage .text-\[9px\],
+.ipad-stage .text-\[10px\] {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.ipad-stage .text-\[11px\] {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 @media (max-width: 1100px) {
   .patient-safe-area {
     padding: 12px 14px;
@@ -375,7 +386,7 @@ textarea:focus-visible {
 }
 
 .doctor-shell .doctor-main {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .doctor-shell .doctor-main .card {
@@ -385,33 +396,33 @@ textarea:focus-visible {
 }
 
 .doctor-shell .doctor-main .text-\[28px\] {
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.35;
 }
 
 .doctor-shell .doctor-main .text-4xl {
-  font-size: 26px;
+  font-size: 30px;
 }
 
 .doctor-shell .doctor-main .text-3xl {
-  font-size: 23px;
+  font-size: 26px;
 }
 
 .doctor-shell .doctor-main .text-2xl {
-  font-size: 19px;
+  font-size: 22px;
 }
 
 .doctor-shell .doctor-main .text-xl {
-  font-size: 16px;
+  font-size: 20px;
 }
 
 .doctor-shell .doctor-main .text-lg,
 .doctor-shell .doctor-main .card-title {
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .doctor-shell .doctor-main .text-base {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .doctor-shell .doctor-main .text-sm,
@@ -420,21 +431,33 @@ textarea:focus-visible {
 .doctor-shell .doctor-main .btn-danger,
 .doctor-shell .doctor-main .field-label,
 .doctor-shell .doctor-main .text-field {
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .doctor-shell .doctor-main .text-xs,
 .doctor-shell .doctor-main .label,
 .doctor-shell .doctor-main table {
-  font-size: 10px;
+  font-size: 12px;
+}
+
+.doctor-shell .text-\[8px\],
+.doctor-shell .text-\[9px\],
+.doctor-shell .text-\[10px\] {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.doctor-shell .text-\[11px\] {
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .doctor-shell .doctor-main .btn-primary,
 .doctor-shell .doctor-main .btn-secondary,
 .doctor-shell .doctor-main .btn-danger {
-  min-height: 34px;
-  border-radius: 8px;
-  padding: 7px 12px;
+  min-height: 38px;
+  border-radius: 9px;
+  padding: 8px 14px;
 }
 
 .doctor-shell .doctor-main .btn-primary {
@@ -463,7 +486,7 @@ textarea:focus-visible {
 }
 
 .doctor-shell .doctor-main .eyebrow {
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   color: #4c7ee8;
 }

@@ -40,7 +40,7 @@ export function DoctorLayout({
             </div>
             <div>
               <p className="text-[15px] font-bold tracking-wide text-slate-900">心康伴侣</p>
-              <p className="mt-0.5 text-[9px] text-slate-400">康复管理工作站</p>
+              <p className="mt-0.5 text-[11px] text-slate-400">康复管理工作站</p>
             </div>
           </div>
         </div>
@@ -64,13 +64,13 @@ export function DoctorLayout({
 
         <div className="border-t border-slate-100 p-3">
           <div className="rounded-[10px] border border-[#dbe8ff] bg-[#f5f8ff] p-3">
-            <div className="flex items-center gap-2 text-[10px] font-semibold text-[#3f71d8]">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#3f71d8]">
               <ShieldCheck className="h-3.5 w-3.5" />
               当前数据范围
             </div>
-            <p className="mt-1.5 text-[9px] leading-4 text-slate-500">{roleMeta[role].note}</p>
+            <p className="mt-1.5 text-[11px] leading-5 text-slate-500">{roleMeta[role].note}</p>
           </div>
-          <button type="button" onClick={onExit} className="mt-2 flex w-full items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-[10px] font-semibold text-slate-400 hover:bg-slate-50 hover:text-slate-700">
+          <button type="button" onClick={onExit} className="mt-2 flex w-full items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-xs font-semibold text-slate-400 hover:bg-slate-50 hover:text-slate-700">
             <LogOut className="h-3.5 w-3.5" />退出演示工作站
           </button>
         </div>
@@ -81,20 +81,20 @@ export function DoctorLayout({
           <div className="flex h-[58px] items-center justify-between px-6">
             <div className="flex items-center gap-3">
               <Menu className="h-4 w-4 text-slate-400" />
-              <span className="text-[10px] text-slate-400">心康伴侣　/　{currentItem?.group === "admin" ? "后台管理" : "业务工作"}　/　</span>
-              <span className="text-[12px] font-semibold text-slate-700">{currentItem?.label}</span>
+              <span className="text-xs text-slate-400">心康伴侣　/　{currentItem?.group === "admin" ? "后台管理" : "业务工作"}　/　</span>
+              <span className="text-sm font-semibold text-slate-700">{currentItem?.label}</span>
             </div>
-            <div className="flex items-center gap-4 text-[11px]">
+            <div className="flex items-center gap-4 text-xs">
               <div className="text-right">
                 <p className="font-semibold text-slate-700">{clock.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit", weekday: "short" })}</p>
-                <p className="text-[9px] tabular-nums text-slate-400">{clock.toLocaleTimeString("zh-CN", { hour12: false })}</p>
+                <p className="text-[11px] tabular-nums text-slate-400">{clock.toLocaleTimeString("zh-CN", { hour12: false })}</p>
               </div>
               <span className="h-8 w-px bg-slate-200" />
               <label className="relative flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <UserRoundCog className="h-4 w-4 text-blue-600" />
                 <span>
-                  <span className="block text-[9px] text-slate-400">{currentAccount ?? roleMeta[role].account}</span>
-                  <span className="block text-[10px] font-bold text-slate-700">{roleMeta[role].label}</span>
+                  <span className="block text-[11px] text-slate-400">{currentAccount ?? roleMeta[role].account}</span>
+                  <span className="block text-xs font-bold text-slate-700">{roleMeta[role].label}</span>
                 </span>
                 <select
                   aria-label="切换演示角色"
@@ -110,13 +110,13 @@ export function DoctorLayout({
               </label>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-2 border-t border-[#edf1f6] bg-[#f8faff] px-6 py-1.5 text-center text-[9px] font-medium text-slate-500">
+          <div className="flex items-center justify-center gap-2 border-t border-[#edf1f6] bg-[#f8faff] px-6 py-1.5 text-center text-[11px] font-medium text-slate-500">
             <LockKeyhole className="h-3 w-3 text-amber-500" />
             Demo 权限原型 · 菜单、操作、数据及字段权限同步演示 · 高风险操作需二次确认
           </div>
         </header>
-        <main className="doctor-main mx-auto max-w-[1540px] p-5">{children}</main>
-        <footer className="px-6 pb-5 text-center text-[9px] text-slate-400">康复管理端 · 角色权限与操作审计演示</footer>
+        <main className="doctor-main mx-auto max-w-[1540px] p-6">{children}</main>
+        <footer className="px-6 pb-5 text-center text-[11px] text-slate-400">康复管理端 · 角色权限与操作审计演示</footer>
       </div>
     </div>
   );
@@ -135,9 +135,9 @@ function NavGroup({
 }) {
   return (
     <div className="mb-4">
-      <p className="mb-2 mt-1 flex items-center gap-2 px-2.5 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">
+      <p className="mb-2 mt-1 flex items-center gap-2 px-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
         {title}
-        {title === "后台管理" && <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[8px] text-violet-600">管理</span>}
+        {title === "后台管理" && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] text-blue-600">管理</span>}
       </p>
       <div className="space-y-1">
         {items.map((item) => {
@@ -148,13 +148,13 @@ function NavGroup({
               key={item.key}
               type="button"
               onClick={() => onNavigate(item.key)}
-              className={`flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2.5 text-left text-[11px] font-medium ${
+              className={`flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2.5 text-left text-[13px] font-medium ${
                 active ? "bg-[#edf4ff] text-[#3476f6]" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
               <Icon className={`h-[15px] w-[15px] ${active ? "text-[#3476f6]" : "text-slate-400"}`} />
               <span className="flex-1">{item.label}</span>
-              {item.badge && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">{item.badge}</span>}
+              {item.badge && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white">{item.badge}</span>}
             </button>
           );
         })}

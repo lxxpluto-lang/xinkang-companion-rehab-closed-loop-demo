@@ -128,7 +128,7 @@ export function PrescriptionWorkspacePage({
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
           <div className="flex items-start gap-3">
             <button type="button" onClick={onBack} className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="返回处方列表"><ArrowLeft className="h-5 w-5" /></button>
-            <div><p className="text-[11px] font-bold tracking-wide text-blue-600">处方管理 · 患者开方工作区</p><h1 className="mt-1 text-xl font-bold text-slate-950">患者处方详情</h1><p className="mt-1 text-xs text-slate-500">{task.kind === "initial" ? "初始处方" : "调整处方"} · {task.prescriptionNo} · {task.version}</p></div>
+            <div><p className="text-xs font-bold tracking-wide text-blue-600">处方管理 · 患者开方工作区</p><h1 className="mt-1 text-2xl font-bold text-slate-950">患者处方详情</h1><p className="mt-1 text-sm text-slate-500">{task.kind === "initial" ? "初始处方" : "调整处方"} · {task.prescriptionNo} · {task.version}</p></div>
           </div>
           <div className="flex items-center gap-2"><StatusBadge tone={task.status === "completed" ? "green" : "orange"}>{statusLabel[task.status]}</StatusBadge><button type="button" className="btn-secondary" onClick={() => onOpenPatient(task.patientId, "profile")}><UserRound className="h-4 w-4" />查看完整患者档案</button></div>
         </div>
@@ -146,7 +146,7 @@ export function PrescriptionWorkspacePage({
       <nav className="grid overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm lg:grid-cols-5" aria-label="患者开方工作区栏目">
         {tabs.map(({ key, label, icon: Icon }, index) => {
           const state = tabStatus[key];
-          return <button key={key} type="button" onClick={() => setActiveTab(key)} className={`flex min-h-16 items-center gap-3 rounded-xl px-3 text-left transition ${activeTab === key ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${activeTab === key ? "bg-white/15" : "bg-slate-100"}`}><Icon className="h-4 w-4" /></span><span className="min-w-0"><span className="block truncate text-xs font-bold">{index + 1}. {label}</span><span className={`mt-1 block text-[10px] font-semibold ${activeTab === key ? "text-blue-100" : state.tone === "green" ? "text-emerald-600" : state.tone === "orange" ? "text-amber-600" : "text-blue-600"}`}>{state.text}</span></span></button>;
+          return <button key={key} type="button" onClick={() => setActiveTab(key)} className={`flex min-h-16 items-center gap-3 rounded-xl px-3 text-left transition ${activeTab === key ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${activeTab === key ? "bg-white/15" : "bg-slate-100"}`}><Icon className="h-4 w-4" /></span><span className="min-w-0"><span className="block truncate text-sm font-bold">{index + 1}. {label}</span><span className={`mt-1 block text-xs font-semibold ${activeTab === key ? "text-blue-100" : state.tone === "green" ? "text-emerald-600" : state.tone === "orange" ? "text-amber-600" : "text-blue-600"}`}>{state.text}</span></span></button>;
         })}
       </nav>
 
@@ -156,15 +156,15 @@ export function PrescriptionWorkspacePage({
       {activeTab === "reports" && <ReportsTab task={task} reports={patientReports} onOpenPatient={onOpenPatient} />}
       {activeTab === "rehab" && <RehabTab task={task} reports={patientRehabReports} onOpenPatient={onOpenPatient} />}
 
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white/95 px-6 py-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4"><div><p className="text-xs font-bold text-slate-800">{tabs[tabIndex].label}</p><p className="mt-0.5 text-[10px] text-slate-500">{readonly ? "已完成处方仅可查看和打印" : dirty ? "存在未保存内容" : "当前内容已保存"}</p></div><div className="flex items-center gap-2"><button type="button" className="btn-secondary" disabled={tabIndex === 0} onClick={() => setActiveTab(tabs[Math.max(0, tabIndex - 1)].key)}><ArrowLeft className="h-4 w-4" />上一步</button>{editable && <button type="button" className="btn-secondary" onClick={saveWorkspace}><Save className="h-4 w-4" />保存草稿</button>}<button type="button" className="btn-primary" disabled={tabIndex === tabs.length - 1} onClick={() => setActiveTab(tabs[Math.min(tabs.length - 1, tabIndex + 1)].key)}>下一步<ArrowRight className="h-4 w-4" /></button></div></div>
+      <div className="fixed bottom-0 left-[180px] right-0 z-30 border-t border-slate-200 bg-white/95 px-6 py-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4"><div><p className="text-sm font-bold text-slate-800">{tabs[tabIndex].label}</p><p className="mt-0.5 text-xs text-slate-500">{readonly ? "已完成处方仅可查看和打印" : dirty ? "存在未保存内容" : "当前内容已保存"}</p></div><div className="flex items-center gap-2"><button type="button" className="btn-secondary" disabled={tabIndex === 0} onClick={() => setActiveTab(tabs[Math.max(0, tabIndex - 1)].key)}><ArrowLeft className="h-4 w-4" />上一步</button>{editable && <button type="button" className="btn-secondary" onClick={saveWorkspace}><Save className="h-4 w-4" />保存草稿</button>}<button type="button" className="btn-primary" disabled={tabIndex === tabs.length - 1} onClick={() => setActiveTab(tabs[Math.min(tabs.length - 1, tabIndex + 1)].key)}>下一步<ArrowRight className="h-4 w-4" /></button></div></div>
       </div>
     </section>
   );
 }
 
 function SummaryCell({ label, value, warning = false }: { label: string; value: string; warning?: boolean }) {
-  return <div className={`min-h-20 bg-white px-4 py-3 ${warning ? "!bg-amber-50" : ""}`}><p className="text-[9px] font-bold text-slate-400">{label}</p><p className={`mt-1.5 text-xs font-bold leading-5 ${warning ? "text-amber-800" : "text-slate-800"}`}>{value}</p></div>;
+  return <div className={`min-h-20 bg-white px-4 py-3 ${warning ? "!bg-amber-50" : ""}`}><p className="text-xs font-bold text-slate-400">{label}</p><p className={`mt-1.5 text-sm font-bold leading-5 ${warning ? "text-amber-800" : "text-slate-800"}`}>{value}</p></div>;
 }
 
 function ProfileTab({ profile, task, onOpenPatient }: { profile: PatientClinicalProfile; task: PrescriptionTask; onOpenPatient: (patientId: string, tab?: string) => void }) {

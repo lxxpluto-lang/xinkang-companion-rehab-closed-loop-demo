@@ -81,7 +81,7 @@ export function TreatmentManagementPage({ role, currentAccount, patients, profil
   return <section className="space-y-4 pb-10" data-testid="page-TREATMENT-MANAGEMENT">
     <header className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
-        <div><p className="text-[11px] font-bold text-teal-600">治疗管理 · 康复师治疗工作区</p><h1 className="mt-1 text-xl font-bold text-slate-950">本次心肺康复治疗</h1><p className="mt-1 text-xs text-slate-500">进入页面后默认打开本次治疗记录；阶段报告仅用于生成可编辑草稿。</p></div>
+        <div><p className="text-xs font-bold text-blue-600">治疗管理 · 康复师治疗工作区</p><h1 className="mt-1 text-2xl font-bold text-slate-950">本次心肺康复治疗</h1><p className="mt-1 text-sm text-slate-500">进入页面后默认打开本次治疗记录；阶段报告只生成下一阶段治疗建议。</p></div>
         <label className="min-w-56"><span className="field-label">当前患者</span><select className="text-field" value={patientId} onChange={(event) => changePatient(event.target.value)}>{patients.map((patient) => <option key={patient.patient_demo_id} value={patient.patient_demo_id}>{patient.name} · {patient.patient_no}</option>)}</select></label>
       </div>
       <div className="grid gap-px bg-slate-100 sm:grid-cols-2 xl:grid-cols-6">
@@ -95,7 +95,7 @@ export function TreatmentManagementPage({ role, currentAccount, patients, profil
     </header>
 
     <nav className="grid overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm lg:grid-cols-5" aria-label="康复师治疗工作区栏目">
-      {treatmentTabs.map(({ key, label, icon: Icon }, index) => <button key={key} type="button" onClick={() => setActiveTab(key)} className={`flex min-h-16 items-center gap-3 rounded-xl px-3 text-left transition ${activeTab === key ? "bg-teal-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}><span className={`flex h-9 w-9 items-center justify-center rounded-lg ${activeTab === key ? "bg-white/15" : "bg-slate-100"}`}><Icon className="h-4 w-4" /></span><span><span className="block text-xs font-bold">{index + 1}. {label}</span><span className={`mt-1 block text-[10px] font-semibold ${activeTab === key ? "text-teal-100" : key === "current" ? "text-teal-600" : "text-slate-400"}`}>{tabState[key]}</span></span></button>)}
+      {treatmentTabs.map(({ key, label, icon: Icon }, index) => <button key={key} type="button" onClick={() => setActiveTab(key)} className={`flex min-h-16 items-center gap-3 rounded-xl px-3 text-left transition ${activeTab === key ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}><span className={`flex h-9 w-9 items-center justify-center rounded-lg ${activeTab === key ? "bg-white/15" : "bg-slate-100"}`}><Icon className="h-4 w-4" /></span><span><span className="block text-sm font-bold">{index + 1}. {label}</span><span className={`mt-1 block text-xs font-semibold ${activeTab === key ? "text-blue-100" : key === "current" ? "text-blue-600" : "text-slate-400"}`}>{tabState[key]}</span></span></button>)}
     </nav>
 
     {activeTab === "profile" && <ProfilePanel patient={selectedPatient} profile={profile} />}
@@ -107,12 +107,12 @@ export function TreatmentManagementPage({ role, currentAccount, patients, profil
 }
 
 function Summary({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
-  return <div className={`min-h-20 bg-white px-4 py-3 ${accent ? "!bg-teal-50" : ""}`}><p className="text-[9px] font-bold text-slate-400">{label}</p><p className={`mt-1.5 text-xs font-bold leading-5 ${accent ? "text-teal-700" : "text-slate-800"}`}>{value}</p></div>;
+  return <div className={`min-h-20 bg-white px-4 py-3 ${accent ? "!bg-blue-50" : ""}`}><p className="text-xs font-bold text-slate-400">{label}</p><p className={`mt-1.5 text-sm font-bold leading-5 ${accent ? "text-blue-700" : "text-slate-800"}`}>{value}</p></div>;
 }
 
 function ProfilePanel({ patient, profile }: { patient: ManagedPatient; profile?: PatientClinicalProfile }) {
   const data = [["患者姓名", patient.name], ["性别 / 年龄", `${patient.gender} / ${patient.age}岁`], ["患者编号", patient.patient_no], ["联系电话", patient.phone], ["康复阶段", patient.rehab_stage], ["患者状态", patientStatusLabel(patient.patient_status)], ["诊断摘要", profile?.diagnosis ?? patient.diagnosis_summary], ["特殊用药", profile?.specialMedications ?? patient.current_medications], ["最近资料更新", patient.updated_at], ["当前训练状态", patient.training_status]];
-  return <section className="card overflow-hidden"><div className="border-b p-5"><SectionHeader title="患者基本信息" description="仅展示完成本次治疗记录需要的最小信息。" /></div><div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-5">{data.map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold text-slate-400">{label}</p><p className="mt-1.5 text-xs font-semibold text-slate-700">{value || "未提供"}</p></div>)}</div></section>;
+  return <section className="card overflow-hidden"><div className="border-b p-5"><SectionHeader title="患者基本信息" description="仅展示完成本次治疗记录需要的最小信息。" /></div><div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-5">{data.map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><p className="text-xs font-bold text-slate-400">{label}</p><p className="mt-1.5 text-sm font-semibold text-slate-700">{value || "未提供"}</p></div>)}</div></section>;
 }
 
 function PreviousTreatmentPanel({ patient, record, role, onSave }: { patient: ManagedPatient; record?: CardiopulmonaryTreatmentRecord; role: StaffRole; onSave: (record: CardiopulmonaryTreatmentRecord) => void }) {
