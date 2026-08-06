@@ -703,12 +703,12 @@ function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos, toda
 
         <aside className="grid grid-rows-2 gap-3">
           <article className="flex flex-col rounded-3xl border border-white bg-white p-5 shadow-card">
-            <div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-600">我的实际训练</p><Activity className="h-5 w-5 text-medical-600" /></div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-medical-50 p-2.5"><p className="text-2xl font-bold text-medical-900">{patient.completed}</p><p className="text-[9px] text-medical-700">累计训练次数</p></div>
-              <div className="rounded-xl bg-slate-50 p-2.5"><p className="text-2xl font-bold text-slate-900">8</p><p className="text-[9px] text-slate-500">本月训练次数</p></div>
-              <div className="rounded-xl bg-slate-50 p-2.5"><p className="text-lg font-bold text-slate-900">326<span className="ml-1 text-[9px] font-medium text-slate-400">分钟</span></p><p className="text-[9px] text-slate-500">累计运动时长</p></div>
-              <div className="rounded-xl bg-slate-50 p-2.5"><p className="text-lg font-bold text-slate-900">7月25日</p><p className="text-[9px] text-slate-500">最近训练时间</p></div>
+            <div className="flex items-center justify-between"><div><p className="text-sm font-bold text-slate-800">我的实际训练</p><p className="mt-1 text-[11px] text-slate-400">记录每一次真实完成的康复运动</p></div><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-medical-50 text-medical-600"><Activity className="h-5 w-5" /></span></div>
+            <div className="mt-3 grid flex-1 grid-cols-2 gap-2.5">
+              <div className="rounded-2xl bg-medical-50 p-3"><p className="text-2xl font-bold text-medical-900">{patient.completed}<span className="ml-1 text-[10px] text-medical-600">次</span></p><p className="mt-1 text-[11px] font-bold text-medical-700">累计训练次数</p></div>
+              <div className="rounded-2xl bg-blue-50 p-3"><p className="text-2xl font-bold text-blue-950">8<span className="ml-1 text-[10px] text-blue-600">次</span></p><p className="mt-1 text-[11px] font-bold text-blue-700">本月训练次数</p></div>
+              <div className="rounded-2xl bg-slate-50 p-3"><p className="text-xl font-bold text-slate-900">326<span className="ml-1 text-[10px] font-medium text-slate-400">分钟</span></p><p className="mt-1 text-[11px] font-bold text-slate-500">累计运动时长</p></div>
+              <div className="rounded-2xl bg-slate-50 p-3"><p className="text-xl font-bold text-slate-900">7月25日</p><p className="mt-1 text-[11px] font-bold text-slate-500">最近训练时间</p></div>
             </div>
           </article>
           <button type="button" data-action="ACT-PATIENT-OPEN-HANDBOOK" onClick={() => setShowHandbook(true)} className="flex flex-col rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-left transition hover:border-emerald-300 hover:shadow-card"><div className="flex items-center justify-between"><p className="text-sm font-bold text-emerald-900">我的康复手册</p><FileText className="h-5 w-5 text-emerald-600" /></div><p className="mt-auto text-xs leading-5 text-slate-600">查看运动提醒、用药提醒、饮食注意和复查计划</p><span className="mt-2 flex items-center gap-1 text-xs font-bold text-emerald-700">打开康复手册 <ChevronRight className="h-4 w-4" /></span></button>
@@ -868,27 +868,23 @@ function PrescriptionScreen(props: {
       </article>
       <article className="flex flex-col rounded-3xl border border-white bg-white p-6 shadow-card">
         <div className="flex items-center justify-between gap-3">
-          <div><h2 className="text-lg font-bold text-slate-950">本次训练信息</h2><p className="mt-1 text-xs text-slate-500">本系统不保存完整正式处方，也不在患者端调整临床参数。</p></div>
+          <div><h2 className="text-lg font-bold text-slate-950">现场核对与本次调整</h2><p className="mt-1 text-xs text-slate-500">由现场康复师核对并调整本次执行参数，不覆盖医生原处方。</p></div>
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">已确认 · 只读</span>
+            <button type="button" onClick={restorePrescription} className="btn-secondary !min-h-9 !px-3"><RotateCcw className="h-4 w-4" />恢复处方值</button>
           </div>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-4">
-          <ReadOnlyPrescriptionItem label="训练方式" value={exercise === "bike" ? prescription.exerciseProject : "视频跟练"} />
-          <ReadOnlyPrescriptionItem label="项目来源" value="康复师现场核对 / 患者携带材料" />
-          <ReadOnlyPrescriptionItem label="目标心率区间" value="未获取" />
-          <div className="rounded-2xl border border-slate-200 p-4">
-            <p className="text-xs font-bold text-slate-500">目标功率范围</p>
-            <p className="mt-3 text-2xl font-bold text-slate-950">未获取</p>
-            <p className="mt-2 text-xs text-slate-500">仅记录本次实际功率</p>
-          </div>
-          <ReadOnlyPrescriptionItem label="热身时间" value={`${prescription.warmupMinutes} 分钟`} />
-          <ReadOnlyPrescriptionItem label="主要训练" value={`${prescription.trainingMinutes * repeats} 分钟`} />
-          <ReadOnlyPrescriptionItem label="放松时间" value={`${prescription.cooldownMinutes} 分钟`} />
+          <label className="rounded-2xl border border-slate-200 p-4"><span className="text-xs font-bold text-slate-500">训练方式</span><select value={trainingType} onChange={(event) => setTrainingType(event.target.value as "continuous" | "interval")} className="mt-3 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 font-bold"><option value="continuous">连续训练</option><option value="interval">间歇训练</option></select></label>
+          <NumberControl label="目标心率" value={targetHr} unit="bpm" onMinus={() => setTargetHr(Math.max(60, targetHr - 1))} onPlus={() => setTargetHr(Math.min(180, targetHr + 1))} />
+          <NumberControl label="最低功率" value={targetPowerMin} unit="W" onMinus={() => setTargetPowerMin(Math.max(0, targetPowerMin - 5))} onPlus={() => setTargetPowerMin(Math.min(targetPowerMax, targetPowerMin + 5))} />
+          <NumberControl label="最高功率" value={targetPowerMax} unit="W" onMinus={() => setTargetPowerMax(Math.max(targetPowerMin, targetPowerMax - 5))} onPlus={() => setTargetPowerMax(Math.min(200, targetPowerMax + 5))} />
+          <SelectMinutes label="热身时间" value={warmup} options={[3, 5, 8, 10]} onChange={setWarmup} />
+          <SelectMinutes label="主要训练" value={mainMinutes} options={[10, 15, 20, 25, 30]} onChange={setMainMinutes} />
+          <SelectMinutes label="放松时间" value={cooldown} options={[3, 5, 8, 10]} onChange={setCooldown} />
           <div className="rounded-2xl border border-medical-100 bg-medical-50 p-4"><p className="text-xs font-bold text-medical-700">自动计算总时长</p><p className="mt-2 text-3xl font-bold text-medical-900">{totalMinutes}<span className="ml-1 text-sm">分钟</span></p></div>
         </div>
-        <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-xs font-bold leading-5 text-blue-800">我确认已参加本次训练；完成后将记为累计第 {patient.completed + 1} 次实际训练。该确认不代表处方进度或临床报告签署。</div>
-        <div className="mt-auto flex justify-between pt-5"><button type="button" onClick={onBack} className="btn-secondary patient-touch"><ArrowLeft className="h-4 w-4" /> 返回首页</button><button type="button" onClick={onContinue} className="btn-primary patient-touch px-7">确认参加，检查设备 <ArrowRight className="h-5 w-5" /></button></div>
+        <div className={`mt-5 rounded-2xl border p-4 text-xs font-bold leading-5 ${hasAdjustments ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-100 bg-emerald-50 text-emerald-800"}`}>{hasAdjustments ? `已调整 ${adjustments.length} 项参数，进入设备检查前需要再次核对。` : "当前执行参数与医生处方一致。"}</div>
+        <div className="mt-auto flex justify-between pt-5"><button type="button" onClick={onBack} className="btn-secondary patient-touch"><ArrowLeft className="h-4 w-4" /> 返回首页</button><button type="button" onClick={continueFromPrescription} className="btn-primary patient-touch px-7">核对完成，检查设备 <ArrowRight className="h-5 w-5" /></button></div>
       </article>
     </section>
     {showDifferenceConfirm && (
@@ -1241,7 +1237,7 @@ function ReportScreen({
   );
 }
 
-function PatientRehabReport({ report }: { report: RehabReport }) {
+export function PatientRehabReport({ report }: { report: RehabReport }) {
   const medicalItems = [["入院诊断", report.medicalSection.diagnosis], ["住院治疗经过", report.medicalSection.treatmentCourse], ["手术/介入情况", report.medicalSection.procedure], ["药物及注意事项", report.medicalSection.medications], ["医学复诊要求", report.medicalSection.followUpRequirements], ["临床结论", report.medicalSection.clinicalConclusion]];
   const rehabItems = [["评估结果", report.rehabSection.assessmentSummary], ["训练数据", report.rehabSection.trainingSummary], ["训练参与情况", report.rehabSection.adherenceSummary], ["随访", report.rehabSection.followUpSummary], ["改善趋势", report.rehabSection.improvementSummary]];
   const narrative = report.patientNarrative;

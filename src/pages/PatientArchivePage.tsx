@@ -48,6 +48,8 @@ import type {
 } from "../types";
 import type { RehabReport } from "../dischargeHandbookData";
 import { readStaffSignature } from "../signatureStore";
+import { PatientRehabReport } from "../patient/PatientApp";
+import { FollowUpDialog } from "./FollowUpManagementPage";
 
 export type PatientWorkspaceTab =
   | "profile"
@@ -338,6 +340,9 @@ export function PatientArchivePage({
   onSaveTreatmentRecord,
   onSaveRehabReport,
   onSaveAssessment,
+  onSaveFollowUpRecord,
+  onDeleteFollowUpRecord,
+  onDeletePatients,
 }: {
   role: Exclude<Role, "PATIENT">;
   currentAccount?: string;
@@ -365,6 +370,9 @@ export function PatientArchivePage({
   onSaveTreatmentRecord?: (record: CardiopulmonaryTreatmentRecord) => void;
   onSaveRehabReport?: (report: RehabReport) => void;
   onSaveAssessment?: (record: AssessmentRecord) => void;
+  onSaveFollowUpRecord?: (record: FollowUpRecord) => void;
+  onDeleteFollowUpRecord?: (recordId: string) => void;
+  onDeletePatients?: (patientIds: string[]) => void;
 }) {
   const [selectedId, setSelectedId] = useState(initialPatientId ?? null);
   const [tab, setTab] = useState<PatientWorkspaceTab>(
@@ -375,7 +383,7 @@ export function PatientArchivePage({
       ? "single"
       : initialRecordKind === "stage"
         ? "stage"
-        : "actual",
+        : "single",
   );
   const [nameFilter, setNameFilter] = useState("");
   const [patientNoFilter, setPatientNoFilter] = useState("");
@@ -394,6 +402,8 @@ export function PatientArchivePage({
   );
   const [stageDraftOpen, setStageDraftOpen] = useState(false);
   const [stageSent, setStageSent] = useState(false);
+  const [selectedPatientIds, setSelectedPatientIds] = useState<string[]>([]);
+  const [followUpDialog, setFollowUpDialog] = useState<{ taskId: string; recordId?: string; readOnly: boolean } | null>(null);
   const selected =
     patients.find((item) => item.patient_demo_id === selectedId) ?? null;
   const filtered = useMemo(
@@ -538,7 +548,9 @@ export function PatientArchivePage({
           </div>
         </section>
         <section className="card mt-4 overflow-hidden">
-          <div className="grid grid-cols-[1.1fr_0.8fr_0.75fr_1fr_0.85fr_0.85fr_0.6fr] bg-slate-50 px-5 py-3 text-[10px] font-bold text-slate-400">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3"><span className="text-xs text-slate-500">已选择 {selectedPatientIds.length} 位患者</span>{canEdit && <button type="button" className="btn-primary" disabled={!selectedPatientIds.length} onClick={() => { if (window.confirm(`确认删除已选择的 ${selectedPatientIds.length} 位患者？`)) { onDeletePatients?.(selectedPatientIds); setSelectedPatientIds([]); } }}>删除所选</button>}</div>
+          <div className="grid grid-cols-[0.35fr_1.1fr_0.8fr_0.75fr_1fr_0.85fr_0.85fr_0.6fr] bg-slate-50 px-5 py-3 text-[10px] font-bold text-slate-400">
+            <span><input type="checkbox" aria-label="选择全部患者" checked={Boolean(filtered.length) && filtered.every((item) => selectedPatientIds.includes(item.patient_demo_id))} onChange={(event) => setSelectedPatientIds(event.target.checked ? filtered.map((item) => item.patient_demo_id) : [])} /></span>
             <span>患者</span>
             <span>患者编号</span>
             <span>性别/年龄</span>
@@ -548,15 +560,11 @@ export function PatientArchivePage({
             <span>操作</span>
           </div>
           {filtered.map((patient) => (
-            <button
-              type="button"
+            <div
               key={patient.patient_demo_id}
-              onClick={() => {
-                setSelectedId(patient.patient_demo_id);
-                setTab("profile");
-              }}
-              className="grid w-full grid-cols-[1.1fr_0.8fr_0.75fr_1fr_0.85fr_0.85fr_0.6fr] items-center border-t border-slate-100 px-5 py-4 text-left text-xs hover:bg-blue-50"
+              className="grid w-full grid-cols-[0.35fr_1.1fr_0.8fr_0.75fr_1fr_0.85fr_0.85fr_0.6fr] items-center border-t border-slate-100 px-5 py-4 text-left text-xs hover:bg-blue-50"
             >
+              <input type="checkbox" aria-label={`选择患者${patient.name}`} checked={selectedPatientIds.includes(patient.patient_demo_id)} onChange={(event) => setSelectedPatientIds(event.target.checked ? [...selectedPatientIds, patient.patient_demo_id] : selectedPatientIds.filter((id) => id !== patient.patient_demo_id))} />
               <b>{patient.name}</b>
               <span className="font-mono">{patient.patient_no}</span>
               <span>
@@ -579,8 +587,8 @@ export function PatientArchivePage({
                   ? "7月25日"
                   : "未采集"}
               </span>
-              <b className="text-blue-700">打开档案</b>
-            </button>
+              <button type="button" className="text-left font-bold text-blue-700" onClick={() => { setSelectedId(patient.patient_demo_id); setTab("profile"); }}>打开档案</button>
+            </div>
           ))}
         </section>
         {ocrPickerOpen && <OcrImportDialog patients={patients} currentAccount={currentAccount} onClose={() => setOcrPickerOpen(false)} onConfirm={(patient, record) => {
@@ -810,29 +818,13 @@ export function PatientArchivePage({
               item.symptoms.join("、") || "无明显不适",
               item.exerciseAdherence,
               item.nextContactDate || "—",
-              <button
-                className="text-blue-700"
-                onClick={() =>
-                  openFollowUpTab(selected.patient_demo_id, item.taskId)
-                }
-              >
-                新页签查看
-              </button>,
+              <div className="flex gap-3"><button className="font-bold text-blue-700" onClick={() => setFollowUpDialog({ taskId: item.taskId, recordId: item.recordId, readOnly: true })}>弹框查看</button>{canEdit && <button className="font-bold text-red-600" onClick={() => { if (window.confirm("确认删除这条随访记录？")) onDeleteFollowUpRecord?.(item.recordId); }}>删除</button>}</div>,
             ])}
           action={
-            canEdit &&
-            followUpTasks.find(
-              (item) => item.patientId === selected.patient_demo_id,
-            ) ? (
+            canEdit ? (
               <button
                 type="button"
-                onClick={() =>
-                  onOpenFollowUp(
-                    followUpTasks.find(
-                      (item) => item.patientId === selected.patient_demo_id,
-                    )!.id,
-                  )
-                }
+                onClick={() => setFollowUpDialog({ taskId: followUpTasks.find((item) => item.patientId === selected.patient_demo_id)?.id ?? `FU-MANUAL-${selected.patient_demo_id}`, readOnly: false })}
                 className="btn-primary"
               >
                 <PhoneCall className="h-4 w-4" />
@@ -842,6 +834,7 @@ export function PatientArchivePage({
           }
         />
       )}
+      {followUpDialog && (() => { const task = followUpTasks.find((item) => item.id === followUpDialog.taskId) ?? { id: followUpDialog.taskId, patientId: selected.patient_demo_id, assignedDoctor: selected.assigned_doctor, milestoneMonth: 1 as const, originalPlannedDate: new Date().toISOString().slice(0, 10), currentDueDate: new Date().toISOString().slice(0, 10), reminderDate: new Date().toISOString().slice(0, 10), status: "due" as const, rescheduleHistory: [] }; const record = followUpRecords.find((item) => item.recordId === followUpDialog.recordId); return <FollowUpDialog task={task} patient={selected} record={record} readOnly={followUpDialog.readOnly} currentAccount={currentAccount} onClose={() => setFollowUpDialog(null)} onSave={(next) => { onSaveFollowUpRecord?.(next); setFollowUpDialog(null); }} />; })()}
       {editing && (
         <PatientModal
           patient={editing}
@@ -985,7 +978,6 @@ function TrainingWorkspace(props: {
   );
   const canGeneratePrescriptionCycle = prescriptionCycleSessions.length >= 2;
   const tabs: [TrainingTab, string][] = [
-    ["actual", "实际训练"],
     ["single", "单次报告"],
     ["stage", "阶段报告"],
   ];
@@ -1003,49 +995,6 @@ function TrainingWorkspace(props: {
           </button>
         ))}
       </div>
-      {props.trainingTab === "actual" &&
-        (props.initialRecordId ? (
-          <ActualTrainingCard
-            session={sessions.find((item) => item.id === props.initialRecordId)}
-          />
-        ) : (
-          <RecordList
-            title="实际训练记录"
-            description="仅统计实际发生的训练，不计算处方计划完成率。"
-            headers={[
-              "训练日期",
-              "项目",
-              "实际时长",
-              "平均/峰值心率",
-              "最低血氧",
-              "RPE",
-              "异常",
-              "操作",
-            ]}
-            rows={sessions.map((item) => [
-              item.date,
-              item.project,
-              `${item.duration}分钟`,
-              `${item.avgHr}/${item.peakHr} bpm`,
-              `${item.spo2}%`,
-              item.rpe,
-              item.event,
-              <button
-                className="text-blue-700"
-                onClick={() =>
-                  openPatientRecord(
-                    props.patient.patient_demo_id,
-                    "sessions",
-                    item.id,
-                    "actual",
-                  )
-                }
-              >
-                新页签查看
-              </button>,
-            ])}
-          />
-        ))}
       {props.trainingTab === "single" &&
         (props.initialRecordId ? (
           <SingleReportCard reportId={props.initialRecordId} />
@@ -1262,7 +1211,7 @@ function RehabReportWorkspace({
     <div className="space-y-5" data-testid="patient-rehab-report-workspace">
       <section className="card overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4"><SectionHeader title="康复报告版本" description="报告由责任医生在处方详情生成并确认；患者档案用于查看和追溯。" /><StatusBadge tone="blue">{ordered.length} 个版本</StatusBadge></div>{ordered.length ? <div className="flex flex-wrap gap-2 p-4">{ordered.map((report) => <button type="button" key={report.reportId} onClick={() => setSelectedReportId(report.reportId)} className={`rounded-xl border px-4 py-3 text-left text-xs transition ${selectedReportId === report.reportId ? "border-blue-500 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"}`}><b className="block">康复手册 V{report.version ?? report.episodeNo ?? 1}</b><span className="mt-1 block">{report.generatedAt.slice(0, 10)} · {report.status === "published" ? "已发送患者端" : report.status === "doctor_confirmed" ? "医生已确认" : "草稿"}</span></button>)}</div> : <div className="p-10 text-center"><FileHeart className="mx-auto h-10 w-10 text-slate-300" /><h3 className="mt-3 text-base font-bold text-slate-700">暂无康复报告</h3><p className="mt-2 text-sm text-slate-500">请由责任医生进入“处方管理—患者处方详情—康复报告”生成。</p></div>}</section>
       {selectedReport && <section className="card overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4"><SectionHeader title={`康复报告 V${selectedReport.version ?? selectedReport.episodeNo ?? 1}`} description="医护端按结构化文书查看；图文手册仅在患者端预览和打印时展示。" /><button type="button" className="btn-secondary" onClick={() => setPreviewOpen(true)}><FileHeart className="h-4 w-4" />患者端预览</button></div><div className="grid gap-4 p-5 lg:grid-cols-2"><HandbookBlock title="医疗与治疗摘要" text={selectedReport.medicalSection.treatmentCourse} /><HandbookBlock title="体能评估摘要" text={selectedReport.rehabSection.assessmentSummary} /><HandbookBlock title="实际训练摘要" text={selectedReport.rehabSection.trainingSummary} /><HandbookBlock title="阶段变化总结" text={selectedReport.rehabSection.improvementSummary} /><div className="lg:col-span-2"><HandbookBlock title="患者建议与安全提醒" text={selectedReport.recommendationDraft} /></div></div><footer className="flex flex-wrap justify-between gap-3 border-t border-slate-100 bg-slate-50 px-5 py-4 text-xs text-slate-500"><span>引用记录：{selectedReport.sourceRefs.length} 条 · 缺失字段：{selectedReport.missingFields?.length ? selectedReport.missingFields.join("、") : "无"}</span><span>确认人：{selectedReport.confirmedBy || "尚未确认"}</span></footer></section>}
-      {previewOpen && selectedReport && <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/55 p-6" onClick={() => setPreviewOpen(false)}><div className="mx-auto max-w-5xl" onClick={(event) => event.stopPropagation()}><div className="mb-3 flex justify-end gap-2"><button type="button" className="btn-secondary bg-white" onClick={() => window.print()}><Printer className="h-4 w-4" />打印预览</button><button type="button" className="btn-secondary bg-white" onClick={() => setPreviewOpen(false)}><X className="h-4 w-4" />关闭</button></div><ArchiveHandbookPreview report={selectedReport} patientName={patient.name} /></div></div>}
+      {previewOpen && selectedReport && <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/55 p-6" onClick={() => setPreviewOpen(false)}><div className="mx-auto max-w-5xl" onClick={(event) => event.stopPropagation()}><div className="mb-3 flex justify-end gap-2"><button type="button" className="btn-secondary bg-white" onClick={() => window.print()}><Printer className="h-4 w-4" />打印预览</button><button type="button" className="btn-secondary bg-white" onClick={() => setPreviewOpen(false)}><X className="h-4 w-4" />关闭</button></div><PatientRehabReport report={selectedReport} /></div></div>}
     </div>
   );
 }

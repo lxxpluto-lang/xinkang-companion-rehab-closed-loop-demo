@@ -104,7 +104,7 @@ export function FollowUpManagementPage({ role, currentAccount, patients, tasks, 
   </section>;
 }
 
-function FollowUpDialog({ task, patient, record, readOnly, currentAccount, onClose, onSave }: { task: FollowUpTask; patient: ManagedPatient; record?: FollowUpRecord; readOnly: boolean; currentAccount: string; onClose: () => void; onSave: (record: FollowUpRecord) => void }) {
+export function FollowUpDialog({ task, patient, record, readOnly, currentAccount, onClose, onSave }: { task: FollowUpTask; patient: ManagedPatient; record?: FollowUpRecord; readOnly: boolean; currentAccount: string; onClose: () => void; onSave: (record: FollowUpRecord) => void }) {
   const [result, setResult] = useState<ContactResult>(record?.contactResult ?? "reached");
   const [contactedAt, setContactedAt] = useState(record?.contactedAt?.slice(0, 16) ?? nowForInput());
   const [notes, setNotes] = useState(record?.notes ?? "");

@@ -32,7 +32,7 @@ export const navItems: NavItem[] = [
   { key: "patients", label: "患者档案", icon: UsersRound, group: "business", roles: clinicalRoles },
   { key: "prescriptions", label: "处方管理", icon: ClipboardPlus, group: "business", roles: ["ADMIN", "DOCTOR"] },
   { key: "treatments", label: "治疗管理", icon: ClipboardPenLine, group: "business", roles: ["ADMIN", "REHAB_EXECUTION"] },
-  { key: "alerts", label: "异常警告", icon: Siren, group: "business", roles: clinicalRoles, sidebarRoles: [] },
+  { key: "alerts", label: "异常告警", icon: Siren, group: "admin", roles: clinicalRoles, sidebarRoles: ["ADMIN"], badge: "3" },
   { key: "appointments", label: "预约管理", icon: CalendarDays, group: "business", roles: clinicalRoles, sidebarRoles: ["ADMIN"] },
   { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: clinicalRoles, sidebarRoles: ["ADMIN"] },
   { key: "training", label: "训练大屏", icon: MonitorUp, group: "business", roles: clinicalRoles },

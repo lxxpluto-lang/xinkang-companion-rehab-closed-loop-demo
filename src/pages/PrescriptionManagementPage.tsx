@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, ClipboardList, PencilLine, Printer, Search, Sparkles } from "lucide-react";
+import { ArrowRight, ClipboardList, PencilLine, Printer, Search, Sparkles, Trash2 } from "lucide-react";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import { type PrescriptionStatus, type PrescriptionTask } from "../clinicalWorkflowData";
 import type { StaffRole } from "../types";
@@ -14,17 +14,19 @@ const statusLabel: Record<PrescriptionStatus, string> = {
 
 type StatusFilter = PrescriptionStatus | "all" | "unfinished";
 
-export function PrescriptionManagementPage({ role, accountId, tasks, initialStatus = "all", onOpen }: {
+export function PrescriptionManagementPage({ role, accountId, tasks, initialStatus = "all", onOpen, onDelete }: {
   role: StaffRole;
   accountId: string;
   tasks: PrescriptionTask[];
   initialStatus?: "all" | "unfinished";
   onOpen: (taskId: string) => void;
+  onDelete: (taskIds: string[]) => void;
 }) {
   const [patientNo, setPatientNo] = useState("");
   const [prescriptionNo, setPrescriptionNo] = useState("");
   const [doctorId, setDoctorId] = useState(role === "DOCTOR" ? accountId : "all");
   const [status, setStatus] = useState<StatusFilter>(initialStatus);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const pendingCount = tasks.filter((item) => item.status !== "completed" && item.status !== "withdrawn" && (role !== "DOCTOR" || item.assignedDoctorId === accountId)).length;
   const completedCount = tasks.filter((item) => item.status === "completed" && (role !== "DOCTOR" || item.assignedDoctorId === accountId)).length;
 
@@ -59,11 +61,11 @@ export function PrescriptionManagementPage({ role, accountId, tasks, initialStat
         <button type="button" className="btn-primary"><Search className="h-4 w-4" />查询</button>
         <button type="button" onClick={resetFilters} className="btn-secondary">重置</button>
       </div>
-      <div className="flex items-center justify-between px-5 py-3 text-xs text-slate-500"><span>查询结果 {filtered.length} 条</span>{status === "unfinished" && <StatusBadge tone="orange">已筛选：未完成处方</StatusBadge>}</div>
+      <div className="flex items-center justify-between px-5 py-3 text-xs text-slate-500"><span>查询结果 {filtered.length} 条 · 已选择 {selectedIds.length} 条</span><div className="flex items-center gap-2">{status === "unfinished" && <StatusBadge tone="orange">已筛选：未完成处方</StatusBadge>}<button type="button" className="btn-primary !min-h-9" disabled={!selectedIds.length || role === "REHAB_EXECUTION"} onClick={() => { if (window.confirm(`确认删除已选择的 ${selectedIds.length} 条处方？`)) { onDelete(selectedIds); setSelectedIds([]); } }}><Trash2 className="h-4 w-4" />删除所选</button></div></div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1380px] text-left text-xs">
-          <thead><tr className="border-y border-slate-100 bg-slate-50 text-[10px] text-slate-400"><th className="p-3">患者姓名</th><th>患者号</th><th>处方号</th><th>版本</th><th>阶段</th><th>分组</th><th>类型</th><th>依据</th><th>生成时间</th><th>所属医生</th><th>状态</th><th>操作</th></tr></thead>
-          <tbody>{filtered.map((item) => <tr key={item.id} className="cursor-pointer border-b border-slate-100 hover:bg-blue-50/40" onClick={() => onOpen(item.id)}><td className="p-3 font-bold text-slate-900">{item.patientName}</td><td className="font-mono text-slate-500">{item.patientNo}</td><td className="font-mono text-blue-700">{item.prescriptionNo}</td><td>{item.version}</td><td>{item.rehabStage}</td><td><StatusBadge tone={item.risk === "高危" ? "red" : item.risk === "中危" ? "orange" : "green"}>{item.risk}</StatusBadge></td><td>{item.kind === "initial" ? "初始" : "调整"}</td><td>{item.sourceLabel ?? "基线评估"}</td><td className="text-slate-500">{item.generatedAt ?? item.updatedAt}</td><td>{item.assignedDoctorName}</td><td><StatusBadge tone={item.status === "completed" ? "green" : item.status === "withdrawn" ? "red" : item.status === "pending_signature" ? "orange" : "blue"}>{statusLabel[item.status]}</StatusBadge></td><td><button type="button" onClick={(event) => { event.stopPropagation(); onOpen(item.id); }} className="inline-flex items-center gap-1 font-bold text-blue-700">{item.status === "pending_generation" ? <><Sparkles className="h-3.5 w-3.5" />AI生成草稿</> : item.status === "completed" ? <><Printer className="h-3.5 w-3.5" />查看/打印</> : <><PencilLine className="h-3.5 w-3.5" />编辑审核</>}<ArrowRight className="h-3.5 w-3.5" /></button></td></tr>)}</tbody>
+          <thead><tr className="border-y border-slate-100 bg-slate-50 text-[10px] text-slate-400"><th className="p-3"><input type="checkbox" aria-label="选择全部处方" checked={Boolean(filtered.length) && filtered.every((item) => selectedIds.includes(item.id))} onChange={(event) => setSelectedIds(event.target.checked ? filtered.map((item) => item.id) : [])} /></th><th>患者姓名</th><th>患者号</th><th>处方号</th><th>版本</th><th>阶段</th><th>分组</th><th>类型</th><th>依据</th><th>生成时间</th><th>所属医生</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody>{filtered.map((item) => <tr key={item.id} className="cursor-pointer border-b border-slate-100 hover:bg-blue-50/40" onClick={() => onOpen(item.id)}><td className="p-3"><input type="checkbox" aria-label={`选择处方${item.prescriptionNo}`} checked={selectedIds.includes(item.id)} onClick={(event) => event.stopPropagation()} onChange={(event) => setSelectedIds(event.target.checked ? [...selectedIds, item.id] : selectedIds.filter((id) => id !== item.id))} /></td><td className="font-bold text-slate-900">{item.patientName}</td><td className="font-mono text-slate-500">{item.patientNo}</td><td className="font-mono text-blue-700">{item.prescriptionNo}</td><td>{item.version}</td><td>{item.rehabStage}</td><td><StatusBadge tone={item.risk === "高危" ? "red" : item.risk === "中危" ? "orange" : "green"}>{item.risk}</StatusBadge></td><td>{item.kind === "initial" ? "初始" : "调整"}</td><td>{item.sourceLabel ?? "基线评估"}</td><td className="text-slate-500">{item.generatedAt ?? item.updatedAt}</td><td>{item.assignedDoctorName}</td><td><StatusBadge tone={item.status === "completed" ? "green" : item.status === "withdrawn" ? "red" : item.status === "pending_signature" ? "orange" : "blue"}>{statusLabel[item.status]}</StatusBadge></td><td><button type="button" onClick={(event) => { event.stopPropagation(); onOpen(item.id); }} className="inline-flex items-center gap-1 font-bold text-blue-700">{item.status === "pending_generation" ? <><Sparkles className="h-3.5 w-3.5" />AI生成草稿</> : item.status === "completed" ? <><Printer className="h-3.5 w-3.5" />查看/打印</> : <><PencilLine className="h-3.5 w-3.5" />编辑审核</>}<ArrowRight className="h-3.5 w-3.5" /></button></td></tr>)}</tbody>
         </table>
         {!filtered.length && <p className="py-12 text-center text-xs text-slate-400">当前筛选条件下暂无处方。</p>}
       </div>

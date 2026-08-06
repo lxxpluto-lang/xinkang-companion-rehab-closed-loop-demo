@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Activity, ArrowLeft, ArrowRight, ClipboardCheck, FileBarChart, FileText, History, Search, Sparkles, Stethoscope, UserRound } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, ClipboardCheck, FileBarChart, FileText, History, Search, Sparkles, Stethoscope, Trash2, UserRound } from "lucide-react";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { PatientClinicalProfile } from "../prescriptionWorkspaceData";
 import type { CardiopulmonaryTreatmentRecord } from "../treatmentData";
@@ -20,7 +20,7 @@ const treatmentTabs: { key: TreatmentTab; label: string; icon: typeof UserRound 
   { key: "stage", label: "阶段性报告", icon: FileBarChart }
 ];
 
-export function TreatmentManagementPage({ role, currentAccount, patients, profiles, treatmentRecords, prescriptionTasks, initialStatus = "all", initialPatientId, initialRecordId, onOpenRecord, onBackToList, onSave }: {
+export function TreatmentManagementPage({ role, currentAccount, patients, profiles, treatmentRecords, prescriptionTasks, initialStatus = "all", initialPatientId, initialRecordId, onOpenRecord, onBackToList, onSave, onDelete }: {
   role: StaffRole;
   currentAccount: string;
   patients: ManagedPatient[];
@@ -33,6 +33,7 @@ export function TreatmentManagementPage({ role, currentAccount, patients, profil
   onOpenRecord: (patientId: string, recordId?: string) => void;
   onBackToList: () => void;
   onSave: (record: CardiopulmonaryTreatmentRecord) => void;
+  onDelete: (recordIds: string[]) => void;
 }) {
   const patientId = initialPatientId ?? patients[0]?.patient_demo_id ?? "";
   const selectedPatient = patients.find((item) => item.patient_demo_id === patientId) ?? patients[0];
@@ -45,7 +46,7 @@ export function TreatmentManagementPage({ role, currentAccount, patients, profil
   const [generatedFromStage, setGeneratedFromStage] = useState(false);
   const patientTreatments = allPatientTreatments.filter((item) => item.treatmentId !== currentDraft?.treatmentId);
 
-  if (!initialPatientId) return <TreatmentTaskList role={role} currentAccount={currentAccount} patients={patients} treatmentRecords={treatmentRecords} initialStatus={initialStatus} onOpen={onOpenRecord} />;
+  if (!initialPatientId) return <TreatmentTaskList role={role} currentAccount={currentAccount} patients={patients} treatmentRecords={treatmentRecords} initialStatus={initialStatus} onOpen={onOpenRecord} onDelete={onDelete} />;
 
   if (!selectedPatient || !currentDraft) return <section className="card p-10 text-center text-sm text-slate-500">暂无可用于治疗记录的患者。</section>;
 
@@ -106,17 +107,19 @@ export function TreatmentManagementPage({ role, currentAccount, patients, profil
   </section>;
 }
 
-function TreatmentTaskList({ role, currentAccount, patients, treatmentRecords, initialStatus, onOpen }: {
+function TreatmentTaskList({ role, currentAccount, patients, treatmentRecords, initialStatus, onOpen, onDelete }: {
   role: StaffRole;
   currentAccount: string;
   patients: ManagedPatient[];
   treatmentRecords: CardiopulmonaryTreatmentRecord[];
   initialStatus: "all" | "unfinished";
   onOpen: (patientId: string, recordId?: string) => void;
+  onDelete: (recordIds: string[]) => void;
 }) {
   const [patientKeyword, setPatientKeyword] = useState("");
   const [therapist, setTherapist] = useState(role === "REHAB_EXECUTION" ? currentAccount : "all");
   const [status, setStatus] = useState<"all" | "unfinished" | "completed">(initialStatus);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const patientMap = new Map(patients.map((patient) => [patient.patient_demo_id, patient]));
   const filtered = treatmentRecords.filter((record) => {
     const patient = patientMap.get(record.patientId);
@@ -148,8 +151,8 @@ function TreatmentTaskList({ role, currentAccount, patients, treatmentRecords, i
         <button type="button" className="btn-primary"><Search className="h-4 w-4" />查询</button>
         <button type="button" className="btn-secondary" onClick={reset}>重置</button>
       </div>
-      <div className="flex items-center justify-between px-5 py-3 text-sm text-slate-500"><span>查询结果 {filtered.length} 条</span>{status === "unfinished" && <StatusBadge tone="orange">本人 · 未完成</StatusBadge>}</div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm"><thead><tr className="border-y border-slate-100 bg-slate-50 text-xs text-slate-500"><th className="p-3">患者</th><th>患者编号</th><th>治疗记录号</th><th>治疗时间</th><th>所属康复师</th><th>状态</th><th>操作</th></tr></thead><tbody>{filtered.map((record) => { const patient = patientMap.get(record.patientId); const unfinished = record.status === "draft" || !record.signature; return <tr key={record.treatmentId} className="cursor-pointer border-b border-slate-100 hover:bg-blue-50/50" onClick={() => onOpen(record.patientId, record.treatmentId)}><td className="p-3 font-bold text-slate-900">{patient?.name ?? "待核对患者"}</td><td className="font-mono text-slate-500">{record.patientNo}</td><td className="font-mono text-blue-700">{record.treatmentNo}</td><td>{record.treatmentAt.slice(0, 16).replace("T", " ")}</td><td>{record.therapist}</td><td><StatusBadge tone={unfinished ? "orange" : "green"}>{unfinished ? "待签署" : "已签署"}</StatusBadge></td><td><button type="button" className="inline-flex items-center gap-1 font-bold text-blue-700" onClick={(event) => { event.stopPropagation(); onOpen(record.patientId, record.treatmentId); }}>{unfinished ? "填写并签署" : "查看记录"}<ArrowRight className="h-4 w-4" /></button></td></tr>; })}</tbody></table>{!filtered.length && <p className="py-12 text-center text-sm text-slate-400">当前筛选条件下暂无治疗记录。</p>}</div>
+      <div className="flex items-center justify-between px-5 py-3 text-sm text-slate-500"><span>查询结果 {filtered.length} 条 · 已选择 {selectedIds.length} 条</span><div className="flex gap-2">{status === "unfinished" && <StatusBadge tone="orange">本人 · 未完成</StatusBadge>}<button type="button" className="btn-primary !min-h-9" disabled={!selectedIds.length} onClick={() => { if (window.confirm(`确认删除已选择的 ${selectedIds.length} 条治疗记录？`)) { onDelete(selectedIds); setSelectedIds([]); } }}><Trash2 className="h-4 w-4" />删除所选</button></div></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[1040px] text-left text-sm"><thead><tr className="border-y border-slate-100 bg-slate-50 text-xs text-slate-500"><th className="p-3"><input type="checkbox" aria-label="选择全部治疗记录" checked={Boolean(filtered.length) && filtered.every((item) => selectedIds.includes(item.treatmentId))} onChange={(event) => setSelectedIds(event.target.checked ? filtered.map((item) => item.treatmentId) : [])} /></th><th>患者</th><th>患者编号</th><th>治疗记录号</th><th>治疗时间</th><th>所属康复师</th><th>状态</th><th>操作</th></tr></thead><tbody>{filtered.map((record) => { const patient = patientMap.get(record.patientId); const unfinished = record.status === "draft" || !record.signature; return <tr key={record.treatmentId} className="cursor-pointer border-b border-slate-100 hover:bg-blue-50/50" onClick={() => onOpen(record.patientId, record.treatmentId)}><td className="p-3"><input type="checkbox" aria-label={`选择治疗记录${record.treatmentNo}`} checked={selectedIds.includes(record.treatmentId)} onClick={(event) => event.stopPropagation()} onChange={(event) => setSelectedIds(event.target.checked ? [...selectedIds, record.treatmentId] : selectedIds.filter((id) => id !== record.treatmentId))} /></td><td className="font-bold text-slate-900">{patient?.name ?? "待核对患者"}</td><td className="font-mono text-slate-500">{record.patientNo}</td><td className="font-mono text-blue-700">{record.treatmentNo}</td><td>{record.treatmentAt.slice(0, 16).replace("T", " ")}</td><td>{record.therapist}</td><td><StatusBadge tone={unfinished ? "orange" : "green"}>{unfinished ? "待核对" : "已签署"}</StatusBadge></td><td><button type="button" className="inline-flex items-center gap-1 font-bold text-blue-700" onClick={(event) => { event.stopPropagation(); onOpen(record.patientId, record.treatmentId); }}>{unfinished ? "填写并核对" : "查看记录"}<ArrowRight className="h-4 w-4" /></button></td></tr>; })}</tbody></table>{!filtered.length && <p className="py-12 text-center text-sm text-slate-400">当前筛选条件下暂无治疗记录。</p>}</div>
     </section>
   </section>;
 }
