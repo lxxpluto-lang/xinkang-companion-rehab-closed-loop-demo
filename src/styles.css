@@ -783,16 +783,16 @@ textarea:focus-visible {
 
 :fullscreen .fullscreen-heart-rate,
 :-webkit-full-screen .fullscreen-heart-rate {
-  width: 390px;
-  min-height: 190px;
-  padding: 28px;
-  border-bottom-right-radius: 32px;
-  background: rgba(16, 63, 79, 0.98);
+  width: 330px;
+  min-height: 158px;
+  padding: 22px;
+  border-bottom-right-radius: 28px;
+  background: rgba(16, 63, 79, 0.74);
 }
 
 :fullscreen .fullscreen-heart-rate-value,
 :-webkit-full-screen .fullscreen-heart-rate-value {
-  font-size: 72px;
+  font-size: 58px;
   line-height: 1;
 }
 

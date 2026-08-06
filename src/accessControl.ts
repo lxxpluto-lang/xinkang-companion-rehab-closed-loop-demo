@@ -28,24 +28,24 @@ const clinicalRoles: Role[] = ["ADMIN", "DOCTOR", "REHAB_EXECUTION"];
 export const navItems: NavItem[] = [
   { key: "dashboard", label: "今日工作台", icon: LayoutDashboard, group: "business", roles: clinicalRoles },
   { key: "patients", label: "患者档案", icon: UsersRound, group: "business", roles: clinicalRoles },
-  { key: "prescriptions", label: "处方管理", icon: ClipboardPlus, group: "business", roles: ["ADMIN", "DOCTOR"] },
-  { key: "alerts", label: "异常告警", icon: Siren, group: "business", roles: clinicalRoles, badge: "3" },
+  { key: "prescriptions", label: "处方管理", icon: ClipboardPlus, group: "business", roles: clinicalRoles },
+  { key: "alerts", label: "异常警告", icon: Siren, group: "business", roles: clinicalRoles, badge: "3" },
   { key: "appointments", label: "预约管理", icon: CalendarDays, group: "business", roles: clinicalRoles },
-  { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: ["REHAB_EXECUTION"] },
+  { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: ["REHAB_EXECUTION"], hidden: true },
   { key: "training", label: "训练大屏", icon: MonitorUp, group: "business", roles: clinicalRoles },
-  { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: ["ADMIN", "REHAB_EXECUTION"] },
+  { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: ["ADMIN"] },
   { key: "orgPermissions", label: "组织权限", icon: Building2, group: "admin", roles: ["ADMIN"] },
-  { key: "documentConfig", label: "报告打印签名", icon: FileSignature, group: "admin", roles: ["ADMIN"] }
+  { key: "documentConfig", label: "签字管理", icon: FileSignature, group: "admin", roles: ["ADMIN"] }
 ];
 
 export const roleMeta: Record<Role, { label: string; account: string; scope: DataScope; note: string }> = {
-  ADMIN: { label: "系统管理员", account: "林管理员", scope: "ALL", note: "账号、权限、视频和打印模板配置；临床业务只读" },
+  ADMIN: { label: "系统管理员", account: "林管理员", scope: "ALL", note: "全部业务与后台管理权限；操作以管理员本人身份留痕" },
   DOCTOR: { label: "康复医生", account: "王医生", scope: "TEAM", note: "查看团队患者，复核本人处方任务与异常事件；训练大屏只读" },
   REHAB_EXECUTION: { label: "康复师", account: "周康复师", scope: "CENTER", note: "患者、评估、治疗、训练、报告与随访" },
   PATIENT: { label: "患者", account: "陈女士", scope: "SELF_TASK", note: "仅本人数据" }
 };
 
-const adminActions: PermissionAction[] = ["VIEW", "CREATE", "EDIT", "REVIEW", "PUBLISH", "UNPUBLISH", "DELETE", "RESTORE", "PERMANENT_DELETE", "PRINT", "EXPORT", "GRANT"];
+const adminActions: PermissionAction[] = ["VIEW", "CREATE", "EDIT", "REVIEW", "SIGN", "PUBLISH", "UNPUBLISH", "DELETE", "RESTORE", "PERMANENT_DELETE", "PRINT", "EXPORT", "GRANT"];
 
 export const roleActions: Record<Role, PermissionAction[]> = {
   ADMIN: adminActions,

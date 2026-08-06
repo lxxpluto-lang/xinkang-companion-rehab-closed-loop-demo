@@ -703,9 +703,12 @@ function HomeScreen({ exercise, onChoose, onStart, publishedTrainingVideos, toda
         <aside className="grid grid-rows-2 gap-3">
           <article className="flex flex-col rounded-3xl border border-white bg-white p-5 shadow-card">
             <div className="flex items-center justify-between"><p className="text-sm font-bold text-slate-600">我的实际训练</p><Activity className="h-5 w-5 text-medical-600" /></div>
-            <div className="mt-3 grid grid-cols-2 gap-2"><div className="rounded-xl bg-medical-50 p-2.5"><p className="text-2xl font-bold text-medical-900">{patient.completed}</p><p className="text-[9px] text-medical-700">累计实际次数</p></div><div className="rounded-xl bg-slate-50 p-2.5"><p className="text-2xl font-bold text-slate-900">8</p><p className="text-[9px] text-slate-500">本月实际次数</p></div></div>
-            <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[9px]"><span className="rounded-lg bg-slate-50 p-1.5">功率车 7次</span><span className="rounded-lg bg-slate-50 p-1.5">八段锦 2次</span><span className="rounded-lg bg-slate-50 p-1.5">呼吸 2次</span></div>
-            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] text-slate-500"><span>累计时长 <b className="float-right text-slate-700">326分</b></span><span>最近训练 <b className="float-right text-slate-700">7月25日</b></span><span>单次报告 <b className="float-right text-slate-700">{singleTrainingReportDetails.length}份</b></span><span>阶段报告 <b className="float-right text-slate-700">{patientStageReportRows.length}份</b></span></div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-medical-50 p-2.5"><p className="text-2xl font-bold text-medical-900">{patient.completed}</p><p className="text-[9px] text-medical-700">累计训练次数</p></div>
+              <div className="rounded-xl bg-slate-50 p-2.5"><p className="text-2xl font-bold text-slate-900">8</p><p className="text-[9px] text-slate-500">本月训练次数</p></div>
+              <div className="rounded-xl bg-slate-50 p-2.5"><p className="text-lg font-bold text-slate-900">326<span className="ml-1 text-[9px] font-medium text-slate-400">分钟</span></p><p className="text-[9px] text-slate-500">累计运动时长</p></div>
+              <div className="rounded-xl bg-slate-50 p-2.5"><p className="text-lg font-bold text-slate-900">7月25日</p><p className="text-[9px] text-slate-500">最近训练时间</p></div>
+            </div>
           </article>
           <button type="button" data-action="ACT-PATIENT-OPEN-HANDBOOK" onClick={() => setShowHandbook(true)} className="flex flex-col rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-left transition hover:border-emerald-300 hover:shadow-card"><div className="flex items-center justify-between"><p className="text-sm font-bold text-emerald-900">我的康复手册</p><FileText className="h-5 w-5 text-emerald-600" /></div><p className="mt-auto text-xs leading-5 text-slate-600">查看运动提醒、用药提醒、饮食注意和复查计划</p><span className="mt-2 flex items-center gap-1 text-xs font-bold text-emerald-700">打开康复手册 <ChevronRight className="h-4 w-4" /></span></button>
         </aside>
@@ -1075,9 +1078,9 @@ function TrainingScreen(props: {
                   <p className="mt-1 text-[10px] text-slate-500">请将 MP4、MOV、WebM 或 M4V 放入 Bilibili下载目录</p>
                 </div>
               )}
-              <div className="fullscreen-heart-rate absolute left-0 top-0 z-30 w-72 rounded-br-3xl border-b border-r border-white/20 bg-[#103f4f]/95 p-5 text-white shadow-2xl backdrop-blur-md">
+              <div className="fullscreen-heart-rate absolute left-0 top-0 z-30 w-60 rounded-br-3xl border-b border-r border-white/20 bg-[#103f4f]/75 p-4 text-white shadow-2xl backdrop-blur-md">
                 <div className="flex items-center gap-2"><HeartPulse className="h-5 w-5 text-rose-300" /><span className="text-xs font-bold">实时心率</span><span className="ml-auto text-[9px] text-emerald-300">动态</span></div>
-                <p className="fullscreen-heart-rate-value mt-2 text-5xl font-bold tabular-nums">{hr}<span className="ml-2 text-sm font-medium text-white/70">bpm</span></p>
+                <p className="fullscreen-heart-rate-value mt-2 text-[40px] font-bold leading-none tabular-nums">{hr}<span className="ml-2 text-sm font-medium text-white/70">bpm</span></p>
                 <p className="mt-1 text-[10px] text-white/75">{hrStatus}</p>
               </div>
               <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-slate-950/75 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur-md">

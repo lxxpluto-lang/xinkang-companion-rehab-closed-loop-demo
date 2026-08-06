@@ -1,4 +1,4 @@
-export type PrescriptionStatus = "pending_generation" | "pending_review" | "pending_signature" | "completed";
+export type PrescriptionStatus = "pending_generation" | "pending_review" | "pending_signature" | "completed" | "withdrawn";
 
 export type PrescriptionItem = {
   category: "呼吸训练" | "热身运动" | "有氧运动" | "抗阻训练" | "柔韧性训练";
@@ -31,6 +31,9 @@ export type PrescriptionTask = {
   assignedDoctorId: "doctor001" | "doctor002";
   assignedDoctorName: string;
   version: string;
+  kind?: "initial" | "adjustment";
+  sourceLabel?: string;
+  generatedAt?: string;
   status: PrescriptionStatus;
   updatedAt: string;
   previous?: PrescriptionDraft;
@@ -98,10 +101,10 @@ const baseDraft: PrescriptionDraft = {
 };
 
 export const initialPrescriptionTasks: PrescriptionTask[] = [
-  { id: "RX-TASK-001", prescriptionNo: "RX-10001-0020", patientId: "P-DEMO-001", patientNo: "P-000001", patientName: "陈女士", age: 62, risk: "中危", rehabStage: "Ⅱ期", diagnosis: "冠心病术后康复期", specialMedication: "β受体阻滞剂（外部资料）", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V2", status: "pending_review", updatedAt: "2026-08-05 09:20", previous: baseDraft, aiSuggestion: { ...baseDraft, summary: "基于最近训练与阶段报告形成的AI辅助草稿，需王医生逐项复核。" } },
-  { id: "RX-TASK-002", prescriptionNo: "RX-10002-0011", patientId: "P-DEMO-002", patientNo: "P-000002", patientName: "李先生", age: 58, risk: "低危", rehabStage: "Ⅱ期", diagnosis: "冠心病稳定期", specialMedication: "未提供", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V1", status: "pending_generation", updatedAt: "2026-08-05 08:45" },
-  { id: "RX-TASK-003", prescriptionNo: "RX-10003-0008", patientId: "P-DEMO-003", patientNo: "P-000003", patientName: "赵女士", age: 66, risk: "中危", rehabStage: "Ⅰ期", diagnosis: "心脏术后早期康复", specialMedication: "抗血小板药物（外部资料）", assignedDoctorId: "doctor002", assignedDoctorName: "李医生", version: "V1", status: "pending_signature", updatedAt: "2026-08-04 16:30", aiSuggestion: baseDraft, doctorFinal: baseDraft },
-  { id: "RX-TASK-004", prescriptionNo: "RX-10004-0014", patientId: "P-DEMO-004", patientNo: "P-000004", patientName: "周先生", age: 55, risk: "低危", rehabStage: "Ⅱ期", diagnosis: "冠心病康复期", specialMedication: "未提供", assignedDoctorId: "doctor002", assignedDoctorName: "李医生", version: "V2", status: "completed", updatedAt: "2026-08-03 11:10", previous: baseDraft, aiSuggestion: baseDraft, doctorFinal: baseDraft }
+  { id: "RX-TASK-001", prescriptionNo: "RX-10001-0020", patientId: "P-DEMO-001", patientNo: "P-000001", patientName: "陈女士", age: 62, risk: "中危", rehabStage: "Ⅱ期 · 第4周", diagnosis: "冠心病术后康复期", specialMedication: "β受体阻滞剂（外部资料）", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V2", kind: "adjustment", sourceLabel: "阶段性报告", generatedAt: "2026-08-05 09:20", status: "pending_review", updatedAt: "2026-08-05 09:20", previous: baseDraft, aiSuggestion: { ...baseDraft, summary: "基于最近训练与阶段报告形成的AI辅助草稿，需王医生逐项复核。" } },
+  { id: "RX-TASK-002", prescriptionNo: "RX-10002-0011", patientId: "P-DEMO-002", patientNo: "P-000002", patientName: "李先生", age: 58, risk: "低危", rehabStage: "Ⅱ期 · 第2周", diagnosis: "冠心病稳定期", specialMedication: "未提供", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V1", kind: "adjustment", sourceLabel: "单次报告", generatedAt: "2026-08-05 08:45", status: "pending_generation", updatedAt: "2026-08-05 08:45" },
+  { id: "RX-TASK-003", prescriptionNo: "RX-10003-0008", patientId: "P-DEMO-003", patientNo: "P-000003", patientName: "赵女士", age: 66, risk: "中危", rehabStage: "Ⅰ期 · 首次评估", diagnosis: "心脏术后早期康复", specialMedication: "抗血小板药物（外部资料）", assignedDoctorId: "doctor002", assignedDoctorName: "李医生", version: "V1", kind: "initial", sourceLabel: "基线评估", generatedAt: "2026-08-04 16:30", status: "pending_signature", updatedAt: "2026-08-04 16:30", aiSuggestion: baseDraft, doctorFinal: baseDraft },
+  { id: "RX-TASK-004", prescriptionNo: "RX-10004-0014", patientId: "P-DEMO-004", patientNo: "P-000004", patientName: "周先生", age: 55, risk: "低危", rehabStage: "Ⅱ期 · 第3周", diagnosis: "冠心病康复期", specialMedication: "未提供", assignedDoctorId: "doctor002", assignedDoctorName: "李医生", version: "V2", kind: "adjustment", sourceLabel: "阶段性报告", generatedAt: "2026-08-03 11:10", status: "completed", updatedAt: "2026-08-03 11:10", previous: baseDraft, aiSuggestion: baseDraft, doctorFinal: baseDraft }
 ];
 
 export const initialAlertEvents: AlertEvent[] = [

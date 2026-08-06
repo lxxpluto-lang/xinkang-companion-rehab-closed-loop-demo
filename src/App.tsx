@@ -56,6 +56,7 @@ export default function App() {
   const [accountId, setAccountId] = useState("rehab001");
   const [accountName, setAccountName] = useState("周康复师");
   const [doctorPage, setDoctorPage] = useState<DoctorPageKey>(queryPage ?? "dashboard");
+  const [prescriptionInitialStatus, setPrescriptionInitialStatus] = useState<"all" | "unfinished">("all");
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(standalonePatientId || null);
   const [patientInitialTab, setPatientInitialTab] = useState<PatientWorkspaceTab>(queryTab ?? "profile");
   const [patientClinicalProfiles, setPatientClinicalProfiles] = useState<PatientClinicalProfile[]>(initialPatientClinicalProfiles);
@@ -295,12 +296,12 @@ export default function App() {
   }
 
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
-    dashboard: <DashboardPage role={role} patients={patients} followUpTasks={scopedFollowUpTasks} prescriptionTasks={prescriptionTasks} alertEvents={alertEvents} appointments={appointments} accountId={accountId} onOpenFollowUps={openFollowUps} onOpenReports={() => { setSelectedPatientId("P-DEMO-001"); setPatientInitialTab("sessions"); navigateDoctor("patients"); }} onOpenTraining={() => navigateDoctor("training")} onNavigate={navigateDoctor} />,
+    dashboard: <DashboardPage role={role} patients={patients} followUpTasks={scopedFollowUpTasks} prescriptionTasks={prescriptionTasks} alertEvents={alertEvents} appointments={appointments} accountId={accountId} onOpenFollowUps={openFollowUps} onOpenReports={() => { setSelectedPatientId("P-DEMO-001"); setPatientInitialTab("sessions"); navigateDoctor("patients"); }} onOpenTraining={() => navigateDoctor("training")} onOpenPrescriptions={(status) => { setPrescriptionInitialStatus(status); navigateDoctor("prescriptions"); }} onNavigate={navigateDoctor} />,
     patients: <PatientArchivePage key={`${role}-${selectedPatientId ?? "list"}-${patientInitialTab}-${standaloneRecordId}`} role={role} currentAccount={currentAccount} patients={patients} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} rehabReports={rehabReports} initialPatientId={selectedPatientId} initialTab={patientInitialTab} initialRecordId={standaloneRecordId || null} initialRecordKind={standaloneRecordKind || null} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onSaveTreatmentRecord={saveTreatmentRecord} onSaveRehabReport={saveRehabReport} />,
     assessment: <AssessmentWorkspacePage key={`${role}-${selectedPatientId ?? "all"}-${standaloneRecordId}`} role={role} currentAccount={currentAccount} patients={patients} records={assessmentRecords} initialPatientId={selectedPatientId} initialRecordId={standaloneRecordId || null} onSave={saveAssessmentRecord} onBack={closeAssessment} />,
     followups: <FollowUpManagementPage key={`${role}-${followUpEntryView}-${selectedFollowUpTaskId ?? "list"}`} role={role} currentAccount={currentAccount} patients={patients} tasks={followUpTasks} records={followUpRecords} initialView={followUpEntryView} initialTaskId={selectedFollowUpTaskId} onSaveRecord={saveFollowUpRecord} onOpenPatient={openPatient} />,
     training: <NurseStationPage role={role} />,
-    prescriptions: <PrescriptionManagementPage role={role} accountId={accountId} tasks={prescriptionTasks} setTasks={setPrescriptionTasks} />,
+    prescriptions: <PrescriptionManagementPage role={role} accountId={accountId} tasks={prescriptionTasks} setTasks={setPrescriptionTasks} initialStatus={prescriptionInitialStatus} />,
     alerts: <AlertManagementPage role={role} events={alertEvents} setEvents={setAlertEvents} rules={alertRules} setRules={setAlertRules} />,
     appointments: <AppointmentManagementPage role={role} accountId={accountId} appointments={appointments} setAppointments={setAppointments} />,
     videoConfig: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />

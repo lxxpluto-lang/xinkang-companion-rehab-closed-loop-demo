@@ -136,6 +136,10 @@ export type TrainingSessionRecord = {
   patientId: string;
   actualSessionSequence: number;
   exerciseItems: string[];
+  exerciseType?: string;
+  prescriptionTaskId?: string;
+  prescriptionVersion?: string;
+  source?: "prescription" | "appointment" | "onsite_supplement";
   planReferenceStatus: PlanReferenceStatus;
   actualDurationMinutes: number;
   preAssessment: VitalSnapshot;
@@ -150,6 +154,10 @@ export type TrainingSessionRecord = {
 export type StageReport = {
   reportId: string;
   patientId: string;
+  scope?: "manual_stage" | "prescription_cycle";
+  prescriptionTaskId?: string;
+  prescriptionVersion?: string;
+  version?: number;
   selectedSessionIds: string[];
   periodStart: string;
   periodEnd: string;
