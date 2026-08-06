@@ -155,6 +155,104 @@ textarea:focus-visible {
   color: #64748b;
 }
 
+.treatment-paper-form {
+  padding: 22px;
+  background: #fff;
+  color: #1e293b;
+}
+
+.treatment-paper-title {
+  padding: 2px 0 16px;
+  text-align: center;
+}
+
+.treatment-paper-title h2 {
+  font-family: "Songti SC", "STSong", "SimSun", serif;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+
+.treatment-paper-title p {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.treatment-paper-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.treatment-paper-table th,
+.treatment-paper-table td {
+  border: 1px solid #94a3b8;
+  padding: 9px 10px;
+  vertical-align: top;
+}
+
+.treatment-paper-table th {
+  width: 96px;
+  background: #f8fafc;
+  text-align: left;
+  font-weight: 700;
+}
+
+.treatment-paper-basic td { vertical-align: middle; }
+.treatment-paper-basic tr:first-child td { width: 20%; }
+.treatment-paper-static { font-weight: 700; color: #0f172a; }
+
+.treatment-paper-input {
+  min-width: 56px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #94a3b8;
+  background: transparent;
+  padding: 3px 4px;
+  color: #0f172a;
+  outline: none;
+}
+
+.treatment-paper-input:focus { border-color: #2563eb; box-shadow: 0 1px 0 #2563eb; }
+.treatment-paper-input:disabled { color: #334155; opacity: 1; }
+.treatment-paper-record { margin-top: -1px; }
+.treatment-paper-record thead th { width: auto; text-align: center; }
+.treatment-paper-count { width: 62px !important; text-align: center !important; vertical-align: middle !important; }
+.treatment-paper-count span, .treatment-paper-count b { display: block; margin: 8px 0; }
+.treatment-paper-left { width: 42%; padding: 0 !important; }
+.treatment-paper-right { padding: 14px !important; }
+
+.treatment-paper-section {
+  min-height: 120px;
+  border-bottom: 1px solid #94a3b8;
+  padding: 14px;
+}
+
+.treatment-paper-section:last-child { border-bottom: 0; }
+.treatment-paper-section h3, .treatment-paper-right > h3 { margin-bottom: 10px; font-size: 14px; font-weight: 800; }
+.treatment-paper-line { display: flex; align-items: center; gap: 5px; min-height: 35px; line-height: 1.5; }
+.treatment-paper-line .treatment-paper-input { flex: 1 1 70px; width: 70px; }
+.treatment-paper-textarea { min-height: 76px; width: 100%; resize: vertical; border: 0; background: transparent; padding: 4px; outline: none; }
+.treatment-paper-textarea:disabled { color: #334155; opacity: 1; }
+.treatment-paper-interventions { display: grid; gap: 7px; }
+.treatment-paper-intervention { display: flex; align-items: flex-start; gap: 7px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 8px; line-height: 1.65; cursor: pointer; }
+.treatment-paper-intervention input { margin-top: 4px; flex: 0 0 auto; }
+.treatment-paper-intervention span { color: #334155; }
+.treatment-paper-intervention-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 5px 0; }
+.treatment-paper-intervention-fields span { display: flex; align-items: center; gap: 4px; color: #64748b; font-size: 12px; }
+.treatment-paper-intervention-fields .treatment-paper-input { min-width: 0; }
+.treatment-paper-input.is-wide { font-size: 12px; color: #475569; }
+.treatment-paper-note { margin: 12px 0; font-weight: 700; }
+.treatment-paper-sign-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border-top: 1px solid #94a3b8; padding-top: 14px; }
+.treatment-paper-date { margin-top: 12px; text-align: right; font-weight: 600; }
+
+@media (max-width: 1100px) {
+  .treatment-paper-form { overflow-x: auto; padding: 14px; }
+  .treatment-paper-table { min-width: 900px; }
+}
+
 .treatment-print-sheet {
   display: none;
 }
@@ -162,12 +260,12 @@ textarea:focus-visible {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 9mm 10mm;
+    margin: 0;
   }
 
-  .doctor-shell aside,
-  .doctor-shell header,
-  .doctor-shell footer,
+  .doctor-shell > aside,
+  .doctor-shell > div > header,
+  .doctor-shell > div > footer,
   .btn-primary,
   .btn-secondary {
     display: none !important;
@@ -188,9 +286,11 @@ textarea:focus-visible {
 
   .treatment-print-sheet {
     display: block !important;
-    width: 190mm;
-    min-height: 277mm;
+    box-sizing: border-box;
+    width: 210mm;
+    min-height: 297mm;
     margin: 0 auto;
+    padding: 9mm 10mm;
     background: #fff;
     color: #111;
     font-family: "Songti SC", "STSong", "SimSun", serif;
@@ -375,6 +475,27 @@ textarea:focus-visible {
     text-align: right;
     font-size: 8.5pt;
     color: #333;
+  }
+
+  body.printing-treatment * {
+    visibility: hidden !important;
+  }
+
+  body.printing-treatment #printable-treatment-record,
+  body.printing-treatment #printable-treatment-record * {
+    visibility: visible !important;
+  }
+
+  body.printing-treatment #printable-treatment-record {
+    display: block !important;
+    position: absolute;
+    inset: 0 auto auto 0;
+    box-sizing: border-box;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    break-before: avoid;
+    break-after: avoid;
   }
 }
 

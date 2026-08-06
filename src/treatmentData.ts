@@ -126,8 +126,57 @@ export const initialTreatmentRecords: CardiopulmonaryTreatmentRecord[] = [
     patientAcknowledged: true,
     signature: { mode: "uploaded", signerRole: "REHAB_EXECUTION", signerName: "周康复师", treatmentAt: "2026-07-25T09:30:00+08:00", signedAt: "2026-07-25T10:08:00+08:00" },
     status: "completed"
-  }
+  },
+  createPendingTreatment("TREAT-20260805-002", "P-DEMO-001", "P-000001", "CRH-TX-20260805-0002", "2026-08-05T09:30:00+08:00", "冠心病 PCI 术后，Ⅱ期心脏康复", "周康复师"),
+  createPendingTreatment("TREAT-20260805-003", "P-DEMO-002", "P-000002", "CRH-TX-20260805-0003", "2026-08-05T10:30:00+08:00", "冠心病稳定期康复", "周康复师")
 ];
+
+function createPendingTreatment(treatmentId: string, patientId: string, patientNo: string, treatmentNo: string, treatmentAt: string, diagnosis: string, therapist: string): CardiopulmonaryTreatmentRecord {
+  return {
+    treatmentId,
+    patientId,
+    patientNo,
+    treatmentNo,
+    treatmentAt,
+    diagnosis,
+    specialMedications: "未提供",
+    source: "人工录入",
+    preAssessment: {
+      bloodPressure: "",
+      heartRate: null,
+      spo2: null,
+      respiratoryRate: null,
+      rhythm: "",
+      measuredAt: "",
+      chestPainRestVas: null,
+      chestPainActivityVas: null,
+      edema: "",
+      posturalPainChange: "",
+      chestDrainage: "",
+      lifeSupportDevice: "",
+      respiratorySymptoms: "",
+      assistiveDevice: ""
+    },
+    interventions: treatmentInterventionOptions.map((item) => ({ ...item, selected: false })),
+    postAssessment: {
+      bloodPressure: "",
+      heartRate: null,
+      spo2: null,
+      respiratoryRate: null,
+      rhythm: "",
+      measuredAt: "",
+      borg: null,
+      symptomChange: ""
+    },
+    treatmentSummary: "",
+    actualMetrics: {},
+    adverseEvent: "",
+    fieldAction: "",
+    therapist,
+    patientAcknowledged: false,
+    status: "draft"
+  };
+}
 
 export function treatmentStatusLabel(status: CardiopulmonaryTreatmentRecord["status"]) {
   return status === "completed" ? "已完成" : "草稿";

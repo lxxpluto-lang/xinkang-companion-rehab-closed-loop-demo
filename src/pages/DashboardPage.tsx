@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ClipboardList, FileSignature, FileText, MonitorUp, PhoneCall, Sparkles, TrendingUp, UserCheck, UsersRound } from "lucide-react";
+import { Activity, AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ClipboardList, FileSignature, FileText, MonitorUp, PhoneCall, Sparkles, Stethoscope, TrendingUp, UserCheck, UsersRound } from "lucide-react";
 import { PageHeader, SectionHeader, StatCard, StatusBadge } from "../components/UI";
 import type { FollowUpTask } from "../followUpData";
 import { isFollowUpVisibleInPending } from "../followUpData";
@@ -6,20 +6,26 @@ import type { Role } from "../types";
 import type { ManagedPatient } from "./PatientArchivePage";
 import type { FollowUpView } from "./FollowUpManagementPage";
 import type { AlertEvent, Appointment, PrescriptionTask } from "../clinicalWorkflowData";
+import type { CardiopulmonaryTreatmentRecord } from "../treatmentData";
 import type { DoctorPageKey } from "../types";
 
-export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks, alertEvents, appointments, accountId, onOpenFollowUps, onOpenReports, onOpenTraining, onOpenPrescriptions, onNavigate }: {
+export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks, treatmentRecords, alertEvents, appointments, accountId, currentAccount, onOpenFollowUps, onOpenReports, onOpenTraining, onOpenPrescriptions, onOpenPrescriptionTask, onOpenTreatments, onOpenTreatmentRecord, onNavigate }: {
   role: Exclude<Role, "PATIENT">;
   patients: ManagedPatient[];
   followUpTasks: FollowUpTask[];
   prescriptionTasks: PrescriptionTask[];
+  treatmentRecords: CardiopulmonaryTreatmentRecord[];
   alertEvents: AlertEvent[];
   appointments: Appointment[];
   accountId: string;
+  currentAccount: string;
   onOpenFollowUps: (view?: FollowUpView, taskId?: string) => void;
   onOpenReports: () => void;
   onOpenTraining: () => void;
   onOpenPrescriptions: (status: "all" | "unfinished") => void;
+  onOpenPrescriptionTask: (taskId: string) => void;
+  onOpenTreatments: (status: "all" | "unfinished") => void;
+  onOpenTreatmentRecord: (patientId: string, recordId?: string) => void;
   onNavigate: (page: DoctorPageKey) => void;
 }) {
   const pendingFollowUps = followUpTasks.filter((task) => isFollowUpVisibleInPending(task));
@@ -39,22 +45,24 @@ export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks
         <DoctorMetric label="平均训练完成率" value="83%" note="已核对计划 · Demo" icon={TrendingUp} tone="green" />
         <DoctorMetric label="待处理异常数" value={String(pendingAlerts.filter((item) => item.status === "pending_doctor_review").length)} note="待医学复核" icon={AlertTriangle} tone="red" onClick={() => onNavigate("alerts")} />
       </div>
-      <div className="grid gap-5 lg:grid-cols-2"><section className="card p-5"><SectionHeader title="我的处方待办" description="只允许责任医生编辑和签署。" /><div className="mt-4 space-y-3">{pendingPrescriptions.map((task) => <button key={task.id} onClick={() => onNavigate("prescriptions")} className="flex w-full items-center gap-3 rounded-xl border p-3 text-left hover:border-blue-200 hover:bg-blue-50"><ClipboardList className="h-4 w-4 text-blue-600" /><span className="flex-1"><b>{task.patientName}</b><span className="mt-1 block text-[10px] text-slate-500">{task.prescriptionNo} · {task.version} · {task.risk}</span></span><StatusBadge tone={task.status === "pending_signature" ? "orange" : "blue"}>{task.status === "pending_generation" ? "待生成" : task.status === "pending_review" ? "待复核" : "待签署"}</StatusBadge></button>)}</div><button onClick={() => onNavigate("prescriptions")} className="btn-primary mt-4 w-full">进入处方管理</button></section><section className="card p-5"><SectionHeader title="安全与到诊" description="异常事件需先有现场记录，医生再形成复核结论。" /><div className="mt-4 space-y-3"><button onClick={() => onNavigate("alerts")} className="flex w-full items-center gap-3 rounded-xl border border-red-100 bg-red-50 p-4 text-left"><AlertTriangle className="h-5 w-5 text-red-600" /><span className="flex-1"><b>待复核异常事件</b><span className="mt-1 block text-[10px] text-red-700">{pendingAlerts.filter((item) => item.status === "pending_doctor_review").length} 条已提交医生复核</span></span></button><button onClick={() => onNavigate("appointments")} className="flex w-full items-center gap-3 rounded-xl border p-4 text-left"><CalendarDays className="h-5 w-5 text-blue-600" /><span className="flex-1"><b>今日患者安排</b><span className="mt-1 block text-[10px] text-slate-500">本人名下 {myAppointments.length} 人</span></span></button><button onClick={onOpenTraining} className="btn-secondary w-full">查看训练大屏</button></div></section></div>
+      <div className="grid gap-5 lg:grid-cols-2"><section className="card p-5"><SectionHeader title="我的处方待办" description="点击患者直接进入该患者的“本次处方”。" /><div className="mt-4 space-y-3">{pendingPrescriptions.map((task) => <button key={task.id} onClick={() => onOpenPrescriptionTask(task.id)} className="flex w-full items-center gap-3 rounded-xl border p-3 text-left hover:border-blue-200 hover:bg-blue-50"><ClipboardList className="h-4 w-4 text-blue-600" /><span className="flex-1"><b>{task.patientName}</b><span className="mt-1 block text-xs text-slate-500">{task.prescriptionNo} · {task.version} · {task.risk}</span></span><StatusBadge tone={task.status === "pending_signature" ? "orange" : "blue"}>{task.status === "pending_generation" ? "待生成" : task.status === "pending_review" ? "待复核" : "待签署"}</StatusBadge><ArrowRight className="h-4 w-4 text-blue-600" /></button>)}</div><button onClick={() => onOpenPrescriptions("unfinished")} className="btn-primary mt-4 w-full">今日处方管理 · 查看本人未完成处方</button></section><section className="card p-5"><SectionHeader title="安全与到诊" description="异常事件需先有现场记录，医生再形成复核结论。" /><div className="mt-4 space-y-3"><button onClick={() => onNavigate("alerts")} className="flex w-full items-center gap-3 rounded-xl border border-red-100 bg-red-50 p-4 text-left"><AlertTriangle className="h-5 w-5 text-red-600" /><span className="flex-1"><b>待复核异常事件</b><span className="mt-1 block text-xs text-red-700">{pendingAlerts.filter((item) => item.status === "pending_doctor_review").length} 条已提交医生复核</span></span></button><button onClick={() => onNavigate("appointments")} className="flex w-full items-center gap-3 rounded-xl border p-4 text-left"><CalendarDays className="h-5 w-5 text-blue-600" /><span className="flex-1"><b>今日患者安排</b><span className="mt-1 block text-xs text-slate-500">本人名下 {myAppointments.length} 人</span></span></button><button onClick={onOpenTraining} className="btn-secondary w-full">查看训练大屏</button></div></section></div>
     </section>;
   }
   if (role === "REHAB_EXECUTION") {
+    const myTreatmentRecords = treatmentRecords.filter((record) => record.therapist === currentAccount);
+    const pendingTreatments = myTreatmentRecords.filter((record) => record.status === "draft" || !record.signature);
     return <section data-testid="page-VIEW-DASHBOARD">
-      <PageHeader eyebrow="康复师 · 当前康复中心" title="周康复师，上午好" description="按患者实际到诊完成项目核对、训练前后评估、设备连接、报告发送和随访记录。" action={<StatusBadge tone="green"><MonitorUp className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />
+      <PageHeader eyebrow="康复师 · 本人任务" title={`${currentAccount}，上午好`} description="优先完成本人名下待填写、待签署的治疗记录，再进入现场训练与随访任务。" action={<button type="button" className="btn-primary" onClick={() => onOpenTreatments("unfinished")}><FileSignature className="h-4 w-4" />{pendingTreatments.length} 条待签署</button>} />
       <div className="mb-5 grid grid-cols-5 gap-4">
         <StatCard label="今日到诊" value="12" note="以现场签到为准" icon={<UserCheck className="h-5 w-5" />} />
-        <StatCard label="待选择项目" value="3" note="对照纸质处方" tone="orange" icon={<ClipboardList className="h-5 w-5" />} />
+        <StatCard label="待签署治疗记录" value={String(pendingTreatments.length)} note="本人未完成记录" tone="orange" icon={<FileSignature className="h-5 w-5" />} />
         <StatCard label="在训患者" value="2" note="功率车 01、02" tone="green" icon={<MonitorUp className="h-5 w-5" />} />
         <StatCard label="训练后确认" value="3" note="复测后生成单次报告" icon={<CheckCircle2 className="h-5 w-5" />} />
         <StatCard label="异常待上报" value={String(pendingAlerts.filter((item) => item.status === "pending").length)} note="现场记录后提交" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
       </div>
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <TaskCard onOpenTraining={onOpenTraining} />
-        <BoundaryCard />
+        <section className="card p-5"><SectionHeader title="待签署治疗记录" description="点击患者直接进入该患者的“本次治疗记录”。" /><div className="mt-4 space-y-3">{pendingTreatments.map((record) => { const patient = patientMap.get(record.patientId); return <button type="button" key={record.treatmentId} onClick={() => onOpenTreatmentRecord(record.patientId, record.treatmentId)} className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left hover:border-blue-200 hover:bg-blue-50"><Stethoscope className="h-4 w-4 text-blue-600" /><span className="flex-1"><b className="text-sm text-slate-900">{patient?.name ?? record.patientNo}</b><span className="mt-1 block text-xs text-slate-500">{record.treatmentNo} · {record.treatmentAt.slice(0, 16).replace("T", " ")}</span></span><StatusBadge tone="orange">待签署</StatusBadge><ArrowRight className="h-4 w-4 text-blue-600" /></button>; })}</div>{!pendingTreatments.length && <p className="mt-4 rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-400">当前没有待签署治疗记录</p>}<button type="button" onClick={() => onOpenTreatments("unfinished")} className="btn-primary mt-4 w-full">今日治疗记录管理 · 查看本人未完成记录</button></section>
+        <section className="card p-5"><SectionHeader title="现场执行" description="治疗事实由设备采集或康复师如实填写。" /><div className="mt-4 space-y-3"><button type="button" onClick={onOpenTraining} className="flex w-full items-center gap-3 rounded-xl border p-4 text-left hover:border-blue-200 hover:bg-blue-50"><MonitorUp className="h-5 w-5 text-blue-600" /><span className="flex-1"><b>进入训练大屏</b><span className="mt-1 block text-xs text-slate-500">查看到诊、准备、在训、完成和异常状态</span></span><ArrowRight className="h-4 w-4 text-blue-600" /></button><div className="rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">康复师可填写体能评估和治疗记录；不能编辑医生处方、诊断或危险分组。</div></div></section>
       </div>
     </section>;
   }

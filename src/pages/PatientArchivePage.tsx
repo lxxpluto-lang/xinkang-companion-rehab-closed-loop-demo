@@ -13,6 +13,7 @@ import {
   PhoneCall,
   Plus,
   Printer,
+  Save,
   Search,
   Send,
   ShieldCheck,
@@ -45,6 +46,7 @@ import type {
   TreatmentSignature,
 } from "../types";
 import type { RehabReport } from "../dischargeHandbookData";
+import { readStaffSignature } from "../signatureStore";
 
 export type PatientWorkspaceTab =
   | "profile"
@@ -1527,6 +1529,7 @@ export function TreatmentRecordPage({
   onSave,
   onCorrect,
   embedded = false,
+  readOnly = false,
 }: {
   patient: ManagedPatient;
   record: CardiopulmonaryTreatmentRecord;
@@ -1535,9 +1538,12 @@ export function TreatmentRecordPage({
   onSave: (v: CardiopulmonaryTreatmentRecord) => void;
   onCorrect: (v: CardiopulmonaryTreatmentRecord) => void;
   embedded?: boolean;
+  readOnly?: boolean;
 }) {
   const [draft, setDraft] = useState(record);
-  const locked = draft.status === "completed" || role !== "REHAB_EXECUTION";
+  const locked = readOnly || draft.status === "completed" || role !== "REHAB_EXECUTION";
+  const configuredSignature = readStaffSignature(draft.therapist);
+  const [printReady, setPrintReady] = useState(draft.status === "completed" || Boolean(draft.signature));
   const vital = (
     section: "preAssessment" | "postAssessment",
     key: string,
@@ -1553,22 +1559,28 @@ export function TreatmentRecordPage({
         i === index ? { ...item, ...patch } : item,
       ),
     });
-  function upload(file?: File) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () =>
-      setDraft({
-        ...draft,
-        signature: {
-          mode: "uploaded",
-          signerRole: "REHAB_EXECUTION",
-          signerName: draft.therapist,
-          signatureImage: String(reader.result),
-          treatmentAt: draft.treatmentAt,
-          signedAt: new Date().toISOString(),
-        },
-      });
-    reader.readAsDataURL(file);
+  function saveAndGeneratePrint() {
+    const next = {
+      ...draft,
+      status: "draft" as const,
+      signature: configuredSignature ? {
+        mode: "uploaded" as const,
+        signerRole: "REHAB_EXECUTION" as const,
+        signerName: draft.therapist,
+        signatureImage: configuredSignature.imageData,
+        treatmentAt: draft.treatmentAt,
+        signedAt: new Date().toISOString(),
+      } : draft.signature,
+    };
+    setDraft(next);
+    onSave(next);
+    setPrintReady(true);
+  }
+  function printTreatmentRecord() {
+    const cleanup = () => document.body.classList.remove("printing-treatment");
+    document.body.classList.add("printing-treatment");
+    window.addEventListener("afterprint", cleanup, { once: true });
+    window.setTimeout(() => window.print(), 0);
   }
   return (
     <section>
@@ -1583,161 +1595,18 @@ export function TreatmentRecordPage({
                 <ArrowLeft className="h-4 w-4" />
                 返回记录列表
               </button>
-              <button onClick={() => window.print()} className="btn-secondary">
+              <button disabled={!printReady} onClick={printTreatmentRecord} className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50">
                 <Printer className="h-4 w-4" />
-                按记录表打印
+                {printReady ? "一键打印预览" : "保存后可打印"}
               </button>
             </div>
           }
         />}
         {draft.actualMetrics && Object.keys(draft.actualMetrics).length > 0 && <section className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4"><div className="flex flex-wrap items-center gap-2"><b className="text-sm text-blue-950">实际数据来源</b>{Object.entries(draft.actualMetrics).map(([key, metric]) => <span key={key} className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs text-blue-800">{metricLabel(key)}：{String(metric.value ?? "未采集")} · {sourceLabel(metric.source)}</span>)}</div><p className="mt-2 text-xs text-blue-700">设备采集和规则计算属于事实数据；AI建议不会写入本区域。</p></section>}
         <section className="card overflow-hidden print:shadow-none">
-          <div className="grid grid-cols-4 gap-3 border-b border-slate-200 p-5">
-            <Info
-              label="患者"
-              value={`${patient.name} · ${patient.gender} · ${patient.age}岁`}
-            />
-            <Info label="患者编号" value={patient.patient_no} />
-            <Field
-              label="治疗日期时间"
-              value={draft.treatmentAt.slice(0, 16)}
-              type="datetime-local"
-              disabled={locked}
-              onChange={(v) => setDraft({ ...draft, treatmentAt: v })}
-            />
-            <Field
-              label="治疗次数"
-              value={draft.treatmentNo}
-              disabled={locked}
-              onChange={(v) => setDraft({ ...draft, treatmentNo: v })}
-            />
-            <Field
-              label="诊断"
-              value={draft.diagnosis}
-              disabled={locked}
-              onChange={(v) => setDraft({ ...draft, diagnosis: v })}
-            />
-            <label>
-              <span className="field-label">手术方式</span>
-              <select
-                disabled={locked}
-                value={draft.surgeryMethod ?? "其他"}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    surgeryMethod: e.target
-                      .value as CardiopulmonaryTreatmentRecord["surgeryMethod"],
-                  })
-                }
-                className="text-field"
-              >
-                <option>正中胸骨切开</option>
-                <option>肋缘侧切</option>
-                <option>微创</option>
-                <option>其他</option>
-              </select>
-            </label>
-            <Field
-              label="特殊用药"
-              value={draft.specialMedications ?? ""}
-              disabled={locked}
-              onChange={(v) => setDraft({ ...draft, specialMedications: v })}
-            />
-            <Info label="状态" value={treatmentStatusLabel(draft.status)} />
-          </div>
-          <TreatmentVitals
-            title="训练前评估"
-            data={draft.preAssessment}
-            disabled={locked}
-            onChange={(key, value) => vital("preAssessment", key, value)}
-            pre
-          />
-          <div className="border-t border-slate-200 p-5">
-            <SectionHeader
-              title="实施训练情况"
-              description="勾选项目并填写次数、组数、时长和补充说明。"
-            />
-            <div className="space-y-2">
-              {draft.interventions.map((item, index) => (
-                <div
-                  key={item.code}
-                  className="grid grid-cols-[1.3fr_0.55fr_0.55fr_0.65fr_1.4fr] items-center gap-2 rounded-xl border border-slate-100 p-3"
-                >
-                  <label className="flex items-center gap-2 text-xs font-bold">
-                    <input
-                      disabled={locked}
-                      type="checkbox"
-                      checked={item.selected}
-                      onChange={(e) =>
-                        updateIntervention(index, {
-                          selected: e.target.checked,
-                        })
-                      }
-                    />
-                    {index + 1}. {item.label}
-                  </label>
-                  <SmallNum
-                    label="次数"
-                    value={item.repetitions}
-                    disabled={locked}
-                    onChange={(v) =>
-                      updateIntervention(index, { repetitions: v })
-                    }
-                  />
-                  <SmallNum
-                    label="组数"
-                    value={item.sets}
-                    disabled={locked}
-                    onChange={(v) => updateIntervention(index, { sets: v })}
-                  />
-                  <SmallNum
-                    label="时长(分)"
-                    value={item.durationMinutes}
-                    disabled={locked}
-                    onChange={(v) =>
-                      updateIntervention(index, { durationMinutes: v })
-                    }
-                  />
-                  <input
-                    disabled={locked}
-                    value={item.notes ?? ""}
-                    onChange={(e) =>
-                      updateIntervention(index, { notes: e.target.value })
-                    }
-                    className="text-field"
-                    placeholder="训练方法或补充说明"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-          <TreatmentVitals
-            title="训练后评估"
-            data={draft.postAssessment}
-            disabled={locked}
-            onChange={(key, value) => vital("postAssessment", key, value)}
-          />
-          <div className="grid grid-cols-3 gap-3 border-t border-slate-200 p-5">
-            <Field
-              label="治疗后评价"
-              value={draft.treatmentSummary}
-              disabled={locked}
-              onChange={(v) => setDraft({ ...draft, treatmentSummary: v })}
-            />
-            <Field
-              label="异常事件"
-              value={draft.adverseEvent}
-              disabled={locked}
-              onChange={(v) => setDraft({ ...draft, adverseEvent: v })}
-            />
-            <Field
-              label="现场处置"
-              value={draft.fieldAction}
-              disabled={locked}
-              onChange={(v) => setDraft({ ...draft, fieldAction: v })}
-            />
-          </div>
-          <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 p-5">
+          {readOnly && <div className="border-b border-blue-200 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-800">上一次治疗记录仅供查看，不可编辑、重新签署或覆盖。</div>}
+          <TreatmentPaperForm patient={patient} draft={draft} locked={locked} setDraft={setDraft} vital={vital} updateIntervention={updateIntervention} />
+          <div className="flex items-center justify-between border-t border-slate-300 bg-slate-50 p-5">
             <div>
               <p className="text-xs font-bold">康复师签名与日期</p>
               {draft.signature?.signatureImage && (
@@ -1753,27 +1622,12 @@ export function TreatmentRecordPage({
                   "未签署"}
               </p>
               <p className="mt-1 text-[10px] text-slate-400">
-                打印版仅预留康复治疗师签名，并记录治疗日期与打印日期。
+                {configuredSignature ? "已读取后台本人电子签名；保存生成后可一键打印。" : "尚未在后台“签字管理”上传本人电子签名。"}
               </p>
             </div>
             {!locked ? (
               <div className="flex gap-2">
-                <button
-                  onClick={() => onSave({ ...draft, status: "draft" })}
-                  className="btn-secondary"
-                >
-                  保存草稿
-                </button>
-                <label className="btn-secondary cursor-pointer">
-                  <Upload className="h-4 w-4" />
-                  上传签名
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    className="sr-only"
-                    onChange={(e) => upload(e.target.files?.[0])}
-                  />
-                </label>
+                <button onClick={saveAndGeneratePrint} className="btn-secondary"><Save className="h-4 w-4" />保存并生成打印版</button>
                 <button
                   disabled={!draft.signature}
                   onClick={() => {
@@ -1786,9 +1640,10 @@ export function TreatmentRecordPage({
                   <CheckCircle2 className="h-4 w-4" />
                   完成并锁定
                 </button>
+                <button type="button" disabled={!printReady} onClick={printTreatmentRecord} className="btn-primary disabled:bg-slate-300"><Printer className="h-4 w-4" />一键打印</button>
               </div>
             ) : (
-              role === "REHAB_EXECUTION" && (
+              !readOnly && role === "REHAB_EXECUTION" && (
                 <button
                   onClick={() =>
                     onCorrect({
@@ -1806,12 +1661,69 @@ export function TreatmentRecordPage({
                 </button>
               )
             )}
+            {locked && <button type="button" onClick={printTreatmentRecord} className="btn-secondary"><Printer className="h-4 w-4" />一键打印</button>}
           </div>
         </section>
       </div>
       <TreatmentPrintSheet patient={patient} record={draft} />
     </section>
   );
+}
+
+function TreatmentPaperForm({ patient, draft, locked, setDraft, vital, updateIntervention }: {
+  patient: ManagedPatient;
+  draft: CardiopulmonaryTreatmentRecord;
+  locked: boolean;
+  setDraft: (value: CardiopulmonaryTreatmentRecord) => void;
+  vital: (section: "preAssessment" | "postAssessment", key: string, value: string | number | null) => void;
+  updateIntervention: (index: number, patch: Partial<TreatmentIntervention>) => void;
+}) {
+  const text = (value: string | number | null | undefined, onChange: (value: string) => void, options?: { type?: string; placeholder?: string; className?: string }) => <input type={options?.type ?? "text"} disabled={locked} value={value ?? ""} placeholder={options?.placeholder} onChange={(event) => onChange(event.target.value)} className={`treatment-paper-input ${options?.className ?? ""}`} />;
+  const number = (value: number | null | undefined, onChange: (value: number | null) => void, placeholder?: string) => text(value, (next) => onChange(next === "" ? null : Number(next)), { type: "number", placeholder });
+  const pre = draft.preAssessment;
+  const post = draft.postAssessment;
+  const surgeryOptions: NonNullable<CardiopulmonaryTreatmentRecord["surgeryMethod"]>[] = ["正中胸骨切开", "肋缘侧切", "微创", "其他"];
+  return <div className="treatment-paper-form">
+    <div className="treatment-paper-title"><h2>心肺康复治疗记录</h2><p>脱敏演示记录 · 网页填写与 A4 打印字段一致</p></div>
+    <table className="treatment-paper-table treatment-paper-basic"><tbody>
+      <tr><td>床号：<span className="treatment-paper-static">—</span></td><td>姓名：<span className="treatment-paper-static">{patient.name}</span></td><td>性别：<span className="treatment-paper-static">{patient.gender}</span></td><td>年龄：<span className="treatment-paper-static">{patient.age}</span></td><td>病案号：<span className="treatment-paper-static">{patient.patient_no}</span></td></tr>
+      <tr><th>诊断：</th><td colSpan={4}>{text(draft.diagnosis, (value) => setDraft({ ...draft, diagnosis: value }))}</td></tr>
+      <tr><th>手术方式：</th><td colSpan={4}><div className="flex flex-wrap gap-x-5 gap-y-2">{surgeryOptions.map((item) => <label key={item} className="inline-flex items-center gap-1.5"><input type="radio" disabled={locked} checked={(draft.surgeryMethod ?? "其他") === item} onChange={() => setDraft({ ...draft, surgeryMethod: item })} />{item}</label>)}</div></td></tr>
+      <tr><th>特殊用药：</th><td colSpan={4}>{text(draft.specialMedications, (value) => setDraft({ ...draft, specialMedications: value }))}</td></tr>
+      <tr><th>治疗时间：</th><td colSpan={2}>{text(draft.treatmentAt.slice(0, 16), (value) => setDraft({ ...draft, treatmentAt: value }), { type: "datetime-local" })}</td><th>治疗记录号：</th><td>{text(draft.treatmentNo, (value) => setDraft({ ...draft, treatmentNo: value }))}</td></tr>
+    </tbody></table>
+    <table className="treatment-paper-table treatment-paper-record"><thead><tr><th className="treatment-paper-count">次数</th><th colSpan={2}>治疗记录</th></tr></thead><tbody><tr>
+      <td className="treatment-paper-count"><span>第</span><b>{draft.treatmentNo.split("-").at(-1) ?? "—"}</b><span>次</span></td>
+      <td className="treatment-paper-left">
+        <PaperSection title="训练前评估">
+          <div className="treatment-paper-line">血压 {text(pre.bloodPressure.replace(/\s*mmHg/gi, ""), (value) => vital("preAssessment", "bloodPressure", value), { placeholder: "收缩压/舒张压" })} mmHg；心率 {number(pre.heartRate, (value) => vital("preAssessment", "heartRate", value))} 次/分</div>
+          <div className="treatment-paper-line">SpO₂ {number(pre.spo2, (value) => vital("preAssessment", "spo2", value))} %；呼吸 {number(pre.respiratoryRate, (value) => vital("preAssessment", "respiratoryRate", value))} 次/分</div>
+          <div className="treatment-paper-line">心律 {text(pre.rhythm, (value) => vital("preAssessment", "rhythm", value), { placeholder: "如：窦性心律" })}</div>
+          <div className="treatment-paper-line">水肿 {text(pre.edema, (value) => vital("preAssessment", "edema", value))}</div>
+          <div className="treatment-paper-line">疼痛 VAS：静态 {number(pre.chestPainRestVas, (value) => vital("preAssessment", "chestPainRestVas", value))}；体位变化 {text(pre.posturalPainChange, (value) => vital("preAssessment", "posturalPainChange", value))}；活动后 {number(pre.chestPainActivityVas, (value) => vital("preAssessment", "chestPainActivityVas", value))}</div>
+          <div className="treatment-paper-line">胸部引流 {text(pre.chestDrainage, (value) => vital("preAssessment", "chestDrainage", value))}</div>
+          <div className="treatment-paper-line">生命辅助装置 {text(pre.lifeSupportDevice, (value) => vital("preAssessment", "lifeSupportDevice", value))}</div>
+        </PaperSection>
+        <PaperSection title="训练后评估">
+          <div className="treatment-paper-line">血压 {text(post.bloodPressure.replace(/\s*mmHg/gi, ""), (value) => vital("postAssessment", "bloodPressure", value), { placeholder: "收缩压/舒张压" })} mmHg；心率 {number(post.heartRate, (value) => vital("postAssessment", "heartRate", value))} 次/分</div>
+          <div className="treatment-paper-line">SpO₂ {number(post.spo2, (value) => vital("postAssessment", "spo2", value))} %；呼吸 {number(post.respiratoryRate, (value) => vital("postAssessment", "respiratoryRate", value))} 次/分</div>
+          <div className="treatment-paper-line">心律 {text(post.rhythm, (value) => vital("postAssessment", "rhythm", value))}；Borg评分 {number(post.borg, (value) => vital("postAssessment", "borg", value))}</div>
+          <div className="treatment-paper-line">症状变化 {text(post.symptomChange, (value) => vital("postAssessment", "symptomChange", value))}</div>
+        </PaperSection>
+        <PaperSection title="治疗后评价"><textarea disabled={locked} value={draft.treatmentSummary} onChange={(event) => setDraft({ ...draft, treatmentSummary: event.target.value })} className="treatment-paper-textarea" placeholder="填写治疗完成情况及患者反应" /></PaperSection>
+        <PaperSection title="备注"><textarea disabled={locked} value={[draft.adverseEvent, draft.fieldAction].filter(Boolean).join("\n")} onChange={(event) => { const [adverseEvent = "", ...rest] = event.target.value.split("\n"); setDraft({ ...draft, adverseEvent, fieldAction: rest.join("\n") }); }} className="treatment-paper-textarea" placeholder="第一行填写异常事件，后续填写现场处置" /></PaperSection>
+      </td>
+      <td className="treatment-paper-right"><h3>实施训练情况</h3><div className="treatment-paper-interventions">{draft.interventions.map((item, index) => <label key={item.code} className="treatment-paper-intervention"><input type="checkbox" disabled={locked} checked={item.selected} onChange={(event) => updateIntervention(index, { selected: event.target.checked })} /><span><b>{index + 1}、{treatmentInterventionTitle(item.code)}：</b>{defaultInterventionText(item.code)}</span></label>)}</div>
+        <p className="treatment-paper-note">以上训练强度可根据个人情况进行调整。</p>
+        <div className="treatment-paper-sign-grid"><div><b>康复治疗师：</b><span>{draft.signature?.signerName || "待签署"}</span></div><label className="inline-flex items-center gap-2"><input type="checkbox" disabled={locked} checked={draft.patientAcknowledged} onChange={(event) => setDraft({ ...draft, patientAcknowledged: event.target.checked })} /><b>患者参加确认</b></label></div>
+        <p className="treatment-paper-date">治疗时间：{draft.treatmentAt.replace("T", " ").slice(0, 16)}</p>
+      </td>
+    </tr></tbody></table>
+  </div>;
+}
+
+function PaperSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section className="treatment-paper-section"><h3>{title}</h3>{children}</section>;
 }
 
 function TreatmentPrintSheet({
@@ -1827,23 +1739,14 @@ function TreatmentPrintSheet({
   const treatmentTime = record.treatmentAt.includes("T")
     ? record.treatmentAt.slice(11, 16)
     : "";
-  const selectedText = (item: TreatmentIntervention) =>
-    [
-      item.repetitions != null ? `${item.repetitions}次` : "",
-      item.sets != null ? `${item.sets}组` : "",
-      item.durationMinutes != null ? `${item.durationMinutes}min` : "",
-      item.notes ?? "",
-    ]
-      .filter(Boolean)
-      .join("；");
   const surgeryOptions = ["正中胸骨切开", "肋缘侧切", "微创", "其他"];
   return (
     <article
+      id="printable-treatment-record"
       className="treatment-print-sheet"
       aria-label="心肺康复治疗记录打印页"
     >
       <header className="treatment-print-header">
-        <p>示例康复中心</p>
         <h1>心肺康复治疗记录</h1>
         <div className="treatment-print-rule" />
       </header>
@@ -1976,12 +1879,10 @@ function TreatmentPrintSheet({
                       {item.selected ? "☑" : "□"}
                     </span>
                     <b>
-                      {index + 1}、{item.label}：
+                      {index + 1}、{treatmentInterventionTitle(item.code)}：
                     </b>
                     <span>
-                      {item.selected
-                        ? selectedText(item) || "已实施"
-                        : defaultInterventionText(item.code)}
+                      {defaultInterventionText(item.code)}
                     </span>
                   </li>
                 ))}
@@ -2000,6 +1901,10 @@ function TreatmentPrintSheet({
                   ) : (
                     <span className="treatment-print-sign-line" />
                   )}
+                </div>
+                <div>
+                  患者参加确认：
+                  {record.patientAcknowledged ? "已确认" : <span className="treatment-print-sign-line" />}
                 </div>
               </div>
               <p className="treatment-print-date">
@@ -2052,19 +1957,36 @@ function pv(value: string | number | null | undefined) {
 }
 function defaultInterventionText(code: string) {
   const descriptions: Record<string, string> = {
-    pulmonary: "气道廓清技术、手法治疗、呼吸肌训练、呼吸控制",
-    strength: "手足环转、臀肌肌力训练、踝泵及其他",
-    balance: "单足、双足立位下动态/静态平衡训练",
-    coordination: "提高肢体与躯干运动协调性",
-    transfer: "交叉抱胸翻身、起坐及功能性转移训练",
-    adl: "步行训练及日常生活动作训练",
-    resistance: "利用沙袋、哑铃、小弹力带进行抗阻训练",
-    endurance: "结合心肺训练进行全身大肌肉群耐力训练",
-    ecg: "康复训练期间遥测心电监测",
-    bike: "心电监护下使用踏车设置功率训练",
-    counterpulsation: "下肢气囊周期性加压的体外反搏治疗",
+    pulmonary: "气道廓清技术；手法治疗；呼吸肌训练；呼吸控制。",
+    strength: "手足环转10次/组×2；髋周肌力训练10次/组×2；踝泵10次/组×2；其他。",
+    balance: "单足、双足立位下动静态平衡训练；功能性平衡训练。各10次/组×2；其他。",
+    coordination: "提高肢体与躯干的运动协调性、四肢配合能力，制定个体化方案。各10次/组×2；其他。",
+    transfer: "交叉抱胸翻身、起坐训练、功能性转移训练，提高安全转移能力。各10次/组×2；其他。",
+    adl: "步行训练、日常生活动作应用等训练。各10次/组×2；其他。",
+    resistance: "利用沙袋、哑铃、小弹力带等进行抗阻训练。各10次/组×2。",
+    endurance: "结合心肺训练，进行全身大肌肉群耐力训练。各10次/组×2。",
+    ecg: "对康复训练患者进行心电监测，保证患者训练安全。",
+    bike: "在心电监护下，利用踏车设置功率，增强心肺功能及耐力。15min。",
+    counterpulsation: "通过下肢气囊周期性加压，增强心脏供血并改善血管功能，增强心功能。20min。",
   };
   return descriptions[code] ?? "";
+}
+
+function treatmentInterventionTitle(code: string) {
+  const titles: Record<string, string> = {
+    pulmonary: "肺功能综合训练",
+    strength: "身体功能障碍作业疗法训练",
+    balance: "肢体平衡功能训练",
+    coordination: "运动协调性训练",
+    transfer: "转移动作训练",
+    adl: "日常生活动作训练",
+    resistance: "器械运动训练",
+    endurance: "耐力训练",
+    ecg: "遥测心电图康复训练监测",
+    bike: "康复踏车训练",
+    counterpulsation: "体外反搏治疗",
+  };
+  return titles[code] ?? code;
 }
 
 function TreatmentVitals({

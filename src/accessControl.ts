@@ -37,7 +37,7 @@ export const navItems: NavItem[] = [
   { key: "training", label: "训练大屏", icon: MonitorUp, group: "business", roles: clinicalRoles },
   { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: ["ADMIN"] },
   { key: "orgPermissions", label: "组织权限", icon: Building2, group: "admin", roles: ["ADMIN"] },
-  { key: "documentConfig", label: "签字管理", icon: FileSignature, group: "admin", roles: ["ADMIN"] }
+  { key: "documentConfig", label: "签字管理", icon: FileSignature, group: "admin", roles: ["ADMIN", "REHAB_EXECUTION"] }
 ];
 
 export const roleMeta: Record<Role, { label: string; account: string; scope: DataScope; note: string }> = {
