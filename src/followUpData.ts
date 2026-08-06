@@ -161,7 +161,7 @@ function createTask(patient: ManagedPatient, milestoneMonth: FollowUpMilestone):
   const task: FollowUpTask = {
     id: `FU-${patient.patient_demo_id}-M${milestoneMonth}`,
     patientId: patient.patient_demo_id,
-    assignedDoctor: patient.assigned_doctor,
+    assignedDoctor: resolveFollowUpDoctor(patient),
     milestoneMonth,
     originalPlannedDate: plannedDate,
     currentDueDate: plannedDate,
@@ -170,6 +170,11 @@ function createTask(patient: ManagedPatient, milestoneMonth: FollowUpMilestone):
     rescheduleHistory: []
   };
   return { ...task, status: effectiveFollowUpStatus(task) };
+}
+
+function resolveFollowUpDoctor(patient: ManagedPatient) {
+  if (patient.assigned_doctor && patient.assigned_doctor !== "外部资料记录") return patient.assigned_doctor;
+  return ["P-DEMO-001", "P-DEMO-002"].includes(patient.patient_demo_id) ? "王医生" : "李医生";
 }
 
 export function createInitialFollowUpData(patients: ManagedPatient[]) {
@@ -231,7 +236,7 @@ export function reconcilePatientFollowUps(
     if (previousDischargeDate === patient.discharge_date || existing.currentDueDate === nextDate) return existing;
     const updated: FollowUpTask = {
       ...existing,
-      assignedDoctor: patient.assigned_doctor,
+      assignedDoctor: resolveFollowUpDoctor(patient),
       currentDueDate: nextDate,
       reminderDate: addDays(nextDate, -7),
       status: "rescheduled",

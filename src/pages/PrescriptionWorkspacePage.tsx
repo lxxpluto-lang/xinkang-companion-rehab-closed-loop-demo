@@ -19,6 +19,9 @@ import { SectionHeader, StatusBadge } from "../components/UI";
 import { singleTrainingReportDetails } from "../clinicalSharedData";
 import { getStageReportData } from "../patient/stageReportData";
 import type { RehabReport } from "../dischargeHandbookData";
+import type { AssessmentRecord } from "../assessmentData";
+import type { CardiopulmonaryTreatmentRecord } from "../treatmentData";
+import type { FollowUpRecord } from "../followUpData";
 import type { PatientClinicalProfile, PrescriptionContent } from "../prescriptionWorkspaceData";
 import { createAiDraft, type PrescriptionDraft, type PrescriptionStatus, type PrescriptionTask } from "../clinicalWorkflowData";
 import type { StaffRole } from "../types";
@@ -61,11 +64,15 @@ export function PrescriptionWorkspacePage({
   profile,
   content,
   rehabReports,
+  assessmentRecords,
+  treatmentRecords,
+  followUpRecords,
   initialTab = "profile",
   onBack,
   onOpenPatient,
   onUpdateTask,
-  onSaveContent
+  onSaveContent,
+  onSaveRehabReport
 }: {
   task: PrescriptionTask;
   role: StaffRole;
@@ -73,11 +80,15 @@ export function PrescriptionWorkspacePage({
   profile: PatientClinicalProfile;
   content: PrescriptionContent;
   rehabReports: RehabReport[];
+  assessmentRecords: AssessmentRecord[];
+  treatmentRecords: CardiopulmonaryTreatmentRecord[];
+  followUpRecords: FollowUpRecord[];
   initialTab?: PrescriptionWorkspaceTab;
   onBack: () => void;
   onOpenPatient: (patientId: string, tab?: string) => void;
   onUpdateTask: (taskId: string, patch: Partial<PrescriptionTask>) => void;
   onSaveContent: (taskId: string, content: PrescriptionContent) => void;
+  onSaveRehabReport: (report: RehabReport) => void;
 }) {
   const [activeTab, setActiveTab] = useState<PrescriptionWorkspaceTab>(initialTab);
   const [draft, setDraft] = useState<PrescriptionContent>(() => cloneContent(content));
@@ -86,6 +97,7 @@ export function PrescriptionWorkspacePage({
   const [responsibilityConfirmed, setResponsibilityConfirmed] = useState(false);
   const readonly = task.status === "completed" || task.status === "withdrawn";
   const editable = role === "DOCTOR" && task.assignedDoctorId === accountId && !readonly;
+  const canManageRehabReport = role === "DOCTOR" && task.assignedDoctorId === accountId;
   const patientReports = singleTrainingReportDetails.filter((item) => item.patientId === task.patientId);
   const patientRehabReports = rehabReports.filter((item) => item.patientId === task.patientId);
 
@@ -169,7 +181,7 @@ export function PrescriptionWorkspacePage({
       {activeTab === "current" && <CurrentPrescriptionTab task={task} content={draft} finalDraft={finalDraft} editable={editable} responsibilityConfirmed={responsibilityConfirmed} onResponsibilityConfirmed={setResponsibilityConfirmed} onGenerate={generateAiDraft} onDraftChange={setFinalDraft} onContentChange={changeContent} onSave={saveWorkspace} onConfirm={confirmPrescription} />}
       {activeTab === "history" && <HistoryTab task={task} finalDraft={finalDraft} />}
       {activeTab === "reports" && <ReportsTab task={task} reports={patientReports} onOpenPatient={onOpenPatient} />}
-      {activeTab === "rehab" && <RehabTab task={task} reports={patientRehabReports} onOpenPatient={onOpenPatient} />}
+      {activeTab === "rehab" && <RehabTab task={task} profile={profile} content={draft} reports={patientRehabReports} assessments={assessmentRecords.filter((item) => item.patientId === task.patientId && item.status === "completed")} treatments={treatmentRecords.filter((item) => item.patientId === task.patientId && item.status !== "draft")} followUps={followUpRecords.filter((item) => item.patientId === task.patientId)} canManage={canManageRehabReport} onOpenPatient={onOpenPatient} onSave={onSaveRehabReport} />}
 
       <div className="fixed bottom-0 left-[180px] right-0 z-30 border-t border-slate-200 bg-white/95 px-6 py-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4"><div><p className="text-sm font-bold text-slate-800">{tabs[tabIndex].label}</p><p className="mt-0.5 text-xs text-slate-500">{readonly ? "已完成处方仅可查看和打印" : dirty ? "存在未保存内容" : "当前内容已保存"}</p></div><div className="flex items-center gap-2"><button type="button" className="btn-secondary" disabled={tabIndex === 0} onClick={() => setActiveTab(tabs[Math.max(0, tabIndex - 1)].key)}><ArrowLeft className="h-4 w-4" />上一步</button>{editable && <button type="button" className="btn-secondary" onClick={saveWorkspace}><Save className="h-4 w-4" />保存草稿</button>}<button type="button" className="btn-primary" disabled={tabIndex === tabs.length - 1} onClick={() => setActiveTab(tabs[Math.min(tabs.length - 1, tabIndex + 1)].key)}>下一步<ArrowRight className="h-4 w-4" /></button></div></div>
@@ -224,8 +236,78 @@ function ReportsTab({ task, reports, onOpenPatient }: { task: PrescriptionTask; 
   return <section className="card overflow-hidden"><div className="flex items-center justify-between border-b px-5 py-4"><SectionHeader title="训练记录和阶段性报告" description="只展示当前患者已关联的数据；所有摘要均可追溯到原始记录。" /><button type="button" className="btn-secondary" onClick={() => onOpenPatient(task.patientId, "sessions")}><ClipboardList className="h-4 w-4" />查看患者全部记录</button></div><div className="grid gap-4 p-5 lg:grid-cols-[1.1fr_0.9fr]"><div><div className="mb-3 flex items-center justify-between"><b className="text-sm">单次训练记录</b><span className="text-xs text-slate-400">共 {reports.length} 条</span></div><div className="space-y-2">{reports.slice(0, 5).map((report) => <article key={report.id} className="grid grid-cols-[1fr_0.7fr_0.7fr_0.8fr] items-center rounded-xl border border-slate-200 p-3 text-xs"><span><b>{report.exercise}</b><span className="mt-1 block text-xs text-slate-400">{report.actualStartAt.slice(0, 16).replace("T", " ")}</span></span><span>{report.totalMinutes}分钟</span><span>HR {report.hrStats.average}/{report.hrStats.peak}</span><span className={report.safetySummary === "无异常" ? "text-emerald-600" : "font-bold text-amber-700"}>{report.safetySummary}</span></article>)}{!reports.length && <p className="rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-400">暂无该患者训练记录</p>}</div></div>{stageReport ? <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5"><p className="text-xs font-bold text-blue-600">阶段性报告 · {stageReport.reportPeriod.start} 至 {stageReport.reportPeriod.end}</p><h3 className="mt-2 text-lg font-bold text-slate-950">阶段康复摘要</h3><div className="mt-4 grid grid-cols-2 gap-3"><Metric label="纳入训练" value={`${stageReport.sessions.length}次`} /><Metric label="实际运动" value={`${activeMinutes}分钟`} /><Metric label="异常记录" value={`${stageReport.safetyEvents.length}次`} /><Metric label="数据来源" value={`${stageReport.sessions.length}条记录`} /></div><p className="mt-4 rounded-xl bg-white p-4 text-sm leading-6 text-slate-600">{stageReport.clinicalConclusion.summary}</p><StatusBadge tone="blue">{task.sourceLabel === "阶段性报告" ? "本次处方依据" : "可供复核"}</StatusBadge></div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><FileText className="h-9 w-9 text-slate-300" /><h3 className="mt-3 text-base font-bold text-slate-700">暂无该患者阶段报告</h3><p className="mt-2 text-sm text-slate-500">系统不会借用其他患者的Demo报告。</p></div>}</div></section>;
 }
 
-function RehabTab({ task, reports, onOpenPatient }: { task: PrescriptionTask; reports: RehabReport[]; onOpenPatient: (patientId: string, tab?: string) => void }) {
-  return <section className="card overflow-hidden"><div className="flex items-center justify-between border-b px-5 py-4"><SectionHeader title="康复报告" description="查看康复师生成的康复报告及患者端发送状态。" /><button type="button" className="btn-secondary" onClick={() => onOpenPatient(task.patientId, "rehabReport")}><FileText className="h-4 w-4" />进入康复报告页</button></div><div className="p-5">{reports.length ? <div className="space-y-3">{reports.map((report) => <article key={report.reportId} className="flex items-center justify-between rounded-xl border border-slate-200 p-4"><div><p className="text-[10px] font-bold text-blue-600">{report.reportId}</p><h3 className="mt-1 text-sm font-bold">第 {report.episodeNo ?? 1} 康复周期报告</h3><p className="mt-1 text-xs text-slate-500">生成时间：{report.generatedAt}</p></div><StatusBadge tone={report.status === "published" ? "green" : "orange"}>{report.status === "published" ? "已发送患者端" : "草稿"}</StatusBadge></article>)}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center"><FileHeart className="mx-auto h-9 w-9 text-slate-300" /><h3 className="mt-3 text-sm font-bold text-slate-700">尚未生成康复报告</h3><p className="mt-2 text-xs text-slate-500">康复报告由康复师结合评估、训练、阶段报告与随访记录编辑完成。</p><button type="button" className="btn-primary mt-4" onClick={() => onOpenPatient(task.patientId, "rehabReport")}>查看康复报告工作区</button></div>}</div></section>;
+function RehabTab({ task, profile, content, reports, assessments, treatments, followUps, canManage, onOpenPatient, onSave }: { task: PrescriptionTask; profile: PatientClinicalProfile; content: PrescriptionContent; reports: RehabReport[]; assessments: AssessmentRecord[]; treatments: CardiopulmonaryTreatmentRecord[]; followUps: FollowUpRecord[]; canManage: boolean; onOpenPatient: (patientId: string, tab?: string) => void; onSave: (report: RehabReport) => void }) {
+  const latest = [...reports].sort((a, b) => b.generatedAt.localeCompare(a.generatedAt))[0];
+  const [draft, setDraft] = useState<RehabReport | null>(latest ?? null);
+  const trainingReports = singleTrainingReportDetails.filter((item) => item.patientId === task.patientId);
+  const stageReport = getStageReportData(task.patientId);
+  const locked = draft?.status === "published";
+
+  function generate() {
+    if (!canManage) return;
+    const now = new Date().toISOString();
+    const prescription = task.doctorFinal ?? task.aiSuggestion;
+    const missingFields = [!assessments.length && "已确认体能评估", !treatments.length && "已完成治疗记录", !trainingReports.length && "单次训练报告", !stageReport && "阶段性报告", !followUps.length && "已完成随访记录"].filter(Boolean) as string[];
+    const sourceRefs = [`处方:${task.id}`, ...assessments.map((item) => `评估:${item.assessmentId}`), ...treatments.map((item) => `治疗:${item.treatmentId}`), ...trainingReports.map((item) => `训练:${item.id}`), ...(stageReport ? [`阶段报告:${stageReport.reportPeriod.generatedAt}`] : []), ...followUps.map((item) => `随访:${item.recordId}`)];
+    const next: RehabReport = {
+      reportId: `REHAB-${task.patientId}-${Date.now()}`,
+      patientId: task.patientId,
+      episodeNo: Math.max(0, ...reports.map((item) => item.episodeNo ?? 1)) + 1,
+      generatedAt: now,
+      status: "draft",
+      version: Math.max(0, ...reports.map((item) => item.version ?? 1)) + 1,
+      generationMode: "template_ai_demo",
+      generatedByRole: "DOCTOR",
+      medicalSection: {
+        diagnosis: profile.diagnosis || task.diagnosis || "未采集",
+        treatmentCourse: treatments.length ? `已关联${treatments.length}条完成的心肺康复治疗记录。` : "未采集",
+        procedure: "未采集",
+        medications: profile.specialMedications || task.specialMedication || "未采集",
+        followUpRequirements: "建议按出院后1、3、6个月Demo节点进行人工电话随访，正式周期以医院要求为准。",
+        clinicalConclusion: stageReport?.clinicalConclusion.summary ?? "未采集阶段性报告，暂不生成改善结论。"
+      },
+      rehabSection: {
+        assessmentSummary: assessments.length ? `已完成${assessments.length}次体能评估，最近一次SPPB总分${assessments.at(-1)?.sppb.totalScore ?? "未采集"}分。` : "未采集",
+        trainingSummary: trainingReports.length ? `已关联${trainingReports.length}次实际训练记录；训练事实来自单次报告，不由AI补写。` : "未采集",
+        adherenceSummary: treatments.length ? `已完成${treatments.length}条治疗记录。` : "未采集",
+        followUpSummary: followUps.length ? `已完成${followUps.length}条人工电话随访记录。` : "未采集",
+        improvementSummary: stageReport?.clinicalConclusion.summary ?? "缺少可比较的阶段性数据，暂不判断提升或下降。"
+      },
+      recommendationDraft: [prescription?.exerciseAdvice || content.remark || "运动建议未采集", prescription?.dietAdvice || "饮食建议未采集", prescription?.stopConditions || "停止运动条件未采集", "复查与用药调整必须遵循线下医生正式医嘱。"].join("\n"),
+      sourceRefs,
+      missingFields
+    };
+    setDraft(next);
+    onSave(next);
+  }
+
+  function updateSection(section: "medicalSection" | "rehabSection", key: string, value: string) {
+    if (!draft || locked || !canManage) return;
+    setDraft({ ...draft, [section]: { ...draft[section], [key]: value } });
+  }
+
+  function persist(status: RehabReport["status"]) {
+    if (!draft || !canManage || locked) return;
+    const now = new Date().toISOString();
+    const next: RehabReport = { ...draft, status, confirmedBy: status !== "draft" ? task.assignedDoctorName : draft.confirmedBy, confirmedAt: status !== "draft" ? now : draft.confirmedAt, publishedAt: status === "published" ? now : undefined };
+    setDraft(next);
+    onSave(next);
+  }
+
+  const stateLabel = draft?.status === "published" ? "已发送患者端" : draft?.status === "doctor_confirmed" ? "医生已确认" : "草稿";
+  return <div className="space-y-4">
+    <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-start gap-3"><span className="rounded-xl bg-blue-600 p-2.5 text-white"><Sparkles className="h-4 w-4" /></span><div><h2 className="text-sm font-bold text-blue-950">AI辅助康复报告</h2><p className="mt-1 text-sm text-blue-800">AI只生成摘要和患者可读建议草稿；生命体征、训练次数、诊断、用药与签名仅引用已有记录。</p></div></div>{canManage && <button type="button" className="btn-primary" onClick={generate}><Bot className="h-4 w-4" />{draft ? "生成新版本" : "一键生成康复报告"}</button>}</div></section>
+    {!draft ? <section className="card p-10 text-center"><FileHeart className="mx-auto h-9 w-9 text-slate-300" /><h3 className="mt-3 text-base font-bold">尚未生成康复报告</h3><p className="mt-2 text-sm text-slate-500">责任医生可基于当前患者已有记录生成最小报告草稿。</p></section> : <section className="card overflow-hidden"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><SectionHeader title={`康复报告 V${draft.version ?? 1}`} description={`生成时间：${draft.generatedAt}`} /><StatusBadge tone={draft.status === "published" ? "green" : draft.status === "doctor_confirmed" ? "blue" : "orange"}>{stateLabel}</StatusBadge></div><div className="space-y-5 p-5">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><b className="text-sm">生成依据</b><p className="mt-2 text-xs leading-6 text-slate-600">{draft.sourceRefs.join("；") || "未采集"}</p>{Boolean(draft.missingFields?.length) && <p className="mt-2 text-xs font-semibold text-amber-700">缺失字段：{draft.missingFields?.join("、")}</p>}</div>
+      <div className="grid gap-4 lg:grid-cols-2"><ReportField label="诊断摘要" value={draft.medicalSection.clinicalConclusion} disabled={locked || !canManage} onChange={(value) => updateSection("medicalSection", "clinicalConclusion", value)} /><ReportField label="体能评估摘要" value={draft.rehabSection.assessmentSummary} disabled={locked || !canManage} onChange={(value) => updateSection("rehabSection", "assessmentSummary", value)} /><ReportField label="实际治疗情况" value={draft.medicalSection.treatmentCourse} disabled={locked || !canManage} onChange={(value) => updateSection("medicalSection", "treatmentCourse", value)} /><ReportField label="实际训练情况" value={draft.rehabSection.trainingSummary} disabled={locked || !canManage} onChange={(value) => updateSection("rehabSection", "trainingSummary", value)} /><ReportField label="阶段变化总结" value={draft.rehabSection.improvementSummary} disabled={locked || !canManage} onChange={(value) => updateSection("rehabSection", "improvementSummary", value)} /></div>
+      <label><span className="field-label">运动、饮食、用药、停止条件与复查建议</span><textarea className="text-field min-h-40 py-3 disabled:bg-slate-50" disabled={locked || !canManage} value={draft.recommendationDraft} onChange={(event) => setDraft({ ...draft, recommendationDraft: event.target.value })} /></label>
+      <div className="flex flex-wrap justify-between gap-3 border-t border-slate-100 pt-4"><button type="button" className="btn-secondary" onClick={() => onOpenPatient(task.patientId, "rehabReport")}><FileText className="h-4 w-4" />患者档案中的报告版本</button>{canManage && !locked && <div className="flex gap-2"><button type="button" className="btn-secondary" onClick={() => persist("draft")}><Save className="h-4 w-4" />保存草稿</button>{draft.status === "draft" && <button type="button" className="btn-secondary" onClick={() => persist("doctor_confirmed")}><BadgeCheck className="h-4 w-4" />医生确认</button>}{draft.status === "doctor_confirmed" && <button type="button" className="btn-primary" onClick={() => persist("published")}><ArrowRight className="h-4 w-4" />发送患者端</button>}</div>}</div>
+    </div></section>}
+  </div>;
+}
+
+function ReportField({ label, value, disabled, onChange }: { label: string; value: string; disabled: boolean; onChange: (value: string) => void }) {
+  return <label><span className="field-label">{label}</span><textarea className="text-field min-h-28 py-3 disabled:bg-slate-50" disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} /></label>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

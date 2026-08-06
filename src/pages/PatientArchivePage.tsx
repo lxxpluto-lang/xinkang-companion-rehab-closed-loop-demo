@@ -24,7 +24,7 @@ import {
 import { demoPatients } from "../mockData";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import { singleTrainingReportDetails } from "../clinicalSharedData";
-import type { AssessmentRecord } from "../assessmentData";
+import { calculateSppb, createBlankSppb, type AssessmentRecord, type OcrAssessmentImportDraft } from "../assessmentData";
 import type { FollowUpRecord, FollowUpTask } from "../followUpData";
 import type {
   ClinicalNarrativeRecord,
@@ -336,6 +336,7 @@ export function PatientArchivePage({
   onOpenAssessment,
   onSaveTreatmentRecord,
   onSaveRehabReport,
+  onSaveAssessment,
 }: {
   role: Exclude<Role, "PATIENT">;
   currentAccount?: string;
@@ -362,6 +363,7 @@ export function PatientArchivePage({
   onOpenDischargeReport?: (patientId: string) => void;
   onSaveTreatmentRecord?: (record: CardiopulmonaryTreatmentRecord) => void;
   onSaveRehabReport?: (report: RehabReport) => void;
+  onSaveAssessment?: (record: AssessmentRecord) => void;
 }) {
   const [selectedId, setSelectedId] = useState(initialPatientId ?? null);
   const [tab, setTab] = useState<PatientWorkspaceTab>(
@@ -415,6 +417,7 @@ export function PatientArchivePage({
     [patients, nameFilter, patientNoFilter, stageFilter, statusFilter],
   );
   const canEdit = role !== "DOCTOR";
+  const canImportAssessment = role === "REHAB_EXECUTION";
 
   if (treatmentDraft && selected)
     return (
@@ -441,14 +444,14 @@ export function PatientArchivePage({
           action={
             canEdit ? (
               <div className="flex gap-2">
-                <button
+                {canImportAssessment && <button
                   type="button"
                   onClick={() => setOcrPickerOpen(true)}
                   className="btn-secondary"
                 >
                   <Upload className="h-4 w-4" />
                   体能评估OCR识别
-                </button>
+                </button>}
                 <button
                   type="button"
                   onClick={() =>
@@ -583,44 +586,12 @@ export function PatientArchivePage({
             </button>
           ))}
         </section>
-        {ocrPickerOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6">
-            <section className="w-full max-w-xl rounded-2xl bg-white p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="eyebrow">体能评估OCR识别</p>
-                  <h2 className="mt-1 text-xl font-bold">
-                    请选择需要关联的患者
-                  </h2>
-                </div>
-                <button type="button" onClick={() => setOcrPickerOpen(false)}>
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="mt-4 space-y-2">
-                {patients.map((patient) => (
-                  <button
-                    type="button"
-                    key={patient.patient_demo_id}
-                    onClick={() => {
-                      setOcrPickerOpen(false);
-                      onOpenAssessment(patient.patient_demo_id);
-                    }}
-                    className="flex w-full items-center justify-between rounded-xl border border-slate-100 p-4 text-left hover:border-blue-200 hover:bg-blue-50"
-                  >
-                    <span>
-                      <b>{patient.name}</b>
-                      <small className="mt-1 block text-slate-400">
-                        {patient.patient_no} · {patient.rehab_stage}
-                      </small>
-                    </span>
-                    <span className="font-bold text-blue-700">进入OCR</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          </div>
-        )}
+        {ocrPickerOpen && <OcrImportDialog patients={patients} currentAccount={currentAccount} onClose={() => setOcrPickerOpen(false)} onConfirm={(patient, record) => {
+          const previousDischargeDate = patients.find((item) => item.patient_demo_id === patient.patient_demo_id)?.discharge_date ?? "";
+          onSavePatient(patient, previousDischargeDate, "体能评估OCR核对归档");
+          onSaveAssessment?.(record);
+          setOcrPickerOpen(false);
+        }} />}
         {editing && (
           <PatientModal
             patient={editing}
@@ -808,7 +779,7 @@ export function PatientArchivePage({
           setStageDraftOpen={setStageDraftOpen}
           stageSent={stageSent}
           setStageSent={setStageSent}
-          canEdit={role === "REHAB_EXECUTION"}
+          canEdit={false}
           currentAccount={currentAccount}
         />
       )}
@@ -1400,7 +1371,7 @@ function EditableShared({
         title={title}
         description={
           report
-            ? "自动引用基础资料、评估、治疗、阶段报告和随访摘要，康复师编辑后发送。"
+            ? "康复报告由责任医生在处方详情中生成、确认并发送；患者档案仅查看版本。"
             : "与患者端同步，患者只能看到已发送版本。"
         }
         action={
@@ -2271,6 +2242,65 @@ export function createBlankTreatment(
     status: "draft",
   };
 }
+function OcrImportDialog({ patients, currentAccount, onClose, onConfirm }: { patients: ManagedPatient[]; currentAccount: string; onClose: () => void; onConfirm: (patient: ManagedPatient, record: AssessmentRecord) => void }) {
+  const seed = patients[0];
+  const [phase, setPhase] = useState<"upload" | "review">("upload");
+  const [error, setError] = useState("");
+  const [archiveMode, setArchiveMode] = useState<"update" | "new">("update");
+  const [draft, setDraft] = useState<OcrAssessmentImportDraft>({
+    sourceFileName: "",
+    patientFields: { name: seed?.name ?? "", gender: seed?.gender ?? "", birthDate: seed?.birth_date ?? "", patientNo: seed?.patient_no ?? "", phone: seed?.phone ?? "", diagnosis: seed?.diagnosis_summary ?? "", weightKg: 62.4 },
+    assessmentFields: { assessedAt: new Date().toISOString().slice(0, 10), preBloodPressure: "128/78", prePulse: 72, postBloodPressure: "136/82", postPulse: 88, sideBySideSec: 10, semiTandemSec: 10, tandemSec: 8.2, walkTrial1Sec: 6.4, walkTrial2Sec: 6.1, chairTrial1Sec: 14.2, chairTrial2Sec: 13.8, maxSpeed1: 0.62, maxSpeed2: 0.66, leftGrip1: 18.2, leftGrip2: 18.6, rightGrip1: 19.1, rightGrip2: 19.4, upperStrength: "4级", lowerStrength: "4级", notes: "" },
+    confidence: 86,
+    fieldConfidence: { patientNo: 98, name: 97, diagnosis: 78, tandemSec: 74, leftGrip2: 76 }
+  });
+  const patientNo = String(draft.patientFields.patientNo ?? "").trim();
+  const exactMatch = patients.find((item) => item.patient_no === patientNo);
+  const demographicMatch = patients.find((item) => item.name === draft.patientFields.name && item.gender === draft.patientFields.gender && item.birth_date === draft.patientFields.birthDate);
+  const match = exactMatch ?? demographicMatch;
+  const setPatientField = (key: string, value: string) => setDraft((current) => ({ ...current, patientFields: { ...current.patientFields, [key]: value } }));
+  const setAssessmentField = (key: string, value: string) => setDraft((current) => ({ ...current, assessmentFields: { ...current.assessmentFields, [key]: value } }));
+
+  function confirm() {
+    if (!patientNo) return setError("患者编号未识别，请人工补充后再归档。");
+    if (!String(draft.patientFields.name ?? "").trim()) return setError("请核对患者姓名。");
+    if (archiveMode === "update" && !match) return setError("未匹配到现有患者，请选择新建基础患者或修正患者编号。");
+    const now = new Date().toISOString();
+    const base = archiveMode === "update" && match ? match : seed;
+    if (!base) return setError("缺少患者基础模板，无法归档。");
+    const patientId = archiveMode === "update" && match ? match.patient_demo_id : `P-OCR-${Date.now()}`;
+    const birthDate = String(draft.patientFields.birthDate ?? "");
+    const patient: ManagedPatient = {
+      ...base, patient_demo_id: patientId, patient_code: archiveMode === "update" && match ? match.patient_code : `CRH-P-OCR-${patientNo}`, patient_no: patientNo, hospital_patient_no: patientNo,
+      name: String(draft.patientFields.name ?? ""), gender: String(draft.patientFields.gender ?? ""), birth_date: birthDate, age: calculateAge(birthDate), phone: String(draft.patientFields.phone ?? ""), diagnosis_summary: String(draft.patientFields.diagnosis ?? "未提供"), weight_kg: draft.patientFields.weightKg == null ? "" : String(draft.patientFields.weightKg),
+      record_source: "OCR单张导入", source_file_name: draft.sourceFileName, ocr_confidence: draft.confidence, review_status: "已确认", reviewed_by: currentAccount, reviewed_at: now, updated_by: currentAccount, updated_at: now,
+      created_by: archiveMode === "update" && match ? match.created_by : currentAccount, created_at: archiveMode === "update" && match ? match.created_at : now,
+      audit_log: [...(archiveMode === "update" && match ? match.audit_log : []), `${now.slice(0, 10)} ${currentAccount}核对并归档体能评估OCR资料`]
+    };
+    const a = draft.assessmentFields;
+    const scored = calculateSppb({ balance: { sideBySideSec: numberOrNull(a.sideBySideSec), semiTandemSec: numberOrNull(a.semiTandemSec), tandemSec: numberOrNull(a.tandemSec), score: 0 }, walk4m: { trial1Sec: numberOrNull(a.walkTrial1Sec), trial2Sec: numberOrNull(a.walkTrial2Sec), fastestSec: null, score: 0 }, chairStand: { trial1Sec: numberOrNull(a.chairTrial1Sec), trial2Sec: numberOrNull(a.chairTrial2Sec), fastestSec: null, score: 0 }, maxWalkingSpeedMs: { trial1: numberOrNull(a.maxSpeed1), trial2: numberOrNull(a.maxSpeed2), fastest: null } });
+    const blank = createBlankSppb(patient, 1, currentAccount);
+    const record: AssessmentRecord = {
+      ...blank, assessmentId: `ASMT-${patientId}-${Date.now()}`, assessedAt: `${String(a.assessedAt || now.slice(0, 10))}T09:00:00+08:00`, source: "ocr_single", status: "completed", sourceNote: `OCR单张导入：${draft.sourceFileName}`, ocrConfidence: draft.confidence, ocrFieldConfidence: draft.fieldConfidence, reviewedBy: currentAccount, reviewedAt: now,
+      patientSnapshot: { name: patient.name, gender: patient.gender, age: patient.age, hospitalPatientNo: patientNo, diagnosis: patient.diagnosis_summary }, weightKg: numberOrNull(draft.patientFields.weightKg), preVitals: { bloodPressure: String(a.preBloodPressure ?? ""), pulse: numberOrNull(a.prePulse) }, postVitals: { bloodPressure: String(a.postBloodPressure ?? ""), pulse: numberOrNull(a.postPulse) },
+      sppb: { ...scored, grip: { leftTrial1Kg: numberOrNull(a.leftGrip1), leftTrial2Kg: numberOrNull(a.leftGrip2), rightTrial1Kg: numberOrNull(a.rightGrip1), rightTrial2Kg: numberOrNull(a.rightGrip2) }, canWalk100m: "unknown", unableWalkReason: "", muscleStrength: { upper: String(a.upperStrength ?? ""), lower: String(a.lowerStrength ?? "") } }, notes: String(a.notes ?? ""), therapist: currentAccount, enteredBy: currentAccount, completedAt: now
+    };
+    onConfirm(patient, record);
+  }
+
+  const fields: [string, string, "patient" | "assessment"][] = [["name", "姓名", "patient"], ["gender", "性别", "patient"], ["birthDate", "出生日期", "patient"], ["patientNo", "患者编号", "patient"], ["phone", "联系电话", "patient"], ["diagnosis", "诊断", "patient"], ["weightKg", "体重(kg)", "patient"], ["assessedAt", "评估日期", "assessment"], ["preBloodPressure", "评估前血压", "assessment"], ["prePulse", "评估前脉搏", "assessment"], ["postBloodPressure", "评估后血压", "assessment"], ["postPulse", "评估后脉搏", "assessment"], ["sideBySideSec", "双脚并立(s)", "assessment"], ["semiTandemSec", "半前后站立(s)", "assessment"], ["tandemSec", "前后站立(s)", "assessment"], ["walkTrial1Sec", "4米步行1(s)", "assessment"], ["walkTrial2Sec", "4米步行2(s)", "assessment"], ["chairTrial1Sec", "椅子坐立1(s)", "assessment"], ["chairTrial2Sec", "椅子坐立2(s)", "assessment"], ["leftGrip1", "左手握力1(kg)", "assessment"], ["rightGrip1", "右手握力1(kg)", "assessment"]];
+
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/45 p-4"><section className="mx-auto my-6 w-full max-w-5xl rounded-2xl bg-white shadow-2xl"><div className="flex items-start justify-between border-b border-slate-100 p-5"><div><p className="eyebrow">体能评估OCR识别</p><h2 className="mt-1 text-xl font-bold">{phase === "upload" ? "上传一份体能评估报告" : "核对识别结果后归档"}</h2><p className="mt-1 text-sm text-slate-500">OCR仅辅助填写，未经人工确认不会写入患者档案。</p></div><button type="button" onClick={onClose}><X className="h-5 w-5 text-slate-400" /></button></div>
+    {phase === "upload" ? <div className="p-8"><label className="flex min-h-60 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/50 text-center"><Upload className="h-10 w-10 text-blue-500" /><b className="mt-4 text-base">选择 JPG、PNG 或 PDF</b><span className="mt-2 text-sm text-slate-500">选择后模拟OCR识别并进入人工核对</span><input className="sr-only" type="file" accept="image/*,.pdf" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setDraft((current) => ({ ...current, sourceFileName: file.name })); window.setTimeout(() => setPhase("review"), 300); }} /></label></div> : <><div className="grid gap-4 p-5 lg:grid-cols-[1fr_280px]"><div><div className="mb-3 flex items-center justify-between"><h3 className="text-base font-bold">患者信息与体能测试结果</h3><StatusBadge tone="orange">OCR {draft.confidence}% · 待核对</StatusBadge></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([key, label, group]) => { const confidence = draft.fieldConfidence[key] ?? 90; const value = group === "patient" ? draft.patientFields[key] : draft.assessmentFields[key]; return <label key={key} className={`rounded-xl border p-3 ${confidence < 80 ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}><span className="flex justify-between text-xs font-bold text-slate-600"><span>{label}</span><span className={confidence < 80 ? "text-amber-700" : "text-slate-400"}>{confidence}%</span></span><input className="text-field mt-2" value={value ?? ""} placeholder="未识别" onChange={(event) => group === "patient" ? setPatientField(key, event.target.value) : setAssessmentField(key, event.target.value)} /></label>; })}</div></div><aside className="space-y-3"><section className="rounded-xl border border-blue-100 bg-blue-50 p-4"><b className="text-sm text-blue-950">患者匹配</b><p className="mt-2 text-sm text-blue-800">{match ? `已匹配：${match.name} · ${match.patient_no}` : "未匹配现有患者"}</p><p className="mt-1 text-xs text-blue-600">{exactMatch ? "患者编号精确匹配" : demographicMatch ? "人口学信息辅助匹配" : "请修正编号或选择新建"}</p></section><label className="flex gap-2 rounded-xl border border-slate-200 p-3 text-sm"><input type="radio" checked={archiveMode === "update"} onChange={() => setArchiveMode("update")} />更新匹配患者</label><label className="flex gap-2 rounded-xl border border-slate-200 p-3 text-sm"><input type="radio" checked={archiveMode === "new"} onChange={() => setArchiveMode("new")} />新建基础患者</label><section className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">黄色字段置信度低于80%，缺失值保持空白，不按0归档。</section></aside></div>{error && <p className="mx-5 mb-3 text-sm font-semibold text-red-600">{error}</p>}<div className="flex justify-end gap-2 border-t border-slate-100 p-4"><button type="button" className="btn-secondary" onClick={() => setPhase("upload")}>重新上传</button><button type="button" className="btn-primary" onClick={confirm}><Save className="h-4 w-4" />确认并归档</button></div></>}
+  </section></div>;
+}
+
+function numberOrNull(value: unknown) {
+  if (value === "" || value == null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function openPatientRecord(
   patientId: string,
   tab: PatientWorkspaceTab,

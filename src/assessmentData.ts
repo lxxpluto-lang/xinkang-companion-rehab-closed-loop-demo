@@ -3,6 +3,17 @@ import type { ManagedPatient } from "./pages/PatientArchivePage";
 export type AssessmentStatus = "draft" | "completed" | "therapist_confirmed" | "doctor_reviewed";
 export type AssessmentSource = "manual" | "ocr_single" | "ocr_batch" | "device";
 
+export type OcrAssessmentImportDraft = {
+  sourceFileName: string;
+  patientMatch?: { patientId: string; matchType: "patient_no" | "demographic" };
+  patientFields: Record<string, string | number | null>;
+  assessmentFields: Record<string, string | number | null>;
+  confidence: number;
+  fieldConfidence: Record<string, number>;
+  reviewedBy?: string;
+  reviewedAt?: string;
+};
+
 export type SPPBAssessment = {
   balance: {
     sideBySideSec: number | null;
@@ -43,6 +54,9 @@ export type AssessmentRecord = {
   status: AssessmentStatus;
   sourceNote: string;
   ocrConfidence?: number;
+  ocrFieldConfidence?: Record<string, number>;
+  reviewedBy?: string;
+  reviewedAt?: string;
   patientSnapshot: { name: string; gender: string; age: number; hospitalPatientNo: string; diagnosis: string };
   weightKg: number | null;
   preVitals: { bloodPressure: string; pulse: number | null };
@@ -54,7 +68,6 @@ export type AssessmentRecord = {
   enteredBy: string;
   completedAt?: string;
   confirmedAt?: string;
-  reviewedAt?: string;
   ruleVersion: string;
 };
 

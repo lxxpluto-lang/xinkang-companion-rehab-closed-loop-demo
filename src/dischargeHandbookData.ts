@@ -41,6 +41,10 @@ export type RehabReport = {
   };
   recommendationDraft: string;
   sourceRefs: string[];
+  missingFields?: string[];
+  generationMode?: "template_ai_demo" | "manual";
+  generatedByRole?: "DOCTOR" | "REHAB_EXECUTION";
+  version?: number;
   confirmedBy?: string;
   confirmedAt?: string;
   publishedAt?: string;

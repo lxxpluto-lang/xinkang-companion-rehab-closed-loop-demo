@@ -67,9 +67,9 @@ export default function App() {
   const [patientInitialTab, setPatientInitialTab] = useState<PatientWorkspaceTab>(queryTab ?? "profile");
   const [patientClinicalProfiles, setPatientClinicalProfiles] = useState<PatientClinicalProfile[]>(initialPatientClinicalProfiles);
   const [clinicalNarratives, setClinicalNarratives] = useState<ClinicalNarrativeRecord[]>(initialClinicalNarratives);
-  const [patients, setPatients] = useState<ManagedPatient[]>(initialPatients);
-  const [followUpTasks, setFollowUpTasks] = useState<FollowUpTask[]>(seededFollowUpData.tasks);
-  const [followUpRecords, setFollowUpRecords] = useState<FollowUpRecord[]>(seededFollowUpData.records);
+  const [patients, setPatients] = useState<ManagedPatient[]>(() => readDemoStore("xinkang-patients", initialPatients));
+  const [followUpTasks, setFollowUpTasks] = useState<FollowUpTask[]>(() => readDemoStore("xinkang-followup-tasks", seededFollowUpData.tasks));
+  const [followUpRecords, setFollowUpRecords] = useState<FollowUpRecord[]>(() => readDemoStore("xinkang-followup-records", seededFollowUpData.records));
   const [assessmentRecords, setAssessmentRecords] = useState<AssessmentRecord[]>(() => readDemoStore("xinkang-assessments", seededAssessmentRecords));
   const [treatmentRecords, setTreatmentRecords] = useState<CardiopulmonaryTreatmentRecord[]>(() => mergeSeedRecords(readDemoStore("xinkang-treatments", initialTreatmentRecords), initialTreatmentRecords, (item) => item.treatmentId));
   const [rehabReports, setRehabReports] = useState<RehabReport[]>(() => readDemoStore("xinkang-rehab-reports", []));
@@ -86,7 +86,9 @@ export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>(() => readDemoStore("xinkang-appointments", initialAppointments));
 
   const currentAccount = accountName || roleMeta[role].account;
-  const scopedFollowUpTasks = followUpTasks;
+  const scopedFollowUpTasks = role === "DOCTOR"
+    ? followUpTasks.filter((task) => task.assignedDoctor === currentAccount)
+    : followUpTasks;
   const publishedTrainingVideos = trainingVideos.filter((video) => video.status === "PUBLISHED" && video.url);
   const signedPatientTask = prescriptionTasks.find((task) => task.patientId === "P-DEMO-001" && task.status === "completed" && task.doctorFinal);
   const publishedPatientPrescription = signedPatientTask?.doctorFinal
@@ -108,6 +110,9 @@ export default function App() {
   useEffect(() => { localStorage.setItem("xinkang-alert-events", JSON.stringify(alertEvents)); }, [alertEvents]);
   useEffect(() => { localStorage.setItem("xinkang-alert-rules", JSON.stringify(alertRules)); }, [alertRules]);
   useEffect(() => { localStorage.setItem("xinkang-appointments", JSON.stringify(appointments)); }, [appointments]);
+  useEffect(() => { localStorage.setItem("xinkang-patients", JSON.stringify(patients)); }, [patients]);
+  useEffect(() => { localStorage.setItem("xinkang-followup-tasks", JSON.stringify(followUpTasks)); }, [followUpTasks]);
+  useEffect(() => { localStorage.setItem("xinkang-followup-records", JSON.stringify(followUpRecords)); }, [followUpRecords]);
 
   function resetViewScroll() {
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
@@ -230,7 +235,8 @@ export default function App() {
     setFollowUpTasks((tasks) => tasks.map((task) => {
       if (task.id !== record.taskId) return task;
       if (reached) return { ...task, status: requiresReview ? "review_required" : "completed", reviewRequiredAt: requiresReview ? record.contactedAt : undefined, reviewRequiredBy: requiresReview ? record.operator : undefined, completedAt: requiresReview ? undefined : record.contactedAt, completedBy: requiresReview ? undefined : record.operator, recordId: record.recordId, lastContactResult: record.contactResult, lastContactAt: record.contactedAt };
-      const nextDate = record.nextContactDate!;
+      if (!record.nextContactDate) return { ...task, status: "completed", completedAt: record.contactedAt, completedBy: record.operator, recordId: record.recordId, lastContactResult: record.contactResult, lastContactAt: record.contactedAt };
+      const nextDate = record.nextContactDate;
       return {
         ...task,
         status: "rescheduled",
@@ -262,7 +268,7 @@ export default function App() {
       patientId: record.patientId,
       encounterAt: record.contactedAt,
       author: record.operator,
-      recordType: "康复治疗师随访",
+      recordType: "人工电话随访",
       content: {
         chiefComplaint: record.symptoms.length ? record.symptoms.join("、") : "患者未报告明显不适",
         symptoms: record.symptoms,
@@ -342,14 +348,14 @@ export default function App() {
 
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
     dashboard: <DashboardPage role={role} patients={patients} followUpTasks={scopedFollowUpTasks} prescriptionTasks={prescriptionTasks} treatmentRecords={treatmentRecords} alertEvents={alertEvents} appointments={appointments} accountId={accountId} currentAccount={currentAccount} onOpenFollowUps={openFollowUps} onOpenReports={() => { setSelectedPatientId("P-DEMO-001"); setPatientInitialTab("sessions"); navigateDoctor("patients"); }} onOpenTraining={() => navigateDoctor("training")} onOpenPrescriptions={(status) => { setPrescriptionInitialStatus(status); setPrescriptionInitialTab("current"); navigateDoctor("prescriptions"); }} onOpenPrescriptionTask={(taskId) => openPrescriptionTask(taskId, "current")} onOpenTreatments={openTreatmentList} onOpenTreatmentRecord={openTreatmentRecord} onNavigate={navigateDoctor} />,
-    patients: <PatientArchivePage key={`${role}-${selectedPatientId ?? "list"}-${patientInitialTab}-${standaloneRecordId}`} role={role} currentAccount={currentAccount} patients={patients} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} rehabReports={rehabReports} initialPatientId={selectedPatientId} initialTab={patientInitialTab} initialRecordId={standaloneRecordId || null} initialRecordKind={standaloneRecordKind || null} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onSaveTreatmentRecord={saveTreatmentRecord} onSaveRehabReport={saveRehabReport} />,
+    patients: <PatientArchivePage key={`${role}-${selectedPatientId ?? "list"}-${patientInitialTab}-${standaloneRecordId}`} role={role} currentAccount={currentAccount} patients={patients} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} rehabReports={rehabReports} initialPatientId={selectedPatientId} initialTab={patientInitialTab} initialRecordId={standaloneRecordId || null} initialRecordKind={standaloneRecordKind || null} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onSaveAssessment={saveAssessmentRecord} onSaveTreatmentRecord={saveTreatmentRecord} onSaveRehabReport={saveRehabReport} />,
     assessment: <AssessmentWorkspacePage key={`${role}-${selectedPatientId ?? "all"}-${standaloneRecordId}`} role={role} currentAccount={currentAccount} patients={patients} records={assessmentRecords} initialPatientId={selectedPatientId} initialRecordId={standaloneRecordId || null} onSave={saveAssessmentRecord} onBack={closeAssessment} />,
     followups: <FollowUpManagementPage key={`${role}-${followUpEntryView}-${selectedFollowUpTaskId ?? "list"}`} role={role} currentAccount={currentAccount} patients={patients} tasks={followUpTasks} records={followUpRecords} initialView={followUpEntryView} initialTaskId={selectedFollowUpTaskId} onSaveRecord={saveFollowUpRecord} onOpenPatient={openPatient} />,
     training: <NurseStationPage role={role} />,
     prescriptions: (() => {
       const selectedTask = prescriptionTasks.find((item) => item.id === selectedPrescriptionTaskId);
       const selectedProfile = selectedTask ? patientClinicalProfiles.find((item) => item.patientId === selectedTask.patientId) : undefined;
-      if (selectedTask && selectedProfile) return <PrescriptionWorkspacePage key={`${selectedTask.id}-${prescriptionInitialTab}`} task={selectedTask} role={role} accountId={accountId} profile={selectedProfile} content={prescriptionContents[selectedTask.id] ?? initialPrescriptionContents[selectedTask.id] ?? initialPrescriptionContents["RX-TASK-001"]} rehabReports={rehabReports} initialTab={prescriptionInitialTab} onBack={() => { setSelectedPrescriptionTaskId(null); resetViewScroll(); }} onOpenPatient={(patientId, tab) => openPatient(patientId, (tab === "rehabReport" ? "rehabReports" : tab) as PatientWorkspaceTab)} onUpdateTask={updatePrescriptionTask} onSaveContent={savePrescriptionContent} />;
+      if (selectedTask && selectedProfile) return <PrescriptionWorkspacePage key={`${selectedTask.id}-${prescriptionInitialTab}`} task={selectedTask} role={role} accountId={accountId} profile={selectedProfile} content={prescriptionContents[selectedTask.id] ?? initialPrescriptionContents[selectedTask.id] ?? initialPrescriptionContents["RX-TASK-001"]} rehabReports={rehabReports} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} followUpRecords={followUpRecords} initialTab={prescriptionInitialTab} onBack={() => { setSelectedPrescriptionTaskId(null); resetViewScroll(); }} onOpenPatient={(patientId, tab) => openPatient(patientId, (tab === "rehabReport" ? "rehabReports" : tab) as PatientWorkspaceTab)} onUpdateTask={updatePrescriptionTask} onSaveContent={savePrescriptionContent} onSaveRehabReport={saveRehabReport} />;
       return <PrescriptionManagementPage role={role} accountId={accountId} tasks={prescriptionTasks} initialStatus={prescriptionInitialStatus} onOpen={(taskId) => openPrescriptionTask(taskId, "current")} />;
     })(),
     treatments: <TreatmentManagementPage key={`${selectedTreatmentPatientId ?? "list"}-${selectedTreatmentRecordId ?? "none"}-${treatmentInitialStatus}`} role={role} currentAccount={currentAccount} patients={patients} profiles={patientClinicalProfiles} treatmentRecords={treatmentRecords} prescriptionTasks={prescriptionTasks} initialStatus={treatmentInitialStatus} initialPatientId={selectedTreatmentPatientId} initialRecordId={selectedTreatmentRecordId} onOpenRecord={openTreatmentRecord} onBackToList={() => openTreatmentList(treatmentInitialStatus)} onSave={saveTreatmentRecord} />,
