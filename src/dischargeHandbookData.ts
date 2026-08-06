@@ -24,6 +24,13 @@ export type RehabReport = {
   dischargeDate?: string;
   generatedAt: string;
   status: RehabReportStatus;
+  patientNarrative?: {
+    greeting: string;
+    admissionDate: string;
+    dischargeDate: string;
+    completedTrainingCount: number;
+    celebrationMessage: string;
+  };
   medicalSection: {
     diagnosis: string;
     treatmentCourse: string;

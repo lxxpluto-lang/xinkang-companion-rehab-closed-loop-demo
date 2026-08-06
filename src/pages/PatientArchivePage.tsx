@@ -3,6 +3,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  Award,
   BookOpenCheck,
   CheckCircle2,
   ClipboardList,
@@ -393,10 +394,6 @@ export function PatientArchivePage({
   );
   const [stageDraftOpen, setStageDraftOpen] = useState(false);
   const [stageSent, setStageSent] = useState(false);
-  const [rehabStatus, setRehabStatus] = useState<"draft" | "sent">("draft");
-  const [rehabText, setRehabText] = useState(
-    "患者已完成本康复周期训练。建议继续进行低至中等强度运动，逐步增加活动时长，并按计划复查。",
-  );
   const selected =
     patients.find((item) => item.patient_demo_id === selectedId) ?? null;
   const filtered = useMemo(
@@ -645,7 +642,7 @@ export function PatientArchivePage({
           </button>
         }
       />
-      <div className="mb-4 flex gap-2 rounded-xl bg-white p-2 shadow-sm">
+      <div className="mb-4 flex gap-2 overflow-x-auto rounded-xl bg-white p-2 shadow-sm">
         {(
           [
             ["profile", "基础档案"],
@@ -659,8 +656,9 @@ export function PatientArchivePage({
           <button
             type="button"
             key={key}
-            onClick={() => setTab(key)}
-            className={`rounded-lg px-5 py-2.5 text-xs font-bold ${tab === key ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+            onClick={() => { setTab(key); window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" })); }}
+            data-testid={`patient-tab-${key}`}
+            className={`flex-none rounded-lg px-5 py-2.5 text-xs font-bold ${tab === key ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-50"}`}
           >
             {label}
           </button>
@@ -786,17 +784,10 @@ export function PatientArchivePage({
       {tab === "rehabReports" && (
         <RehabReportWorkspace
           patient={selected}
-          sessions={patientSessions}
           reports={rehabReports.filter(
             (item) => item.patientId === selected.patient_demo_id,
           )}
-          status={rehabStatus}
-          setStatus={setRehabStatus}
-          value={rehabText}
-          setValue={setRehabText}
-          canEdit={role === "REHAB_EXECUTION"}
-          currentAccount={currentAccount}
-          onSave={onSaveRehabReport}
+          initialReportId={initialRecordId}
         />
       )}
       {tab === "followups" && (
@@ -1256,157 +1247,32 @@ function TrainingWorkspace(props: {
 
 function RehabReportWorkspace({
   patient,
-  sessions,
   reports,
-  status,
-  setStatus,
-  value,
-  setValue,
-  canEdit,
-  currentAccount,
-  onSave,
+  initialReportId,
 }: {
   patient: ManagedPatient;
-  sessions: typeof trainingRecords;
   reports: RehabReport[];
-  status: "draft" | "sent";
-  setStatus: (value: "draft" | "sent") => void;
-  value: string;
-  setValue: (value: string) => void;
-  canEdit: boolean;
-  currentAccount: string;
-  onSave?: (report: RehabReport) => void;
+  initialReportId?: string | null;
 }) {
-  function send() {
-    const now = new Date().toISOString();
-    setStatus("sent");
-    onSave?.({
-      reportId: `REHAB-${patient.patient_demo_id}-${Date.now()}`,
-      patientId: patient.patient_demo_id,
-      episodeNo: reports.length + 1,
-      admissionDate: patient.discharge_date,
-      dischargeDate: now.slice(0, 10),
-      generatedAt: now,
-      status: "published",
-      medicalSection: {
-        diagnosis: patient.diagnosis_summary,
-        treatmentCourse: "外部治疗信息，详见院方资料",
-        procedure: patient.procedure_history,
-        medications: patient.current_medications,
-        followUpRequirements: "按随访计划保持联系",
-        clinicalConclusion: "本系统不生成诊断结论",
-      },
-      rehabSection: {
-        assessmentSummary: "已关联体能评估记录",
-        trainingSummary: `已记录${sessions.length}次实际训练`,
-        adherenceSummary: "仅展示实际训练参与情况",
-        followUpSummary: "人工电话随访",
-        improvementSummary: "需结合有效前后评估判断",
-      },
-      recommendationDraft: value,
-      sourceRefs: sessions.map((item) => item.id),
-      confirmedBy: currentAccount,
-      confirmedAt: now,
-      publishedAt: now,
-    });
-  }
+  const ordered = [...reports].sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
+  const [selectedReportId, setSelectedReportId] = useState(initialReportId ?? ordered[0]?.reportId ?? null);
+  const selectedReport = ordered.find((item) => item.reportId === selectedReportId) ?? null;
   return (
-    <div className="space-y-4">
-      <RecordList
-        title="康复报告历史版本"
-        description="患者端只能查看已经发送的版本。"
-        headers={["报告编号", "生成时间", "版本", "状态", "操作"]}
-        rows={reports.map((report, index) => [
-          report.reportId,
-          report.generatedAt,
-          `V${index + 1}`,
-          report.status === "published" ? "已发送" : "草稿",
-          <button
-            className="text-blue-700"
-            onClick={() =>
-              openPatientRecord(
-                patient.patient_demo_id,
-                "rehabReports",
-                report.reportId,
-              )
-            }
-          >
-            新页签查看
-          </button>,
-        ])}
-      />
-      <EditableShared
-        title="康复报告"
-        status={status}
-        value={value}
-        onChange={setValue}
-        onSend={send}
-        canEdit={canEdit}
-        report
-      />
+    <div className="space-y-5" data-testid="patient-rehab-report-workspace">
+      <section className="card overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4"><SectionHeader title="康复报告版本" description="报告由责任医生在处方详情生成并确认；患者档案用于查看和追溯。" /><StatusBadge tone="blue">{ordered.length} 个版本</StatusBadge></div>{ordered.length ? <div className="flex flex-wrap gap-2 p-4">{ordered.map((report) => <button type="button" key={report.reportId} onClick={() => setSelectedReportId(report.reportId)} className={`rounded-xl border px-4 py-3 text-left text-xs transition ${selectedReportId === report.reportId ? "border-blue-500 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"}`}><b className="block">康复手册 V{report.version ?? report.episodeNo ?? 1}</b><span className="mt-1 block">{report.generatedAt.slice(0, 10)} · {report.status === "published" ? "已发送患者端" : report.status === "doctor_confirmed" ? "医生已确认" : "草稿"}</span></button>)}</div> : <div className="p-10 text-center"><FileHeart className="mx-auto h-10 w-10 text-slate-300" /><h3 className="mt-3 text-base font-bold text-slate-700">暂无康复报告</h3><p className="mt-2 text-sm text-slate-500">请由责任医生进入“处方管理—患者处方详情—康复报告”生成。</p></div>}</section>
+      {selectedReport && <ArchiveHandbookPreview report={selectedReport} patientName={patient.name} />}
     </div>
   );
 }
 
-function EditableShared({
-  title,
-  status,
-  value,
-  onChange,
-  onSend,
-  canEdit,
-  report = false,
-}: {
-  title: string;
-  status: "draft" | "sent";
-  value: string;
-  onChange: (v: string) => void;
-  onSend: () => void;
-  canEdit: boolean;
-  report?: boolean;
-}) {
-  return (
-    <section className="card p-5">
-      <SectionHeader
-        title={title}
-        description={
-          report
-            ? "康复报告由责任医生在处方详情中生成、确认并发送；患者档案仅查看版本。"
-            : "与患者端同步，患者只能看到已发送版本。"
-        }
-        action={
-          <StatusBadge tone={status === "sent" ? "green" : "gray"}>
-            {status === "sent" ? "患者端可见" : "草稿"}
-          </StatusBadge>
-        }
-      />
-      <textarea
-        disabled={!canEdit || status === "sent"}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="text-field min-h-44 leading-7"
-      />
-      {status === "draft" && canEdit && (
-        <div className="mt-4 flex justify-end gap-2">
-          {report && (
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="btn-secondary"
-            >
-              <Printer className="h-4 w-4" />
-              预览/打印
-            </button>
-          )}
-          <button type="button" onClick={onSend} className="btn-primary">
-            <Send className="h-4 w-4" />
-            一键发送患者端
-          </button>
-        </div>
-      )}
-    </section>
-  );
+function ArchiveHandbookPreview({ report, patientName }: { report: RehabReport; patientName: string }) {
+  const narrative = report.patientNarrative;
+  const status = report.status === "published" ? "已发送患者端" : report.status === "doctor_confirmed" ? "医生已确认" : "草稿";
+  return <article className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm"><header className="relative overflow-hidden bg-[#123b5d] px-8 py-8 text-white"><div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-teal-400/20" /><div className="absolute right-20 top-10 h-24 w-24 rounded-full bg-blue-300/10" /><div className="relative flex items-start justify-between gap-5"><div><div className="flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-teal-200"><FileHeart className="h-4 w-4" />心康伴侣 · 康复成果手册</div><h2 className="mt-5 text-3xl font-bold">{narrative?.greeting || `${patientName}，你好！`}</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-blue-50/90">{narrative?.celebrationMessage || "这份手册记录了本阶段已经确认的康复成果和下一阶段需要注意的事项。"}</p></div><div className="flex flex-col items-end gap-3"><span className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold">{status}</span><Award className="h-12 w-12 text-amber-300" /></div></div></header><div className="grid gap-px bg-slate-200 sm:grid-cols-3"><HandbookStat label="康复周期" value={`${narrative?.admissionDate || report.admissionDate || "未采集"} 至 ${narrative?.dischargeDate || report.dischargeDate || "未采集"}`} /><HandbookStat label="完成训练" value={`${narrative?.completedTrainingCount ?? 0} 次`} strong /><HandbookStat label="阶段结论" value={report.rehabSection.improvementSummary || "未采集"} /></div><div className="grid gap-6 p-7 lg:grid-cols-[1.05fr_0.95fr]"><section><p className="text-xs font-bold tracking-[0.15em] text-blue-600">01 · 康复成果</p><h3 className="mt-2 text-xl font-bold text-slate-900">本阶段留下了什么变化</h3><div className="mt-4 space-y-3"><HandbookBlock title="体能评估" text={report.rehabSection.assessmentSummary} /><HandbookBlock title="训练足迹" text={report.rehabSection.trainingSummary} /><HandbookBlock title="治疗记录" text={report.medicalSection.treatmentCourse} /></div></section><section><p className="text-xs font-bold tracking-[0.15em] text-emerald-600">02 · 下一阶段</p><h3 className="mt-2 text-xl font-bold text-slate-900">带回家的行动清单</h3><p className="mt-4 whitespace-pre-line rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-sm leading-7 text-emerald-950">{report.recommendationDraft}</p><div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-xs leading-6 text-amber-900"><b>安全提醒：</b>出现持续胸痛、明显气促、头晕或晕厥时，应停止运动并及时联系医疗人员。</div></section></div><footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-7 py-4 text-xs text-slate-500"><span>报告编号：{report.reportId}</span><span>确认人：{report.confirmedBy || "尚未确认"} · 生成日期：{report.generatedAt.slice(0, 10)}</span></footer></article>;
 }
+
+function HandbookStat({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) { return <div className="bg-white p-5"><p className="text-xs font-bold text-slate-400">{label}</p><p className={`mt-2 leading-6 ${strong ? "text-2xl font-bold text-blue-700" : "text-sm font-bold text-slate-800"}`}>{value}</p></div>; }
+function HandbookBlock({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p className="text-xs font-bold text-slate-500">{title}</p><p className="mt-2 text-sm leading-6 text-slate-700">{text || "未采集"}</p></div>; }
 
 function SingleReportCard({ reportId }: { reportId: string }) {
   const report = singleTrainingReportDetails.find(

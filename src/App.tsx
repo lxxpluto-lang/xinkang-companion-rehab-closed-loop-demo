@@ -227,33 +227,32 @@ export default function App() {
     const patient = patients.find((item) => item.patient_demo_id === record.patientId);
     if (!targetTask || !patient) return;
     const reached = record.contactResult === "reached";
-    const highRisk = record.symptoms.includes("持续胸痛") || record.symptoms.includes("晕厥") || record.recentEmergencyOrHospitalization;
-    const requiresReview = false;
     setFollowUpRecords((records) => records.some((item) => item.recordId === record.recordId)
       ? records.map((item) => item.recordId === record.recordId ? record : item)
       : [record, ...records]);
-    setFollowUpTasks((tasks) => tasks.map((task) => {
+    setFollowUpTasks((tasks) => {
+      const completedTasks = tasks.map((task) => {
       if (task.id !== record.taskId) return task;
-      if (reached) return { ...task, status: requiresReview ? "review_required" : "completed", reviewRequiredAt: requiresReview ? record.contactedAt : undefined, reviewRequiredBy: requiresReview ? record.operator : undefined, completedAt: requiresReview ? undefined : record.contactedAt, completedBy: requiresReview ? undefined : record.operator, recordId: record.recordId, lastContactResult: record.contactResult, lastContactAt: record.contactedAt };
-      if (!record.nextContactDate) return { ...task, status: "completed", completedAt: record.contactedAt, completedBy: record.operator, recordId: record.recordId, lastContactResult: record.contactResult, lastContactAt: record.contactedAt };
-      const nextDate = record.nextContactDate;
-      return {
-        ...task,
+      return { ...task, status: "completed" as const, completedAt: record.contactedAt, completedBy: record.operator, recordId: record.recordId, lastContactResult: record.contactResult, lastContactAt: record.contactedAt };
+      });
+      if (!record.nextContactDate) return completedTasks;
+      const retryTask: FollowUpTask = {
+        ...targetTask,
+        id: `${targetTask.id}-RETRY-${Date.now()}`,
+        originalPlannedDate: record.nextContactDate,
+        currentDueDate: record.nextContactDate,
+        reminderDate: addDays(record.nextContactDate, -1),
         status: "rescheduled",
-        currentDueDate: nextDate,
-        reminderDate: addDays(nextDate, -7),
+        completedAt: undefined,
+        completedBy: undefined,
+        recordId: undefined,
         lastContactResult: record.contactResult,
         lastContactAt: record.contactedAt,
-        rescheduleHistory: [...task.rescheduleHistory, {
-          fromDate: task.currentDueDate,
-          toDate: nextDate,
-          reason: `${contactResultLabels[record.contactResult]}：${record.notes}`,
-          changedBy: record.operator,
-          changedAt: record.createdAt
-        }]
+        rescheduleHistory: [...targetTask.rescheduleHistory, { fromDate: targetTask.currentDueDate, toDate: record.nextContactDate, reason: `${contactResultLabels[record.contactResult]}：${record.notes}`, changedBy: record.operator, changedAt: record.createdAt }]
       };
-    }));
-    if (!reached || requiresReview) return;
+      return [retryTask, ...completedTasks];
+    });
+    if (!reached) return;
     const followUpDate = record.contactedAt.slice(0, 10);
     setPatients((items) => items.map((item) => item.patient_demo_id === record.patientId ? {
       ...item,

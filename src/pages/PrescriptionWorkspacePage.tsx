@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import {
   Activity,
+  Award,
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
   Bot,
   ClipboardList,
+  CalendarDays,
   FileHeart,
   FileText,
   History,
@@ -255,6 +257,15 @@ function RehabTab({ task, profile, content, reports, assessments, treatments, fo
       episodeNo: Math.max(0, ...reports.map((item) => item.episodeNo ?? 1)) + 1,
       generatedAt: now,
       status: "draft",
+      admissionDate: trainingReports.length ? [...trainingReports].sort((a, b) => a.actualStartAt.localeCompare(b.actualStartAt))[0].actualStartAt.slice(0, 10) : "",
+      dischargeDate: profile.dischargeDate || now.slice(0, 10),
+      patientNarrative: {
+        greeting: `${profile.name}，你好！`,
+        admissionDate: trainingReports.length ? [...trainingReports].sort((a, b) => a.actualStartAt.localeCompare(b.actualStartAt))[0].actualStartAt.slice(0, 10) : "",
+        dischargeDate: profile.dischargeDate || now.slice(0, 10),
+        completedTrainingCount: trainingReports.length,
+        celebrationMessage: trainingReports.length ? `你已完成 ${trainingReports.length} 次康复训练。每一次坚持都值得肯定，恭喜你完成本阶段康复！` : "训练次数尚未采集，医生补充确认后再发布。"
+      },
       version: Math.max(0, ...reports.map((item) => item.version ?? 1)) + 1,
       generationMode: "template_ai_demo",
       generatedByRole: "DOCTOR",
@@ -300,7 +311,9 @@ function RehabTab({ task, profile, content, reports, assessments, treatments, fo
     {!draft ? <section className="card p-10 text-center"><FileHeart className="mx-auto h-9 w-9 text-slate-300" /><h3 className="mt-3 text-base font-bold">尚未生成康复报告</h3><p className="mt-2 text-sm text-slate-500">责任医生可基于当前患者已有记录生成最小报告草稿。</p></section> : <section className="card overflow-hidden"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><SectionHeader title={`康复报告 V${draft.version ?? 1}`} description={`生成时间：${draft.generatedAt}`} /><StatusBadge tone={draft.status === "published" ? "green" : draft.status === "doctor_confirmed" ? "blue" : "orange"}>{stateLabel}</StatusBadge></div><div className="space-y-5 p-5">
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><b className="text-sm">生成依据</b><p className="mt-2 text-xs leading-6 text-slate-600">{draft.sourceRefs.join("；") || "未采集"}</p>{Boolean(draft.missingFields?.length) && <p className="mt-2 text-xs font-semibold text-amber-700">缺失字段：{draft.missingFields?.join("、")}</p>}</div>
       <div className="grid gap-4 lg:grid-cols-2"><ReportField label="诊断摘要" value={draft.medicalSection.clinicalConclusion} disabled={locked || !canManage} onChange={(value) => updateSection("medicalSection", "clinicalConclusion", value)} /><ReportField label="体能评估摘要" value={draft.rehabSection.assessmentSummary} disabled={locked || !canManage} onChange={(value) => updateSection("rehabSection", "assessmentSummary", value)} /><ReportField label="实际治疗情况" value={draft.medicalSection.treatmentCourse} disabled={locked || !canManage} onChange={(value) => updateSection("medicalSection", "treatmentCourse", value)} /><ReportField label="实际训练情况" value={draft.rehabSection.trainingSummary} disabled={locked || !canManage} onChange={(value) => updateSection("rehabSection", "trainingSummary", value)} /><ReportField label="阶段变化总结" value={draft.rehabSection.improvementSummary} disabled={locked || !canManage} onChange={(value) => updateSection("rehabSection", "improvementSummary", value)} /></div>
+      <section className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4"><div className="mb-3 flex items-center gap-2"><Award className="h-5 w-5 text-emerald-600" /><b className="text-sm text-emerald-950">患者手册开篇文案</b></div><div className="grid gap-3 md:grid-cols-2"><ReportInput label="问候语" value={draft.patientNarrative?.greeting ?? `${profile.name}，你好！`} disabled={locked || !canManage} onChange={(value) => setDraft({ ...draft, patientNarrative: { ...(draft.patientNarrative ?? { admissionDate: "", dischargeDate: "", completedTrainingCount: 0, celebrationMessage: "" }), greeting: value } })} /><ReportInput label="完成训练次数" type="number" value={String(draft.patientNarrative?.completedTrainingCount ?? 0)} disabled={locked || !canManage} onChange={(value) => setDraft({ ...draft, patientNarrative: { ...(draft.patientNarrative ?? { greeting: `${profile.name}，你好！`, admissionDate: "", dischargeDate: "", celebrationMessage: "" }), completedTrainingCount: Number(value) || 0 } })} /><ReportInput label="入院/开始康复日期" type="date" value={draft.patientNarrative?.admissionDate ?? ""} disabled={locked || !canManage} onChange={(value) => setDraft({ ...draft, admissionDate: value, patientNarrative: { ...(draft.patientNarrative ?? { greeting: `${profile.name}，你好！`, dischargeDate: "", completedTrainingCount: 0, celebrationMessage: "" }), admissionDate: value } })} /><ReportInput label="出院/完成日期" type="date" value={draft.patientNarrative?.dischargeDate ?? ""} disabled={locked || !canManage} onChange={(value) => setDraft({ ...draft, dischargeDate: value, patientNarrative: { ...(draft.patientNarrative ?? { greeting: `${profile.name}，你好！`, admissionDate: "", completedTrainingCount: 0, celebrationMessage: "" }), dischargeDate: value } })} /></div><label className="mt-3 block"><span className="field-label">祝贺与鼓励语</span><textarea className="text-field min-h-20 py-3 disabled:bg-white/70" disabled={locked || !canManage} value={draft.patientNarrative?.celebrationMessage ?? ""} onChange={(event) => setDraft({ ...draft, patientNarrative: { ...(draft.patientNarrative ?? { greeting: `${profile.name}，你好！`, admissionDate: "", dischargeDate: "", completedTrainingCount: 0 }), celebrationMessage: event.target.value } })} /></label></section>
       <label><span className="field-label">运动、饮食、用药、停止条件与复查建议</span><textarea className="text-field min-h-40 py-3 disabled:bg-slate-50" disabled={locked || !canManage} value={draft.recommendationDraft} onChange={(event) => setDraft({ ...draft, recommendationDraft: event.target.value })} /></label>
+      <HandbookPreview report={draft} patientName={profile.name} />
       <div className="flex flex-wrap justify-between gap-3 border-t border-slate-100 pt-4"><button type="button" className="btn-secondary" onClick={() => onOpenPatient(task.patientId, "rehabReport")}><FileText className="h-4 w-4" />患者档案中的报告版本</button>{canManage && !locked && <div className="flex gap-2"><button type="button" className="btn-secondary" onClick={() => persist("draft")}><Save className="h-4 w-4" />保存草稿</button>{draft.status === "draft" && <button type="button" className="btn-secondary" onClick={() => persist("doctor_confirmed")}><BadgeCheck className="h-4 w-4" />医生确认</button>}{draft.status === "doctor_confirmed" && <button type="button" className="btn-primary" onClick={() => persist("published")}><ArrowRight className="h-4 w-4" />发送患者端</button>}</div>}</div>
     </div></section>}
   </div>;
@@ -309,6 +322,17 @@ function RehabTab({ task, profile, content, reports, assessments, treatments, fo
 function ReportField({ label, value, disabled, onChange }: { label: string; value: string; disabled: boolean; onChange: (value: string) => void }) {
   return <label><span className="field-label">{label}</span><textarea className="text-field min-h-28 py-3 disabled:bg-slate-50" disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} /></label>;
 }
+
+function ReportInput({ label, value, disabled, onChange, type = "text" }: { label: string; value: string; disabled: boolean; onChange: (value: string) => void; type?: string }) {
+  return <label><span className="field-label">{label}</span><input type={type} min={type === "number" ? 0 : undefined} className="text-field disabled:bg-white/70" disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} /></label>;
+}
+
+function HandbookPreview({ report, patientName }: { report: RehabReport; patientName: string }) {
+  const narrative = report.patientNarrative;
+  return <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm"><header className="relative overflow-hidden bg-[#123b5d] px-8 py-8 text-white"><div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-teal-400/20" /><div className="relative flex items-start justify-between gap-5"><div><p className="text-xs font-bold tracking-[0.18em] text-teal-200">心康伴侣 · 康复成果手册</p><h2 className="mt-5 text-3xl font-bold">{narrative?.greeting || `${patientName}，你好！`}</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-blue-50/90">{narrative?.celebrationMessage || "完成本阶段康复训练后，这份手册将帮助你了解康复成果与下一步安排。"}</p></div><span className="rounded-2xl bg-white/10 p-4"><Award className="h-10 w-10 text-amber-300" /></span></div></header><div className="grid gap-px bg-slate-200 md:grid-cols-3"><PreviewStat icon={CalendarDays} label="康复周期" value={`${narrative?.admissionDate || "未采集"} 至 ${narrative?.dischargeDate || "未采集"}`} /><PreviewStat icon={Activity} label="完成康复训练" value={`${narrative?.completedTrainingCount ?? 0} 次`} strong /><PreviewStat icon={Sparkles} label="阶段总结" value={report.rehabSection.improvementSummary || "未采集"} /></div><div className="grid gap-6 p-7 md:grid-cols-2"><div><p className="text-xs font-bold tracking-[0.15em] text-blue-600">01 · 康复足迹</p><p className="mt-3 rounded-2xl bg-slate-50 p-5 text-sm leading-7 text-slate-700">{report.rehabSection.trainingSummary}</p></div><div><p className="text-xs font-bold tracking-[0.15em] text-emerald-600">02 · 下一阶段</p><p className="mt-3 whitespace-pre-line rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-sm leading-7 text-emerald-950">{report.recommendationDraft}</p></div></div></section>;
+}
+
+function PreviewStat({ icon: Icon, label, value, strong = false }: { icon: typeof Activity; label: string; value: string; strong?: boolean }) { return <div className="bg-white p-5"><Icon className="h-5 w-5 text-blue-600" /><p className="mt-3 text-xs font-bold text-slate-400">{label}</p><p className={`mt-2 leading-6 ${strong ? "text-2xl font-bold text-blue-700" : "text-sm font-bold text-slate-800"}`}>{value}</p></div>; }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl bg-white p-3"><p className="text-[10px] font-bold text-slate-400">{label}</p><p className="mt-1 text-lg font-bold text-slate-900">{value}</p></div>;

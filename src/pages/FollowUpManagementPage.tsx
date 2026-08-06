@@ -13,7 +13,7 @@ import {
 } from "../followUpData";
 import type { ManagedPatient } from "./PatientArchivePage";
 
-export type FollowUpView = "pending" | "completed";
+export type FollowUpView = "all" | "pending" | "overdue" | "completed";
 
 function statusTone(status: FollowUpStatus): "gray" | "blue" | "orange" | "red" | "green" {
   if (status === "completed") return "green";
@@ -44,7 +44,7 @@ export function FollowUpManagementPage({ role, currentAccount, patients, tasks, 
   const [keyword, setKeyword] = useState("");
 
   useEffect(() => {
-    setView(initialView === "completed" ? "completed" : "pending");
+    setView(initialView);
     setSelectedTaskId(initialTaskId ?? null);
   }, [initialTaskId, initialView]);
 
@@ -53,14 +53,18 @@ export function FollowUpManagementPage({ role, currentAccount, patients, tasks, 
   const visibleTasks = useMemo(() => scopedTasks.filter((task) => {
     const patient = patientMap.get(task.patientId);
     if (!patient) return false;
-    const completed = effectiveFollowUpStatus(task) === "completed";
-    const matchesView = view === "completed" ? completed : !completed;
+    const status = effectiveFollowUpStatus(task);
+    const matchesView = view === "all" || (view === "completed" ? status === "completed" : view === "overdue" ? status === "overdue" : status !== "completed");
     const text = `${patient.name} ${patient.patient_no} ${patient.assigned_doctor}`.toLowerCase();
     return matchesView && (!keyword.trim() || text.includes(keyword.trim().toLowerCase()));
-  }).sort((left, right) => left.currentDueDate.localeCompare(right.currentDueDate)), [keyword, patientMap, scopedTasks, view]);
+  }).sort((left, right) => {
+    const priority: Record<FollowUpStatus, number> = { overdue: 0, due: 1, review_required: 2, rescheduled: 3, upcoming: 4, completed: 5 };
+    return priority[effectiveFollowUpStatus(left)] - priority[effectiveFollowUpStatus(right)] || left.currentDueDate.localeCompare(right.currentDueDate);
+  }), [keyword, patientMap, scopedTasks, view]);
 
   const pendingCount = scopedTasks.filter((task) => effectiveFollowUpStatus(task) !== "completed").length;
   const completedCount = scopedTasks.length - pendingCount;
+  const overdueCount = scopedTasks.filter((task) => effectiveFollowUpStatus(task) === "overdue").length;
   const selectedTask = selectedTaskId ? scopedTasks.find((task) => task.id === selectedTaskId) : undefined;
   const selectedPatient = selectedTask ? patientMap.get(selectedTask.patientId) : undefined;
   const selectedRecord = selectedTask ? records.filter((record) => record.taskId === selectedTask.id).sort((a, b) => b.contactedAt.localeCompare(a.contactedAt))[0] : undefined;
@@ -77,7 +81,7 @@ export function FollowUpManagementPage({ role, currentAccount, patients, tasks, 
     <section className="card overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
         <div className="flex rounded-lg bg-slate-100 p-1">
-          {([['pending', `待随访 ${pendingCount}`], ['completed', `已完成 ${completedCount}`]] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setView(key)} className={`rounded-md px-5 py-2 text-xs font-bold ${view === key ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>{label}</button>)}
+          {([['all', `全部 ${scopedTasks.length}`], ['overdue', `已逾期 ${overdueCount}`], ['pending', `待随访 ${pendingCount}`], ['completed', `已完成 ${completedCount}`]] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setView(key)} className={`rounded-md px-4 py-2 text-xs font-bold ${view === key ? key === "overdue" ? "bg-red-50 text-red-700 shadow-sm" : "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>{label}</button>)}
         </div>
         <label className="relative w-full sm:w-80"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} className="text-field pl-9" placeholder="患者姓名、编号或责任医生" /></label>
       </div>
