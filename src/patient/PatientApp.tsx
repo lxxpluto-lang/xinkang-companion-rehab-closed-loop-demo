@@ -98,6 +98,14 @@ type LocalBikeVideo = {
   id: string;
   title: string;
   url: string;
+  source?: "local" | "link";
+};
+
+const bilibiliBikeVideo: LocalBikeVideo = {
+  id: "VIDEO-BIKE-BILIBILI-BV1HKgX6LEe1",
+  title: "云逛魔都 4K HDR ｜沉浸式滨江骑行",
+  source: "link",
+  url: "https://player.bilibili.com/player.html?bvid=BV1HKgX6LEe1&page=1&high_quality=1&danmaku=0&autoplay=1"
 };
 
 const exerciseVideoSubtypes: Partial<Record<Exercise, string>> = {
@@ -179,8 +187,8 @@ export function PatientApp({
   const [measuredBp, setMeasuredBp] = useState("126 / 78");
   const [measuredBpTime, setMeasuredBpTime] = useState("09:18");
   const [reportToOpen, setReportToOpen] = useState<string | null>(null);
-  const [bikeTrainingVideos, setBikeTrainingVideos] = useState<LocalBikeVideo[]>([]);
-  const [selectedBikeVideo, setSelectedBikeVideo] = useState<LocalBikeVideo | null>(null);
+  const [bikeTrainingVideos, setBikeTrainingVideos] = useState<LocalBikeVideo[]>([bilibiliBikeVideo]);
+  const [selectedBikeVideo, setSelectedBikeVideo] = useState<LocalBikeVideo | null>(bilibiliBikeVideo);
   const [planItemStatuses, setPlanItemStatuses] = useState<Record<string, PrescriptionExerciseStatus>>(() => Object.fromEntries(todayPrescriptionPlan.items.map((item) => [item.itemId, item.status])));
   const [todayCheckedIn, setTodayCheckedIn] = useState(false);
   const [sessionOutcome, setSessionOutcome] = useState<"completed" | "partially_completed" | "interrupted">("completed");
@@ -204,10 +212,16 @@ export function PatientApp({
         return response.json() as Promise<LocalBikeVideo[]>;
       })
       .then((videos) => {
-        if (active) setBikeTrainingVideos(videos);
+        if (active) {
+          const localVideos = videos.map((video) => ({ ...video, source: "local" as const }));
+          setBikeTrainingVideos([bilibiliBikeVideo, ...localVideos]);
+        }
       })
       .catch(() => {
-        if (active) setBikeTrainingVideos([]);
+        if (active) {
+          setBikeTrainingVideos([bilibiliBikeVideo]);
+          setSelectedBikeVideo(bilibiliBikeVideo);
+        }
       });
     return () => {
       active = false;
@@ -1056,7 +1070,17 @@ function TrainingScreen(props: {
 
           <div className="mt-3 grid grid-cols-[minmax(0,1fr)_260px] items-stretch gap-3">
             <div ref={trainingVideoPanelRef} className="relative aspect-video w-full overflow-hidden rounded-2xl bg-slate-950 shadow-xl ring-1 ring-slate-950/10">
-              {video ? (
+              {video?.source === "link" ? (
+                <iframe
+                  key={video.url}
+                  title={video.title}
+                  src={video.url}
+                  className={`absolute inset-0 h-full w-full border-0 transition duration-300 ${paused ? "scale-[1.01] opacity-50" : "opacity-100"}`}
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              ) : video ? (
                 <video
                   key={video.url}
                   ref={trainingVideoRef}
@@ -1071,8 +1095,8 @@ function TrainingScreen(props: {
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-300">
                   <FileText className="h-10 w-10 opacity-60" />
-                  <p className="mt-3 text-sm font-bold">本地视频目录暂无可播放文件</p>
-                  <p className="mt-1 text-[10px] text-slate-500">请将 MP4、MOV、WebM 或 M4V 放入 Bilibili下载目录</p>
+                  <p className="mt-3 text-sm font-bold">功率车视频暂时无法加载</p>
+                  <p className="mt-1 text-[10px] text-slate-500">请检查网络后重新进入训练</p>
                 </div>
               )}
               <div className="fullscreen-heart-rate absolute left-0 top-0 z-30 w-60 rounded-br-3xl border-b border-r border-white/20 bg-[#103f4f]/75 p-4 text-white shadow-2xl backdrop-blur-md">
@@ -1083,7 +1107,7 @@ function TrainingScreen(props: {
               <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-slate-950/75 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur-md">
                 <span className={`h-2 w-2 rounded-full ${paused ? "bg-amber-400" : "metric-live-dot bg-emerald-400"}`} />{paused ? "训练视频已暂停" : `${phaseLabels[phase]}跟练中`}
               </div>
-              {video && <div className="absolute left-3 top-12 max-w-[70%] truncate rounded-lg bg-slate-950/60 px-3 py-1.5 text-[9px] font-bold text-white/85 backdrop-blur-md">随机视频：{video.title}</div>}
+              {video && <div className="absolute left-3 top-12 max-w-[70%] truncate rounded-lg bg-slate-950/60 px-3 py-1.5 text-[9px] font-bold text-white/85 backdrop-blur-md">训练视频：{video.title}</div>}
               <button type="button" onClick={() => trainingVideoPanelRef.current?.requestFullscreen?.()} className="absolute right-3 top-3 flex h-9 items-center gap-2 rounded-xl bg-slate-950/75 px-3 text-[10px] font-bold text-white shadow-lg backdrop-blur-md hover:bg-slate-950/90"><Maximize2 className="h-4 w-4" />全屏 / 投屏</button>
               {paused && <div className="absolute inset-0 flex items-center justify-center"><div className="rounded-2xl bg-white/95 px-8 py-5 text-center shadow-xl"><Pause className="mx-auto h-8 w-8 text-medical-700" /><p className="mt-2 font-bold text-slate-900">训练已暂停</p><p className="mt-1 text-[10px] text-slate-500">点击“继续训练”恢复</p></div></div>}
               {anomaly && !paused && <div className="absolute inset-0 flex items-center justify-center bg-red-950/20"><div className="rounded-2xl border border-red-200 bg-red-50/95 px-8 py-5 text-center text-red-800 shadow-xl"><AlertTriangle className="mx-auto h-8 w-8 animate-pulse text-red-600" /><p className="mt-2 text-base font-bold">请降低踏频并等待医护确认</p><p className="mt-1 text-xs text-red-600">心率出现异常变化，演示警报不代表临床阈值</p></div></div>}

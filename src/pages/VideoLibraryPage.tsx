@@ -20,12 +20,12 @@ export type TrainingVideo = PublishedTrainingVideo & {
 };
 
 const localVideoUrl = (fileName: string) => `/local-training-videos/${encodeURIComponent(fileName)}`;
-const riversideVideo = "云逛魔都 4K HDR ｜ 沉浸式体验陆家嘴滨江骑行：南浦大桥到杨浦大桥 [BV1HKgX6LEe1].mp4";
 const qiantanVideo = "云逛魔都 4K HDR ｜ 前滩夏日的傍晚：从繁华的太古里到静謐江滨绿道 [BV1HKKt6eEdh].mp4";
 const breathingVideoUrl = "https://www.bilibili.com/video/BV1Av4y1p7SL/";
+const bilibiliBikeVideoUrl = "https://player.bilibili.com/player.html?bvid=BV1HKgX6LEe1&page=1&high_quality=1&danmaku=0&autoplay=1";
 
 export const initialTrainingVideos: TrainingVideo[] = [
-  { id: "VIDEO-BIKE-LOCAL-001", title: "陆家嘴滨江骑行", category: "有氧运动", subtype: "功率车", source: "local", url: localVideoUrl(riversideVideo), status: "PUBLISHED", fileSize: "871 MB", updatedBy: "本地视频目录" },
+  { id: "VIDEO-BIKE-BILIBILI-001", title: "云逛魔都 4K HDR ｜沉浸式滨江骑行", category: "有氧运动", subtype: "功率车", source: "link", url: bilibiliBikeVideoUrl, status: "PUBLISHED", updatedBy: "康复师" },
   { id: "VIDEO-BIKE-LOCAL-002", title: "前滩夏日傍晚骑行", category: "有氧运动", subtype: "功率车", source: "local", url: localVideoUrl(qiantanVideo), status: "PUBLISHED", fileSize: "983 MB", updatedBy: "本地视频目录" },
   { id: "VIDEO-BREATH-LINK-001", title: "腹式呼吸与正念呼吸指导", category: "呼吸训练", subtype: "腹式呼吸", source: "link", url: breathingVideoUrl, status: "PUBLISHED", updatedBy: "王医生" },
   { id: "VIDEO-BADUANJIN-LINK-001", title: "八段锦康复跟练", category: "中医运动", subtype: "八段锦", source: "link", url: breathingVideoUrl, status: "PUBLISHED", updatedBy: "周康复师" },
