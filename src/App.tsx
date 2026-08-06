@@ -9,6 +9,7 @@ import { AssessmentWorkspacePage } from "./pages/AssessmentWorkspacePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { PrescriptionManagementPage } from "./pages/PrescriptionManagementPage";
 import { PrescriptionWorkspacePage } from "./pages/PrescriptionWorkspacePage";
+import { TreatmentManagementPage } from "./pages/TreatmentManagementPage";
 import { AlertManagementPage } from "./pages/AlertManagementPage";
 import { AppointmentManagementPage } from "./pages/AppointmentManagementPage";
 import { NurseStationPage } from "./pages/NurseStationPage";
@@ -321,13 +322,14 @@ export default function App() {
       if (selectedTask && selectedProfile) return <PrescriptionWorkspacePage task={selectedTask} role={role} accountId={accountId} profile={selectedProfile} content={prescriptionContents[selectedTask.id] ?? initialPrescriptionContents[selectedTask.id] ?? initialPrescriptionContents["RX-TASK-001"]} rehabReports={rehabReports} onBack={() => { setSelectedPrescriptionTaskId(null); resetViewScroll(); }} onOpenPatient={(patientId, tab) => openPatient(patientId, (tab === "rehabReport" ? "rehabReports" : tab) as PatientWorkspaceTab)} onUpdateTask={updatePrescriptionTask} onSaveContent={savePrescriptionContent} />;
       return <PrescriptionManagementPage role={role} accountId={accountId} tasks={prescriptionTasks} initialStatus={prescriptionInitialStatus} onOpen={(taskId) => { setSelectedPrescriptionTaskId(taskId); resetViewScroll(); }} />;
     })(),
+    treatments: <TreatmentManagementPage role={role} currentAccount={currentAccount} patients={patients} profiles={patientClinicalProfiles} treatmentRecords={treatmentRecords} prescriptionTasks={prescriptionTasks} onSave={saveTreatmentRecord} />,
     alerts: <AlertManagementPage role={role} events={alertEvents} setEvents={setAlertEvents} rules={alertRules} setRules={setAlertRules} />,
     appointments: <AppointmentManagementPage role={role} accountId={accountId} appointments={appointments} setAppointments={setAppointments} />,
     videoConfig: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />
   };
 
   for (const page of adminConsolePages) {
-    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "assessment" | "followups" | "report" | "training" | "videoConfig" | "prescriptions" | "alerts" | "appointments">} />;
+    doctorContent[page] = <AdminConsolePage page={page as Exclude<DoctorPageKey, "dashboard" | "patients" | "assessment" | "followups" | "report" | "training" | "videoConfig" | "prescriptions" | "treatments" | "alerts" | "appointments">} />;
   }
 
   return (

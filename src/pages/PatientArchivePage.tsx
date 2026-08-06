@@ -1519,13 +1519,14 @@ function ActualTrainingCard({
   );
 }
 
-function TreatmentRecordPage({
+export function TreatmentRecordPage({
   patient,
   record,
   role,
   onBack,
   onSave,
   onCorrect,
+  embedded = false,
 }: {
   patient: ManagedPatient;
   record: CardiopulmonaryTreatmentRecord;
@@ -1533,6 +1534,7 @@ function TreatmentRecordPage({
   onBack: () => void;
   onSave: (v: CardiopulmonaryTreatmentRecord) => void;
   onCorrect: (v: CardiopulmonaryTreatmentRecord) => void;
+  embedded?: boolean;
 }) {
   const [draft, setDraft] = useState(record);
   const locked = draft.status === "completed" || role !== "REHAB_EXECUTION";
@@ -1571,7 +1573,7 @@ function TreatmentRecordPage({
   return (
     <section>
       <div className="treatment-screen">
-        <PageHeader
+        {!embedded && <PageHeader
           eyebrow="患者档案 · 治疗记录"
           title={`${patient.name} · 心肺康复治疗记录`}
           description={`${draft.treatmentNo} · 治疗记录仅由康复师填写和签字，医生与管理员只读查看。`}
@@ -1587,7 +1589,7 @@ function TreatmentRecordPage({
               </button>
             </div>
           }
-        />
+        />}
         <section className="card overflow-hidden print:shadow-none">
           <div className="grid grid-cols-4 gap-3 border-b border-slate-200 p-5">
             <Info
@@ -2291,7 +2293,7 @@ function PatientModal({
   );
 }
 
-function createBlankTreatment(
+export function createBlankTreatment(
   patient: ManagedPatient,
   actor: string,
 ): CardiopulmonaryTreatmentRecord {
