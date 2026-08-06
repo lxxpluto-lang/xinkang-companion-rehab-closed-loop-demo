@@ -20,6 +20,7 @@ export type NavItem = {
   icon: LucideIcon;
   group: "business" | "admin";
   roles: Role[];
+  sidebarRoles?: Role[];
   badge?: string;
   hidden?: boolean;
 };
@@ -31,13 +32,13 @@ export const navItems: NavItem[] = [
   { key: "patients", label: "患者档案", icon: UsersRound, group: "business", roles: clinicalRoles },
   { key: "prescriptions", label: "处方管理", icon: ClipboardPlus, group: "business", roles: ["ADMIN", "DOCTOR"] },
   { key: "treatments", label: "治疗管理", icon: ClipboardPenLine, group: "business", roles: ["ADMIN", "REHAB_EXECUTION"] },
-  { key: "alerts", label: "异常警告", icon: Siren, group: "business", roles: clinicalRoles, badge: "3" },
-  { key: "appointments", label: "预约管理", icon: CalendarDays, group: "business", roles: clinicalRoles },
-  { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: clinicalRoles },
+  { key: "alerts", label: "异常警告", icon: Siren, group: "business", roles: clinicalRoles, sidebarRoles: [] },
+  { key: "appointments", label: "预约管理", icon: CalendarDays, group: "business", roles: clinicalRoles, sidebarRoles: ["ADMIN"] },
+  { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: clinicalRoles, sidebarRoles: ["ADMIN"] },
   { key: "training", label: "训练大屏", icon: MonitorUp, group: "business", roles: clinicalRoles },
-  { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: ["ADMIN"] },
+  { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: clinicalRoles },
   { key: "orgPermissions", label: "组织权限", icon: Building2, group: "admin", roles: ["ADMIN"] },
-  { key: "documentConfig", label: "签字管理", icon: FileSignature, group: "admin", roles: ["ADMIN", "REHAB_EXECUTION"] }
+  { key: "documentConfig", label: "签字管理", icon: FileSignature, group: "admin", roles: clinicalRoles }
 ];
 
 export const roleMeta: Record<Role, { label: string; account: string; scope: DataScope; note: string }> = {

@@ -22,7 +22,10 @@ export function DoctorLayout({
 }) {
   const [clock, setClock] = useState(new Date());
   const allowedItems = useMemo(() => navItems.filter((item) => item.roles.includes(role)), [role]);
-  const visibleItems = useMemo(() => allowedItems.filter((item) => !item.hidden), [allowedItems]);
+  const visibleItems = useMemo(
+    () => allowedItems.filter((item) => !item.hidden && (!item.sidebarRoles || item.sidebarRoles.includes(role))),
+    [allowedItems, role]
+  );
   const currentItem = allowedItems.find((item) => item.key === page) ?? allowedItems[0];
 
   useEffect(() => {

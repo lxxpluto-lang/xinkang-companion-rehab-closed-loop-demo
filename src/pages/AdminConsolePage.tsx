@@ -38,7 +38,7 @@ const documentRows = [
   { name: "治疗记录打印模板", detail: "A4 表格文书版 · V2.1", status: "已生效", owner: "康复中心" },
   { name: "单次报告模板", detail: "指标、趋势、异常、结论", status: "已生效", owner: "康复医学科" },
   { name: "阶段报告模板", detail: "按所选训练记录汇总", status: "已生效", owner: "康复医学科" },
-  { name: "康复师电子签名", detail: "治疗记录签名图片模板", status: "有效", owner: "周康复师" },
+  { name: "个人电子签名", detail: "处方或治疗记录使用的本人签名图片", status: "有效", owner: "本人" },
   { name: "签名日期规则", detail: "签名必须记录治疗日期和签署时间", status: "有效", owner: "康复中心" }
 ];
 
@@ -199,7 +199,12 @@ function DocumentConfigPage({ role, currentAccount }: { role: Exclude<Role, "PAT
   const [signatureFile, setSignatureFile] = useState(existingSignature?.fileName ?? "尚未上传");
   const [signatureImage, setSignatureImage] = useState(existingSignature?.imageData ?? "");
   const [saved, setSaved] = useState(false);
-  const visibleRows = role === "REHAB_EXECUTION" ? documentRows.filter((row) => row.name === "治疗记录打印模板" || row.name === "康复师电子签名" || row.name === "签名日期规则") : documentRows;
+  const canMaintainOwnSignature = role === "DOCTOR" || role === "REHAB_EXECUTION";
+  const visibleRows = role === "REHAB_EXECUTION"
+    ? documentRows.filter((row) => row.name === "治疗记录打印模板" || row.name === "个人电子签名" || row.name === "签名日期规则")
+    : role === "DOCTOR"
+      ? documentRows.filter((row) => row.name === "单次报告模板" || row.name === "阶段报告模板" || row.name === "个人电子签名" || row.name === "签名日期规则")
+      : documentRows;
   function chooseSignature(file?: File) {
     if (!file) return;
     const reader = new FileReader();
@@ -211,20 +216,20 @@ function DocumentConfigPage({ role, currentAccount }: { role: Exclude<Role, "PAT
     reader.readAsDataURL(file);
   }
   function persistSignature() {
-    if (activeConfig === "康复师电子签名" && signatureImage) saveStaffSignature({ staffName: currentAccount, fileName: signatureFile, imageData: signatureImage, updatedAt: new Date().toISOString() });
+    if (activeConfig === "个人电子签名" && signatureImage && canMaintainOwnSignature) saveStaffSignature({ staffName: currentAccount, fileName: signatureFile, imageData: signatureImage, updatedAt: new Date().toISOString() });
     setSaved(true);
   }
   return (
     <section data-testid="page-VIEW-DOCUMENTCONFIG">
       <PageHeader
         eyebrow="3个月验证版 · 文书闭环"
-        title={role === "REHAB_EXECUTION" ? "我的签字与打印" : "报告打印签名"}
-        description={role === "REHAB_EXECUTION" ? "上传并维护本人电子签名；治疗记录保存生成后自动引用，可一键打印。" : "保留治疗记录、报告打印与康复师签名模板；管理员只能配置模板，不能代签。"}
+        title={canMaintainOwnSignature ? "我的签字与打印" : "报告打印签名"}
+        description={canMaintainOwnSignature ? "上传并维护本人电子签名；业务记录只引用当前登录人的签名，不能代替他人签署。" : "保留治疗记录与报告打印模板；管理员只能配置模板，不能代签。"}
         action={<StatusBadge tone="blue"><ShieldCheck className="h-3.5 w-3.5" />核心文书</StatusBadge>}
       />
       <section className="card overflow-hidden">
         <div className="flex items-center justify-between p-5">
-          <SectionHeader title="模板与签名配置" description={role === "REHAB_EXECUTION" ? "康复师只能维护本人电子签名，不能替他人签署。" : "验证期只维护治疗记录、报告和康复师签名配置。"} />
+          <SectionHeader title="模板与签名配置" description={canMaintainOwnSignature ? "当前账号只能维护和使用本人电子签名。" : "验证期只维护核心文书模板和个人签名状态。"} />
           {role === "ADMIN" && <button className="btn-primary"><Plus className="h-4 w-4" />新增配置</button>}
         </div>
         <table className="w-full text-left text-xs">
@@ -236,15 +241,15 @@ function DocumentConfigPage({ role, currentAccount }: { role: Exclude<Role, "PAT
               <tr className="border-t border-slate-100" key={row.name}>
                 <td className="px-5 py-4"><span className="flex items-center gap-2 font-bold text-slate-800"><FileSignature className="h-4 w-4 text-blue-600" />{row.name}</span></td>
                 <td className="px-5 py-4 text-slate-500">{row.detail}</td>
-                <td className="px-5 py-4 text-slate-500">{row.name === "康复师电子签名" && role === "REHAB_EXECUTION" ? currentAccount : row.owner}</td>
-                <td className="px-5 py-4"><StatusBadge tone={row.name === "康复师电子签名" && role === "REHAB_EXECUTION" && !signatureImage ? "orange" : row.status.includes("待") ? "orange" : "green"}>{row.name === "康复师电子签名" && role === "REHAB_EXECUTION" ? (signatureImage ? "已上传" : "待上传") : row.status}</StatusBadge></td>
+                <td className="px-5 py-4 text-slate-500">{row.name === "个人电子签名" && canMaintainOwnSignature ? currentAccount : row.owner}</td>
+                <td className="px-5 py-4"><StatusBadge tone={row.name === "个人电子签名" && canMaintainOwnSignature && !signatureImage ? "orange" : row.status.includes("待") ? "orange" : "green"}>{row.name === "个人电子签名" && canMaintainOwnSignature ? (signatureImage ? "已上传" : "待上传") : row.status}</StatusBadge></td>
                 <td className="px-5 py-4">{row.name === "单次报告模板" || row.name === "阶段报告模板" ? <span className="text-xs text-slate-400">验证版暂不开放</span> : <button type="button" onClick={() => { setActiveConfig(row.name); setSaved(false); }} className="text-xs font-bold text-blue-700">配置</button>}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </section>
-      {activeConfig && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm"><section className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold text-blue-600">后台配置</p><h2 className="mt-1 text-xl font-bold text-slate-950">{activeConfig}</h2></div><button type="button" onClick={() => setActiveConfig(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100" aria-label="关闭配置"><X className="h-4 w-4" /></button></div>{activeConfig === "康复师电子签名" ? <div className="mt-5 space-y-4"><div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-900">{role === "REHAB_EXECUTION" ? `当前账号为${currentAccount}，仅可上传和使用本人签名。` : "管理员只能查看配置状态，不能代替康复师完成业务签署。"}</div>{role === "REHAB_EXECUTION" && <label className="block"><span className="field-label">上传本人签名图片</span><input type="file" accept="image/png,image/jpeg" onChange={(event) => chooseSignature(event.target.files?.[0])} className="mt-2 block w-full rounded-xl border border-slate-200 p-3 text-xs" /></label>}<div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3"><div className="flex h-20 w-32 items-center justify-center rounded-lg bg-white shadow-sm">{signatureImage ? <img src={signatureImage} alt={`${currentAccount}电子签名预览`} className="h-full w-full object-contain" /> : <span className="text-sm text-slate-400">暂无签名</span>}</div><div><p className="text-xs font-bold text-slate-800">{currentAccount}</p><p className="mt-1 text-[10px] text-slate-500">{signatureFile}</p></div></div></div> : <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900"><b>治疗记录打印模板</b><p className="mt-2">打印预览严格使用脱敏后的纸质《心肺康复治疗记录》表格，包含训练前后评估、11项实施训练、签名与治疗日期。</p></div>}<div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setActiveConfig(null)} className="btn-secondary">取消</button>{role === "REHAB_EXECUTION" && activeConfig === "康复师电子签名" && <button type="button" disabled={!signatureImage} onClick={persistSignature} className="btn-primary disabled:bg-slate-300"><Save className="h-4 w-4" />保存本人签名</button>}{saved && <span className="self-center text-xs font-bold text-emerald-600">已保存</span>}</div></section></div>}
+      {activeConfig && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm"><section className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold text-blue-600">后台配置</p><h2 className="mt-1 text-xl font-bold text-slate-950">{activeConfig}</h2></div><button type="button" onClick={() => setActiveConfig(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100" aria-label="关闭配置"><X className="h-4 w-4" /></button></div>{activeConfig === "个人电子签名" ? <div className="mt-5 space-y-4"><div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-900">{canMaintainOwnSignature ? `当前账号为${currentAccount}，仅可上传和使用本人签名。` : "管理员只能查看配置状态，不能代替业务人员完成签署。"}</div>{canMaintainOwnSignature && <label className="block"><span className="field-label">上传本人签名图片</span><input type="file" accept="image/png,image/jpeg" onChange={(event) => chooseSignature(event.target.files?.[0])} className="mt-2 block w-full rounded-xl border border-slate-200 p-3 text-xs" /></label>}<div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3"><div className="flex h-20 w-32 items-center justify-center rounded-lg bg-white shadow-sm">{signatureImage ? <img src={signatureImage} alt={`${currentAccount}电子签名预览`} className="h-full w-full object-contain" /> : <span className="text-sm text-slate-400">暂无签名</span>}</div><div><p className="text-xs font-bold text-slate-800">{currentAccount}</p><p className="mt-1 text-[10px] text-slate-500">{signatureFile}</p></div></div></div> : <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900"><b>{activeConfig}</b><p className="mt-2">当前模板仅用于验证版文书预览，正式临床模板仍需由医院确认。</p></div>}<div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setActiveConfig(null)} className="btn-secondary">取消</button>{canMaintainOwnSignature && activeConfig === "个人电子签名" && <button type="button" disabled={!signatureImage} onClick={persistSignature} className="btn-primary disabled:bg-slate-300"><Save className="h-4 w-4" />保存本人签名</button>}{saved && <span className="self-center text-xs font-bold text-emerald-600">已保存</span>}</div></section></div>}
     </section>
   );
 }
