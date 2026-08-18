@@ -34,7 +34,7 @@ type Props = {
 const adjustmentReasons: ExecutionAdjustment["reason"][] = ["患者当日状态", "设备适配", "现场反应", "康复师评估", "其他"];
 
 export function NurseStationPage({ role, currentAccount = "周康复师", encounters, appointments, patients, prescriptions, treatmentRecords, trainingSessions = [], singleReports = [], stageReports = [], initialEncounterId, onUpdateEncounter, onImportHandoff, onPublishHandoff, onSaveTrainingSession, onCreateAlert, onOpenTreatment, onGenerateStageReport }: Props) {
-  const executableEncounters = useMemo(() => encounters.filter((item) => !["cancelled", "no_show"].includes(item.status)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [encounters]);
+  const executableEncounters = useMemo(() => encounters.filter((item) => !["completed", "cancelled", "no_show"].includes(item.status)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [encounters]);
   const firstReady = executableEncounters.find((item) => ["ready_for_device", "device_ready", "in_training", "paused", "awaiting_next_task", "post_assessment"].includes(item.status));
   const [activeEncounterId, setActiveEncounterId] = useState(initialEncounterId ?? firstReady?.encounterId ?? executableEncounters[0]?.encounterId ?? "");
   const activeEncounter = executableEncounters.find((item) => item.encounterId === activeEncounterId) ?? firstReady ?? executableEncounters[0];
@@ -66,6 +66,7 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
   const hasAdjustment = targetHeartRate !== prescribed.targetHeartRate || targetPower !== prescribed.targetPower || durationMinutes !== prescribed.durationMinutes || trainingMode !== "连续训练";
   const inTrainingCount = encounters.filter((item) => ["in_training", "paused", "awaiting_next_task"].includes(item.status)).length;
   const waitingPostCount = encounters.filter((item) => item.status === "post_assessment").length;
+  const completedTrainingCount = encounters.filter((item) => item.status === "completed").length;
   const lastRemoteUpdateRef = useRef("");
 
   useEffect(() => {
@@ -298,7 +299,15 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
     setEndDayOpen(true);
   }
 
-  if (!activeEncounter) return <section><PageHeader eyebrow="医护工作站" title="训练设备端" description="当前没有可执行的训练就诊任务，请先在预约管理确认患者到诊。" /><section className="card p-12 text-center text-sm text-slate-500">暂无训练任务</section></section>;
+  const overviewMetrics = <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <StatCard label="待设备登录" value={String(encounters.filter((item) => item.status === "ready_for_device").length)} icon={<IdCard className="h-4 w-4" />} />
+    <StatCard label="训练中" value={String(inTrainingCount)} tone="green" icon={<Activity className="h-4 w-4" />} />
+    <StatCard label="待训后评估" value={String(waitingPostCount)} tone="orange" icon={<ClipboardCheck className="h-4 w-4" />} />
+    <StatCard label="严重异常待复核" value={String(encounters.filter((item) => item.status === "terminated").length)} tone="orange" icon={<AlertTriangle className="h-4 w-4" />} />
+    <StatCard label="完成训练" value={String(completedTrainingCount)} tone="green" icon={<CheckCircle2 className="h-4 w-4" />} />
+  </div>;
+
+  if (!activeEncounter) return <section data-testid="page-VIEW-NURSE-STATION"><PageHeader eyebrow={role === "REHAB_EXECUTION" ? "康复师操作 · 训练监护屏" : role === "DOCTOR" ? "医生监护 · 可暂停或结束当前项目" : "管理员只读查看"} title="训练设备端" description="已完成训练不在任务区保留，完成场次统一累计到顶部指标。" action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />{overviewMetrics}<section className="card p-12 text-center text-sm text-slate-500">当前没有待执行的院内训练任务</section></section>;
 
   const sessionSummary = lastSession ? { outcome: lastSession.terminatedEarly ? "terminated" as const : "completed" as const, activeMinutes: lastSession.activeMinutes, averageHeartRate: lastSession.avgHr, peakHeartRate: lastSession.peakHr, minimumSpo2: lastSession.minSpo2, averagePower: lastSession.avgPower, pauses: lastSession.pauses, safetySummary: lastSession.safetyEvents.join("；") || "无异常", generatedAt: lastSession.recordedAt ?? "" } : undefined;
   const displaySummary = activeEncounter.status === "completed" ? sessionSummary ?? activeEncounter.immediateSummary : activeEncounter.immediateSummary ?? sessionSummary;
@@ -307,7 +316,7 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
 
   return <section data-testid="page-VIEW-NURSE-STATION">
     <PageHeader eyebrow={role === "REHAB_EXECUTION" ? "康复师操作 · 训练监护屏" : role === "DOCTOR" ? "医生监护 · 可暂停或结束当前项目" : "管理员只读查看"} title="训练设备端" description="固定患者号只负责识别患者，系统自动匹配其当天已完成训练前评估的唯一任务。" action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />
-    <div className="mb-4 grid gap-4 md:grid-cols-4"><StatCard label="待设备登录" value={String(encounters.filter((item) => item.status === "ready_for_device").length)} icon={<IdCard className="h-4 w-4" />} /><StatCard label="训练中" value={String(inTrainingCount)} tone="green" icon={<Activity className="h-4 w-4" />} /><StatCard label="待训后评估" value={String(waitingPostCount)} tone="orange" icon={<ClipboardCheck className="h-4 w-4" />} /><StatCard label="严重异常待复核" value={String(encounters.filter((item) => item.status === "terminated").length)} tone="orange" icon={<AlertTriangle className="h-4 w-4" />} /></div>
+    {overviewMetrics}
     <div className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
       <section className="card overflow-hidden"><div className="border-b px-5 py-4"><SectionHeader title="院内训练任务" description="来源于预约到诊和训练前评估，不在设备端临时新建患者。" /></div><div className="divide-y divide-slate-100">{executableEncounters.map((item) => <button type="button" key={item.encounterId} onClick={() => chooseEncounter(item)} className={`grid w-full grid-cols-[1fr_auto] items-center gap-3 px-5 py-4 text-left ${item.encounterId === activeEncounter.encounterId ? "bg-blue-50" : "hover:bg-slate-50"}`}><div><div className="flex items-center gap-2"><b className="text-sm text-slate-900">{item.patientName}</b><span className="font-mono text-[10px] text-slate-400">{item.patientNo}</span></div><p className="mt-1 text-xs text-slate-500">{item.project} · {item.station} · 处方{item.prescriptionVersion}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{item.encounterId}</p></div><StatusBadge tone={item.status === "completed" ? "green" : item.status === "paused" || item.status === "terminated" ? "red" : "orange"}>{encounterStatusLabel[item.status]}</StatusBadge></button>)}</div></section>
       <div className="space-y-4">
