@@ -1,7 +1,7 @@
 {
-  "name": "xinkang-companion-clinical-demo-v2-1",
+  "name": "xinkang-companion-rehab-closed-loop-demo",
   "private": true,
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.config.ts",

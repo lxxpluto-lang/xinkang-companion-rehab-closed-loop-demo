@@ -7,6 +7,8 @@ import { effectiveFollowUpStatus, type FollowUpRecord, type FollowUpTask } from 
 import { getStageReportData, type TrainingSession } from "../patient/stageReportData";
 import type { StageReport } from "../types";
 import type { ManagedPatient } from "./PatientArchivePage";
+import { StageReportWorkspace } from "./StageReportWorkspace";
+import { toReportPatientSnapshot, type StoredStageReport, type StoredTrainingSession } from "../reportData";
 
 type ReportRole = "ADMIN" | "DOCTOR" | "REHAB_EXECUTION";
 type ReportSheet = "stage" | "discharge";
@@ -43,7 +45,7 @@ function createReport(patient: ManagedPatient, assessments: AssessmentRecord[], 
   };
 }
 
-export function RehabDischargeReportPage({ role, currentAccount, patients, assessments, followUps, followUpRecords, reports, initialPatientId, onSave }: {
+export function RehabDischargeReportPage({ role, currentAccount, patients, assessments, followUps, followUpRecords, reports, trainingSessions, stageReports, initialPatientId, onSave, onSaveStageReport, onConfirmStageReport, onPublishStageReport }: {
   role: ReportRole;
   currentAccount: string;
   patients: ManagedPatient[];
@@ -51,8 +53,13 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
   followUps: FollowUpTask[];
   followUpRecords: FollowUpRecord[];
   reports: RehabReport[];
+  trainingSessions?: StoredTrainingSession[];
+  stageReports?: StoredStageReport[];
   initialPatientId?: string | null;
   onSave: (report: RehabReport) => void;
+  onSaveStageReport?: (report: StoredStageReport) => void;
+  onConfirmStageReport?: (reportId: string, account: string) => void;
+  onPublishStageReport?: (reportId: string, account: string) => void;
 }) {
   const scopedPatients = role === "DOCTOR" ? patients.filter((patient) => patient.assigned_doctor === currentAccount) : patients;
   const [sheet, setSheet] = useState<ReportSheet>("stage");
@@ -132,7 +139,7 @@ export function RehabDischargeReportPage({ role, currentAccount, patients, asses
       <label className="flex items-center gap-2 text-xs font-bold text-slate-600">患者<select value={patient.patient_demo_id} onChange={(event) => switchPatient(event.target.value)} className="text-field min-w-64">{scopedPatients.map((item) => <option key={item.patient_demo_id} value={item.patient_demo_id}>{item.name} · {item.patient_code}</option>)}</select></label>
       <div className="ml-auto flex rounded-xl bg-slate-100 p-1"><button type="button" onClick={() => setSheet("stage")} className={`rounded-lg px-5 py-2 text-xs font-bold ${sheet === "stage" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>阶段报告</button><button type="button" onClick={() => setSheet("discharge")} className={`rounded-lg px-5 py-2 text-xs font-bold ${sheet === "discharge" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500"}`}>出院报告 / 康复手册</button></div>
     </div>
-    {sheet === "stage" ? <StageSheet sessions={availableSessions} selectedIds={selectedSessionIds} report={stageReport} history={confirmedStageReports} role={role} onToggle={toggleSession} onGenerate={generateStageDraft} onConfirm={confirmStageReport} onNew={startNewStageReport} /> : <DischargeSheet report={report} setReport={setReport} role={role} missingMedical={missingMedical} onSave={saveDischarge} selectedSessionCount={selectedSessions.length} />}
+    {sheet === "stage" ? trainingSessions && stageReports && onSaveStageReport ? <StageReportWorkspace patient={toReportPatientSnapshot({ ...patient, weight_kg: Number(patient.weight_kg) || undefined })} sessions={trainingSessions.filter((session) => session.patientId === patient.patient_demo_id)} reports={stageReports} role={role} currentAccount={currentAccount} canEdit={true} onSave={onSaveStageReport} onConfirm={onConfirmStageReport} onPublish={onPublishStageReport} /> : <StageSheet sessions={availableSessions} selectedIds={selectedSessionIds} report={stageReport} history={confirmedStageReports} role={role} onToggle={toggleSession} onGenerate={generateStageDraft} onConfirm={confirmStageReport} onNew={startNewStageReport} /> : <DischargeSheet report={report} setReport={setReport} role={role} missingMedical={missingMedical} onSave={saveDischarge} selectedSessionCount={selectedSessions.length} />}
   </section>;
 }
 

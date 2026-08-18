@@ -5,9 +5,77 @@ import { basename, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 const trainingVideoDirectory = fileURLToPath(new URL("../../Bilibili下载", import.meta.url));
 const supportedVideoExtensions = new Set([".mp4", ".mov", ".webm", ".m4v"]);
+const deviceHandoffs = new Map();
+function normalizeDeviceLoginCode(value) {
+    return String(value ?? "").replace(/\D/g, "").slice(-6).padStart(6, "0");
+}
+function readJsonBody(request) {
+    return new Promise((resolve, reject) => {
+        let body = "";
+        request.setEncoding("utf8");
+        request.on("data", (chunk) => {
+            body += chunk;
+            if (body.length > 2_000_000)
+                reject(new Error("Request body too large"));
+        });
+        request.on("end", () => {
+            try {
+                resolve(body ? JSON.parse(body) : {});
+            }
+            catch (error) {
+                reject(error);
+            }
+        });
+        request.on("error", reject);
+    });
+}
+function sendJson(response, statusCode, value) {
+    response.statusCode = statusCode;
+    response.setHeader("Content-Type", "application/json; charset=utf-8");
+    response.setHeader("Cache-Control", "no-store");
+    response.end(JSON.stringify(value));
+}
 function localTrainingVideoMiddleware() {
     const middleware = (request, response, next) => {
         const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+        if (requestUrl.pathname === "/api/device-handoffs" && request.method === "GET") {
+            sendJson(response, 200, Array.from(deviceHandoffs.values()));
+            return;
+        }
+        if (requestUrl.pathname === "/api/device-handoffs" && request.method === "POST") {
+            readJsonBody(request).then((handoff) => {
+                const loginCode = normalizeDeviceLoginCode(handoff.loginCode);
+                if (!/^\d{6}$/.test(loginCode) || !handoff.patient || !handoff.encounter || !handoff.prescriptionTask) {
+                    sendJson(response, 400, { message: "Invalid device handoff" });
+                    return;
+                }
+                const saved = { ...handoff, loginCode, updatedAt: new Date().toISOString() };
+                deviceHandoffs.set(loginCode, saved);
+                sendJson(response, 200, saved);
+            }).catch(() => sendJson(response, 400, { message: "Invalid request body" }));
+            return;
+        }
+        const handoffMatch = requestUrl.pathname.match(/^\/api\/device-handoffs\/(\d{6})$/);
+        if (handoffMatch && request.method === "GET") {
+            const handoff = deviceHandoffs.get(handoffMatch[1]);
+            sendJson(response, handoff ? 200 : 404, handoff ?? { message: "Device handoff not found" });
+            return;
+        }
+        if (handoffMatch && request.method === "PATCH") {
+            readJsonBody(request).then((patch) => {
+                const handoff = deviceHandoffs.get(handoffMatch[1]);
+                if (!handoff) {
+                    sendJson(response, 404, { message: "Device handoff not found" });
+                    return;
+                }
+                const encounter = typeof handoff.encounter === "object" && handoff.encounter ? handoff.encounter : {};
+                const encounterPatch = typeof patch.encounter === "object" && patch.encounter ? patch.encounter : {};
+                const saved = { ...handoff, encounter: { ...encounter, ...encounterPatch, updatedAt: new Date().toISOString() }, updatedAt: new Date().toISOString() };
+                deviceHandoffs.set(handoffMatch[1], saved);
+                sendJson(response, 200, saved);
+            }).catch(() => sendJson(response, 400, { message: "Invalid request body" }));
+            return;
+        }
         if (requestUrl.pathname === "/api/training-videos") {
             const files = existsSync(trainingVideoDirectory)
                 ? readdirSync(trainingVideoDirectory, { withFileTypes: true })
@@ -92,7 +160,10 @@ export default defineConfig({
     base: "./",
     plugins: [react(), localTrainingVideoMiddleware()],
     server: {
-        host: "127.0.0.1",
+        host: "0.0.0.0",
         port: 4182,
     },
+    preview: {
+        host: "0.0.0.0"
+    }
 });

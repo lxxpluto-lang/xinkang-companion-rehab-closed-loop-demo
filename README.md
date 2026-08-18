@@ -1,6 +1,8 @@
-# 心康伴侣——心脏康复全链路调研 Demo
+# 心康伴侣：冠心病运动康复全流程闭环 Demo
 
 > 本目录是独立的下一版原型，不覆盖历史 Demo，可通过本地 Git 回退。
+
+在线预览：[GitHub Pages](https://lxxpluto-lang.github.io/xinkang-companion-rehab-closed-loop-demo/)
 
 本版本以原图文 PRD 为主体，并吸收业务组会议已确认的修正，覆盖：**患者资料、医生处方、预约到诊、训练执行、异常闭环、康复报告与轻量随访**。
 
@@ -38,6 +40,8 @@ npm run dev
 npm run build
 npm run preview
 ```
+
+本地开发服务提供内存 API，可模拟不同设备间的患者号交接；GitHub Pages 为纯静态演示，设备交接会自动使用同一浏览器的本地存储。接入真实服务器时，应将患者、处方、预约、训练任务、设备数据和报告持久化到数据库，并通过鉴权 API 或实时通道同步。
 
 ## 医护 Web 端
 

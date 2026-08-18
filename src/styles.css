@@ -155,6 +155,22 @@ textarea:focus-visible {
   color: #64748b;
 }
 
+@media print {
+  .assessment-workspace > :first-child,
+  .assessment-workspace > .grid > aside {
+    display: none !important;
+  }
+
+  .assessment-workspace > .grid {
+    display: block !important;
+  }
+
+  .assessment-workspace [data-testid="region-REG-SPPB-PAPER"] {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+}
+
 .treatment-paper-form {
   padding: 22px;
   background: #fff;

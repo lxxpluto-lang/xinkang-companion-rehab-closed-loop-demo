@@ -6,9 +6,27 @@ import { isFollowUpVisibleInPending } from "../followUpData";
 import type { Role } from "../types";
 import type { ManagedPatient } from "./PatientArchivePage";
 import type { FollowUpView } from "./FollowUpManagementPage";
-import type { AlertEvent, Appointment, PrescriptionTask } from "../clinicalWorkflowData";
+import type { AlertEvent, Appointment, AppointmentStatus, PrescriptionTask } from "../clinicalWorkflowData";
 import type { CardiopulmonaryTreatmentRecord } from "../treatmentData";
 import type { DoctorPageKey } from "../types";
+
+const appointmentStatusLabel: Record<AppointmentStatus, string> = {
+  pending: "待到诊",
+  arrived: "已到诊",
+  in_training: "训练中",
+  completed: "已完成",
+  cancelled: "已取消",
+  no_show: "爽约"
+};
+
+const appointmentStatusTone: Record<AppointmentStatus, "blue" | "green" | "orange" | "red" | "gray"> = {
+  pending: "blue",
+  arrived: "orange",
+  in_training: "orange",
+  completed: "green",
+  cancelled: "gray",
+  no_show: "red"
+};
 
 export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks, treatmentRecords, alertEvents, appointments, accountId, currentAccount, onOpenFollowUps, onOpenReports, onOpenTraining, onOpenPrescriptions, onOpenPrescriptionTask, onOpenTreatments, onOpenTreatmentRecord, onOpenAlerts, onNavigate }: {
   role: Exclude<Role, "PATIENT">;
@@ -50,7 +68,7 @@ export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks
         <DoctorMetric label="平均训练完成率" value="83%" note="进入训练执行概览" icon={TrendingUp} tone="green" onClick={onOpenTraining} />
         <DoctorMetric label="待处理异常数" value={String(myPendingAlerts.length)} note="本人患者待医学复核" icon={AlertTriangle} tone="red" onClick={() => onOpenAlerts("pending_doctor_review")} />
       </div>
-      <div className="grid gap-5 lg:grid-cols-2"><section className="card p-5"><SectionHeader title="我的处方待办" description="点击患者直接进入该患者的“本次处方”。" /><div className="mt-4 space-y-3">{pendingPrescriptions.map((task) => <button key={task.id} onClick={() => onOpenPrescriptionTask(task.id)} className="flex w-full items-center gap-3 rounded-xl border p-3 text-left hover:border-blue-200 hover:bg-blue-50"><ClipboardList className="h-4 w-4 text-blue-600" /><span className="flex-1"><b>{task.patientName}</b><span className="mt-1 block text-xs text-slate-500">{task.prescriptionNo} · {task.version} · {task.risk}</span></span><StatusBadge tone={task.status === "pending_signature" ? "orange" : "blue"}>{task.status === "pending_generation" ? "待生成" : task.status === "pending_review" ? "待复核" : "待签署"}</StatusBadge><ArrowRight className="h-4 w-4 text-blue-600" /></button>)}</div><button onClick={() => onOpenPrescriptions("unfinished")} className="btn-primary mt-4 w-full">今日处方管理 · 查看本人未完成处方</button></section><section className="card p-5"><SectionHeader title="今日临床任务" description="异常、预约和随访不占用侧边栏，只在需要处理时从这里进入。" /><div className="mt-4 grid gap-3 sm:grid-cols-2"><DashboardShortcut title="待复核异常" detail={`${myPendingAlerts.length} 条本人患者待医学复核`} icon={AlertTriangle} tone="red" onClick={() => onOpenAlerts("pending_doctor_review")} /><DashboardShortcut title="今日患者安排" detail={`本人名下 ${myAppointments.length} 人`} icon={CalendarDays} onClick={() => onNavigate("appointments")} /><DashboardShortcut title="到期随访" detail={`${pendingFollowUps.length} 项待联系`} icon={PhoneCall} tone="green" onClick={() => onOpenFollowUps("pending")} /><DashboardShortcut title="训练进展" detail="只读查看中心训练状态" icon={MonitorUp} onClick={onOpenTraining} /></div></section></div>
+      <div className="grid gap-5 lg:grid-cols-2"><section className="card p-5"><SectionHeader title="我的处方待办" description="点击患者直接进入该患者的“本次处方”。" /><div className="mt-4 space-y-3">{pendingPrescriptions.map((task) => <button key={task.id} onClick={() => onOpenPrescriptionTask(task.id)} className="flex w-full items-center gap-3 rounded-xl border p-3 text-left hover:border-blue-200 hover:bg-blue-50"><ClipboardList className="h-4 w-4 text-blue-600" /><span className="flex-1"><b>{task.patientName}</b><span className="mt-1 block text-xs text-slate-500">{task.prescriptionNo} · {task.version} · {task.risk}</span></span><StatusBadge tone={task.status === "pending_signature" ? "orange" : "blue"}>{task.status === "pending_generation" ? "待生成" : task.status === "pending_review" ? "待复核" : "待签署"}</StatusBadge><ArrowRight className="h-4 w-4 text-blue-600" /></button>)}</div><button onClick={() => onOpenPrescriptions("unfinished")} className="btn-primary mt-4 w-full">今日处方管理 · 查看本人未完成处方</button></section><section className="card p-5"><SectionHeader title="今日临床任务" description="异常、预约和随访不占用侧边栏，只在需要处理时从这里进入。" /><div className="mt-4 grid gap-3 sm:grid-cols-2"><DashboardShortcut title="待复核异常" detail={`${myPendingAlerts.length} 条本人患者待医学复核`} icon={AlertTriangle} tone="red" onClick={() => onOpenAlerts("pending_doctor_review")} /><DashboardShortcut title="今日患者安排" detail={`本人名下 ${myAppointments.length} 人`} icon={CalendarDays} onClick={() => onNavigate("appointments")} /><DashboardShortcut title="到期随访" detail={`${pendingFollowUps.length} 项待联系`} icon={PhoneCall} tone="green" onClick={() => onOpenFollowUps("pending")} /><DashboardShortcut title="训练进展" detail="查看中心训练状态并远程控制当前项目" icon={MonitorUp} onClick={onOpenTraining} /></div></section></div>
     </section>;
   }
   if (role === "REHAB_EXECUTION") {
@@ -72,7 +90,7 @@ export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks
         <section className="card p-5">
           <div className="flex items-start justify-between gap-4"><div><h2 className="text-base font-bold text-slate-900">今日到诊与随访</h2><p className="mt-1 text-xs text-slate-500">按任务类型切换查看，一条记录占一行。</p></div><div className="flex shrink-0 rounded-lg bg-slate-100 p-1"><button type="button" onClick={() => setRehabTaskTab("appointments")} className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${rehabTaskTab === "appointments" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>今日到诊</button><button type="button" onClick={() => setRehabTaskTab("followups")} className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${rehabTaskTab === "followups" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}>随访记录</button></div></div>
           <div className="mt-4 space-y-3">
-            {rehabTaskTab === "appointments" && todayAppointments.slice(0, 2).map((item) => <button type="button" key={item.id} onClick={() => onNavigate("appointments")} className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-4 text-left hover:border-blue-200 hover:bg-blue-50"><CalendarDays className="h-5 w-5 text-blue-600" /><span className="flex-1"><b className="text-sm text-slate-900">{item.patientName}</b><span className="mt-1 block text-xs text-slate-500">{item.time} · {item.project} · {item.station}</span></span><StatusBadge tone={item.status === "completed" ? "green" : "blue"}>{item.status === "completed" ? "已完成" : "待到诊"}</StatusBadge><ArrowRight className="h-4 w-4 text-blue-600" /></button>)}
+            {rehabTaskTab === "appointments" && todayAppointments.slice(0, 2).map((item) => <button type="button" key={item.id} onClick={() => onNavigate("appointments")} className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-4 text-left hover:border-blue-200 hover:bg-blue-50"><CalendarDays className="h-5 w-5 text-blue-600" /><span className="flex-1"><b className="text-sm text-slate-900">{item.patientName}</b><span className="mt-1 block text-xs text-slate-500">{item.time} · {item.project} · {item.station}</span></span><StatusBadge tone={appointmentStatusTone[item.status]}>{appointmentStatusLabel[item.status]}</StatusBadge><ArrowRight className="h-4 w-4 text-blue-600" /></button>)}
             {rehabTaskTab === "followups" && dueFollowUps.slice(0, 2).map((task) => <button type="button" key={task.id} onClick={() => onOpenFollowUps("pending", task.id)} className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-4 text-left hover:border-blue-200 hover:bg-blue-50"><PhoneCall className="h-5 w-5 text-blue-600" /><span className="flex-1"><b className="text-sm text-slate-900">{patientMap.get(task.patientId)?.name ?? "待核对患者"}</b><span className="mt-1 block text-xs text-slate-500">{task.milestoneMonth}个月随访 · 到期 {task.currentDueDate}</span></span><StatusBadge tone="orange">待随访</StatusBadge><ArrowRight className="h-4 w-4 text-blue-600" /></button>)}
             {rehabTaskTab === "appointments" && !todayAppointments.length && <p className="rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-400">今日暂无到诊安排</p>}
             {rehabTaskTab === "followups" && !dueFollowUps.length && <p className="rounded-xl bg-slate-50 p-6 text-center text-sm text-slate-400">今日暂无待随访记录</p>}

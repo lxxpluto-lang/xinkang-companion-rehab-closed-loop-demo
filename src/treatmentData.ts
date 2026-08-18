@@ -1,4 +1,5 @@
 import type { AiSuggestion, ClinicalMetricSource, SourcedClinicalValue, TreatmentSignature } from "./types";
+import type { PaperSignatureStatus } from "./trainingEncounterData";
 
 export type TreatmentVitalSnapshot = {
   bloodPressure: string;
@@ -21,6 +22,8 @@ export type TreatmentIntervention = {
 
 export type CardiopulmonaryTreatmentRecord = {
   treatmentId: string;
+  encounterId?: string;
+  appointmentId?: string;
   patientId: string;
   patientNo: string;
   sessionId?: string;
@@ -54,6 +57,8 @@ export type CardiopulmonaryTreatmentRecord = {
   fieldAction: string;
   therapist: string;
   patientAcknowledged: boolean;
+  paperSignatureStatus?: PaperSignatureStatus;
+  paperArchivedAt?: string;
   signature?: TreatmentSignature;
   correctionOf?: string;
   status: "draft" | "completed";
@@ -76,6 +81,7 @@ export const treatmentInterventionOptions: TreatmentIntervention[] = [
 export const initialTreatmentRecords: CardiopulmonaryTreatmentRecord[] = [
   {
     treatmentId: "TREAT-20260725-001",
+    encounterId: "ENC-HISTORY-20260725-001",
     patientId: "P-DEMO-001",
     patientNo: "000001",
     sessionId: "TR-20260725-012",
@@ -127,7 +133,7 @@ export const initialTreatmentRecords: CardiopulmonaryTreatmentRecord[] = [
     signature: { mode: "uploaded", signerRole: "REHAB_EXECUTION", signerName: "周康复师", treatmentAt: "2026-07-25T09:30:00+08:00", signedAt: "2026-07-25T10:08:00+08:00" },
     status: "completed"
   },
-  createPendingTreatment("TREAT-20260805-002", "P-DEMO-001", "P-000001", "CRH-TX-20260805-0002", "2026-08-05T09:30:00+08:00", "冠心病 PCI 术后，Ⅱ期心脏康复", "周康复师"),
+  { ...createPendingTreatment("TREAT-20260805-002", "P-DEMO-001", "P-000001", "CRH-TX-20260805-0002", "2026-08-05T09:30:00+08:00", "冠心病 PCI 术后，Ⅱ期心脏康复", "周康复师"), encounterId: "ENC-APT-001", appointmentId: "APT-001", prescriptionVersionId: "V1" },
   createPendingTreatment("TREAT-20260805-003", "P-DEMO-002", "P-000002", "CRH-TX-20260805-0003", "2026-08-05T10:30:00+08:00", "冠心病稳定期康复", "周康复师")
 ];
 

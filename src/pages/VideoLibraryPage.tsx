@@ -21,11 +21,11 @@ export type TrainingVideo = PublishedTrainingVideo & {
 
 const localVideoUrl = (fileName: string) => `/local-training-videos/${encodeURIComponent(fileName)}`;
 const qiantanVideo = "云逛魔都 4K HDR ｜ 前滩夏日的傍晚：从繁华的太古里到静謐江滨绿道 [BV1HKKt6eEdh].mp4";
+const bikeVideo = "云逛魔都 4K HDR ｜ 沉浸式体验陆家嘴滨江骑行：南浦大桥到杨浦大桥 [BV1HKgX6LEe1].mp4";
 const breathingVideoUrl = "https://www.bilibili.com/video/BV1Av4y1p7SL/";
-const bilibiliBikeVideoUrl = "https://player.bilibili.com/player.html?bvid=BV1HKgX6LEe1&page=1&high_quality=1&danmaku=0&autoplay=1";
 
 export const initialTrainingVideos: TrainingVideo[] = [
-  { id: "VIDEO-BIKE-BILIBILI-001", title: "云逛魔都 4K HDR ｜沉浸式滨江骑行", category: "有氧运动", subtype: "功率车", source: "link", url: bilibiliBikeVideoUrl, status: "PUBLISHED", updatedBy: "康复师" },
+  { id: "VIDEO-BIKE-LOCAL-001", title: "云逛魔都 4K HDR ｜沉浸式滨江骑行", category: "有氧运动", subtype: "功率车", source: "local", url: localVideoUrl(bikeVideo), status: "PUBLISHED", fileSize: "871 MB", updatedBy: "服务器视频目录" },
   { id: "VIDEO-BIKE-LOCAL-002", title: "前滩夏日傍晚骑行", category: "有氧运动", subtype: "功率车", source: "local", url: localVideoUrl(qiantanVideo), status: "PUBLISHED", fileSize: "983 MB", updatedBy: "本地视频目录" },
   { id: "VIDEO-BREATH-LINK-001", title: "腹式呼吸与正念呼吸指导", category: "呼吸训练", subtype: "腹式呼吸", source: "link", url: breathingVideoUrl, status: "PUBLISHED", updatedBy: "王医生" },
   { id: "VIDEO-BADUANJIN-LINK-001", title: "八段锦康复跟练", category: "中医运动", subtype: "八段锦", source: "link", url: breathingVideoUrl, status: "PUBLISHED", updatedBy: "周康复师" },
@@ -130,7 +130,7 @@ export function VideoLibraryPage({
             <SectionHeader title="添加训练视频" description="支持本地文件上传，也支持通过链接嵌入；保存后先进入草稿。" />
             <div className="mb-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800">
               <FolderOpen className="mt-0.5 h-5 w-5 shrink-0" />
-              <span>功率车可使用本地视频目录 <b>/Users/guagua/Documents/冠心病课题/Bilibili下载</b>；呼吸训练和中医运动也可通过外部链接嵌入。患者端只展示已发布且与处方项目匹配的内容。</span>
+              <span>功率车使用站点视频目录 <b>/local-training-videos</b>（服务器与本机开发环境通用）；呼吸训练和中医运动也可通过外部链接嵌入。患者端只展示已发布且与处方项目匹配的内容。</span>
             </div>
             <label className="block"><span className="field-label">视频名称</span><input value={title} onChange={(event) => setTitle(event.target.value)} className="text-field" placeholder="例如：腹式呼吸基础练习" /></label>
             <label className="mt-4 block"><span className="field-label">训练子类型</span><select value={subtype} onChange={(event) => setSubtype(event.target.value)} className="text-field">{categorySubtypes[category].map((item) => <option key={item}>{item}</option>)}</select></label>

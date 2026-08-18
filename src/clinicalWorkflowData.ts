@@ -42,6 +42,10 @@ export type PrescriptionTask = {
   aiSuggestion?: PrescriptionDraft;
   aiSuggestionMeta?: AiSuggestion;
   doctorFinal?: PrescriptionDraft;
+  plannedSessions?: number;
+  cycleEndDate?: string;
+  signedBy?: string;
+  signedAt?: string;
 };
 
 export type AlertSeverity = "notice" | "warning" | "critical";
@@ -60,6 +64,7 @@ export type AlertEvent = {
   snapshot: string;
   onSiteRecord?: string;
   doctorConclusion?: string;
+  encounterId?: string;
 };
 
 export type AlertRule = {
@@ -73,12 +78,13 @@ export type AlertRule = {
   enabled: boolean;
 };
 
-export type AppointmentStatus = "pending" | "completed" | "cancelled";
+export type AppointmentStatus = "pending" | "arrived" | "in_training" | "completed" | "cancelled" | "no_show";
 export type Appointment = {
   id: string;
   date: string;
   time: string;
   patientId: string;
+  patientNo?: string;
   patientName: string;
   risk: string;
   status: AppointmentStatus;
@@ -86,7 +92,25 @@ export type Appointment = {
   station: string;
   doctorId: "doctor001" | "doctor002";
   doctorName: string;
+  therapistId?: string;
+  therapistName?: string;
   note: string;
+  source?: "local" | "external";
+  checkedInBy?: string;
+  checkedInAt?: string;
+  cancelledReason?: string;
+  encounterId?: string;
+  prescriptionTaskId?: string;
+  prescriptionVersion?: string;
+  plannedSessions?: number;
+  rescheduledFromId?: string;
+  rescheduledToId?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  statusConfirmedBy?: string;
+  statusConfirmedAt?: string;
 };
 
 const baseDraft: PrescriptionDraft = {
@@ -107,7 +131,8 @@ export const initialPrescriptionTasks: PrescriptionTask[] = [
   { id: "RX-TASK-001", prescriptionNo: "RX-10001-0020", patientId: "P-DEMO-001", patientNo: "P-000001", patientName: "陈女士", age: 62, risk: "中危", rehabStage: "Ⅱ期 · 第4周", diagnosis: "冠心病术后康复期", specialMedication: "β受体阻滞剂（外部资料）", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V2", kind: "adjustment", sourceLabel: "阶段性报告", generatedAt: "2026-08-05 09:20", status: "pending_review", updatedAt: "2026-08-05 09:20", previous: baseDraft, aiSuggestion: { ...baseDraft, summary: "基于最近训练与阶段报告形成的AI辅助草稿，需王医生逐项复核。" } },
   { id: "RX-TASK-002", prescriptionNo: "RX-10002-0011", patientId: "P-DEMO-002", patientNo: "P-000002", patientName: "李先生", age: 58, risk: "低危", rehabStage: "Ⅱ期 · 第2周", diagnosis: "冠心病稳定期", specialMedication: "未提供", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V1", kind: "adjustment", sourceLabel: "单次报告", generatedAt: "2026-08-05 08:45", status: "pending_generation", updatedAt: "2026-08-05 08:45" },
   { id: "RX-TASK-003", prescriptionNo: "RX-10003-0008", patientId: "P-DEMO-003", patientNo: "P-000003", patientName: "赵女士", age: 66, risk: "中危", rehabStage: "Ⅰ期 · 首次评估", diagnosis: "心脏术后早期康复", specialMedication: "抗血小板药物（外部资料）", assignedDoctorId: "doctor002", assignedDoctorName: "李医生", version: "V1", kind: "initial", sourceLabel: "基线评估", generatedAt: "2026-08-04 16:30", status: "pending_signature", updatedAt: "2026-08-04 16:30", aiSuggestion: baseDraft, doctorFinal: baseDraft },
-  { id: "RX-TASK-004", prescriptionNo: "RX-10004-0014", patientId: "P-DEMO-004", patientNo: "P-000004", patientName: "周先生", age: 55, risk: "低危", rehabStage: "Ⅱ期 · 第3周", diagnosis: "冠心病康复期", specialMedication: "未提供", assignedDoctorId: "doctor002", assignedDoctorName: "李医生", version: "V2", kind: "adjustment", sourceLabel: "阶段性报告", generatedAt: "2026-08-03 11:10", status: "completed", updatedAt: "2026-08-03 11:10", previous: baseDraft, aiSuggestion: baseDraft, doctorFinal: baseDraft }
+  { id: "RX-TASK-004", prescriptionNo: "RX-10004-0014", patientId: "P-DEMO-004", patientNo: "P-000004", patientName: "周先生", age: 55, risk: "低危", rehabStage: "Ⅱ期 · 第3周", diagnosis: "冠心病康复期", specialMedication: "未提供", assignedDoctorId: "doctor002", assignedDoctorName: "李医生", version: "V2", kind: "adjustment", sourceLabel: "阶段性报告", generatedAt: "2026-08-03 11:10", status: "completed", updatedAt: "2026-08-03 11:10", previous: baseDraft, aiSuggestion: baseDraft, doctorFinal: baseDraft },
+  { id: "RX-TASK-005", prescriptionNo: "RX-10001-0012", patientId: "P-DEMO-001", patientNo: "P-000001", patientName: "陈女士", age: 62, risk: "中危", rehabStage: "Ⅱ期 · 第2周", diagnosis: "冠心病术后康复期", specialMedication: "β受体阻滞剂（外部资料）", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V1", kind: "initial", sourceLabel: "体能评估/SPPB", generatedAt: "2026-07-22 10:10", status: "completed", updatedAt: "2026-07-22 10:30", aiSuggestion: baseDraft, doctorFinal: baseDraft, plannedSessions: 5, cycleEndDate: "2026-08-31" }
 ];
 
 export const initialAlertEvents: AlertEvent[] = [
@@ -125,10 +150,11 @@ export const initialAlertRules: AlertRule[] = [
 ];
 
 export const initialAppointments: Appointment[] = [
-  { id: "APT-001", date: "2026-08-05", time: "10:15", patientId: "P-DEMO-001", patientName: "陈女士", risk: "中危", status: "pending", project: "功率车", station: "功率车01", doctorId: "doctor001", doctorName: "王医生", note: "阶段训练" },
-  { id: "APT-002", date: "2026-08-05", time: "11:00", patientId: "P-DEMO-002", patientName: "李先生", risk: "低危", status: "pending", project: "八段锦", station: "训练区02", doctorId: "doctor001", doctorName: "王医生", note: "首次到诊" },
-  { id: "APT-003", date: "2026-08-05", time: "14:30", patientId: "P-DEMO-003", patientName: "赵女士", risk: "中危", status: "pending", project: "功率车", station: "功率车02", doctorId: "doctor002", doctorName: "李医生", note: "需关注血氧" },
-  { id: "APT-004", date: "2026-08-05", time: "15:45", patientId: "P-DEMO-004", patientName: "周先生", risk: "低危", status: "completed", project: "呼吸训练", station: "训练区01", doctorId: "doctor002", doctorName: "李医生", note: "已完成" }
+  { id: "APT-001", date: "2026-08-05", time: "10:15", patientId: "P-DEMO-001", patientName: "陈女士", risk: "中危", status: "arrived", project: "功率车", station: "功率车01", doctorId: "doctor001", doctorName: "王医生", therapistId: "rehab001", therapistName: "周康复师", note: "阶段训练", source: "local", checkedInBy: "周康复师", checkedInAt: "2026-08-05 10:08", encounterId: "ENC-APT-001", prescriptionTaskId: "RX-TASK-005", prescriptionVersion: "V1", plannedSessions: 5 },
+  { id: "APT-002", date: "2026-08-05", time: "11:00", patientId: "P-DEMO-002", patientName: "李先生", risk: "低危", status: "pending", project: "八段锦", station: "训练区02", doctorId: "doctor001", doctorName: "王医生", therapistId: "rehab001", therapistName: "周康复师", note: "首次到诊", source: "local" },
+  { id: "APT-003", date: "2026-08-05", time: "14:30", patientId: "P-DEMO-003", patientName: "赵女士", risk: "中危", status: "in_training", project: "功率车", station: "功率车02", doctorId: "doctor002", doctorName: "李医生", therapistId: "rehab001", therapistName: "周康复师", note: "需关注血氧", source: "external", checkedInBy: "周康复师", checkedInAt: "2026-08-05 14:22" },
+  { id: "APT-004", date: "2026-08-05", time: "15:45", patientId: "P-DEMO-004", patientName: "周先生", risk: "低危", status: "completed", project: "呼吸训练", station: "训练区01", doctorId: "doctor002", doctorName: "李医生", therapistId: "rehab001", therapistName: "周康复师", note: "已完成", source: "local", checkedInBy: "周康复师", checkedInAt: "2026-08-05 15:40" },
+  { id: "APT-005", date: "2026-08-05", time: "16:30", patientId: "P-DEMO-005", patientName: "孙先生", risk: "低危", status: "no_show", project: "柔韧性训练", station: "训练区03", doctorId: "doctor001", doctorName: "王医生", therapistId: "rehab001", therapistName: "周康复师", note: "电话未接通，待随访确认", source: "local", cancelledReason: "超过预约时间30分钟未到诊", statusConfirmedBy: "周康复师", statusConfirmedAt: "2026-08-05 17:00" }
 ];
 
 export function createAiDraft(task: PrescriptionTask): PrescriptionDraft {

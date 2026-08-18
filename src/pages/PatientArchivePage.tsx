@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   Award,
   BookOpenCheck,
   CheckCircle2,
@@ -18,13 +19,14 @@ import {
   Search,
   Send,
   ShieldCheck,
+  Trash2,
   Upload,
   UserRound,
   X,
 } from "lucide-react";
 import { demoPatients } from "../mockData";
+import { can as canAccessAction } from "../accessControl";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
-import { singleTrainingReportDetails } from "../clinicalSharedData";
 import { calculateSppb, createBlankSppb, type AssessmentRecord, type OcrAssessmentImportDraft } from "../assessmentData";
 import type { FollowUpRecord, FollowUpTask } from "../followUpData";
 import type {
@@ -48,16 +50,22 @@ import type {
 } from "../types";
 import type { RehabReport } from "../dischargeHandbookData";
 import { readStaffSignature } from "../signatureStore";
-import { PatientRehabReport } from "../patient/PatientApp";
+import { PatientRehabReport, SingleTrainingReport } from "../patient/PatientApp";
 import { FollowUpDialog } from "./FollowUpManagementPage";
+import { toReportPatientSnapshot, type StoredSingleReport, type StoredStageReport, type StoredTrainingSession } from "../reportData";
+import { StageReportWorkspace } from "./StageReportWorkspace";
+import type { Appointment, AppointmentStatus, PrescriptionTask } from "../clinicalWorkflowData";
+import { encounterStatusLabel, type TrainingEncounter } from "../trainingEncounterData";
 
 export type PatientWorkspaceTab =
   | "profile"
   | "assessments"
+  | "prescriptions"
   | "sessions"
   | "treatments"
   | "rehabReports"
-  | "followups";
+  | "followups"
+  | "appointments";
 type TrainingTab = "actual" | "single" | "stage";
 
 export type ManagedPatient = {
@@ -124,6 +132,23 @@ export type ManagedPatient = {
   patient_status?: PatientStatus;
 };
 
+export const rehabStageOptions = [
+  "冠心病1期",
+  "冠心病2期",
+  "冠心病3期",
+  "其他",
+] as const;
+
+export type RehabStage = (typeof rehabStageOptions)[number];
+
+export function normalizeRehabStage(value: string): RehabStage {
+  if (rehabStageOptions.includes(value as RehabStage)) return value as RehabStage;
+  if (/Ⅲ|III|3期|随访|院后/i.test(value)) return "冠心病3期";
+  if (/Ⅱ|II|2期/i.test(value)) return "冠心病2期";
+  if (/Ⅰ|I|1期/i.test(value)) return "冠心病1期";
+  return "其他";
+}
+
 const profiles = [
   [
     "陈女士",
@@ -131,7 +156,7 @@ const profiles = [
     "1967-04-18",
     "女",
     "136****2031",
-    "Ⅱ期 · 第4周",
+    "冠心病2期",
     "2026-07-02",
     "rehabilitation",
   ],
@@ -141,7 +166,7 @@ const profiles = [
     "1968-09-12",
     "女",
     "136****1938",
-    "Ⅱ期 · 第2周",
+    "冠心病2期",
     "2026-06-20",
     "prescription_opened",
   ],
@@ -151,7 +176,7 @@ const profiles = [
     "1960-02-26",
     "男",
     "159****2850",
-    "Ⅱ期 · 第3周",
+    "冠心病2期",
     "2026-05-02",
     "rehabilitation",
   ],
@@ -161,7 +186,7 @@ const profiles = [
     "1966-11-03",
     "女",
     "137****8246",
-    "随访期",
+    "冠心病3期",
     "2026-07-08",
     "recovered",
   ],
@@ -321,6 +346,27 @@ const statusLabels: Record<PatientStatus, string> = {
   recovered: "已康复",
 };
 
+function appointmentStatusText(status: AppointmentStatus) {
+  return {
+    pending: "待到诊",
+    arrived: "已到诊",
+    in_training: "训练中",
+    completed: "已完成",
+    cancelled: "已取消",
+    no_show: "爽约",
+  }[status];
+}
+
+function prescriptionStatusText(status: PrescriptionTask["status"]) {
+  return {
+    pending_generation: "待生成",
+    pending_review: "待医生复核",
+    pending_signature: "待签署",
+    completed: "已完成",
+    withdrawn: "已撤回",
+  }[status];
+}
+
 export function PatientArchivePage({
   role,
   currentAccount = "周康复师",
@@ -330,6 +376,11 @@ export function PatientArchivePage({
   assessmentRecords = [],
   treatmentRecords = [],
   rehabReports = [],
+  appointments = [],
+  prescriptionTasks = [],
+  trainingSessions = [],
+  singleReports = [],
+  stageReports = [],
   initialPatientId,
   initialTab = "profile",
   initialRecordId,
@@ -339,10 +390,17 @@ export function PatientArchivePage({
   onOpenAssessment,
   onSaveTreatmentRecord,
   onSaveRehabReport,
+  onSaveTrainingSession,
+  onSaveSingleReport,
+  onSaveStageReport,
+  onConfirmStageReport,
+  onPublishStageReport,
   onSaveAssessment,
   onSaveFollowUpRecord,
   onDeleteFollowUpRecord,
   onDeletePatients,
+  onOpenPrescriptionTask,
+  onCreatePrescription,
 }: {
   role: Exclude<Role, "PATIENT">;
   currentAccount?: string;
@@ -354,6 +412,11 @@ export function PatientArchivePage({
   assessmentRecords?: AssessmentRecord[];
   treatmentRecords?: CardiopulmonaryTreatmentRecord[];
   rehabReports?: RehabReport[];
+  appointments?: Appointment[];
+  prescriptionTasks?: PrescriptionTask[];
+  trainingSessions?: StoredTrainingSession[];
+  singleReports?: StoredSingleReport[];
+  stageReports?: StoredStageReport[];
   initialPatientId?: string | null;
   initialTab?: PatientWorkspaceTab;
   initialRecordId?: string | null;
@@ -369,10 +432,17 @@ export function PatientArchivePage({
   onOpenDischargeReport?: (patientId: string) => void;
   onSaveTreatmentRecord?: (record: CardiopulmonaryTreatmentRecord) => void;
   onSaveRehabReport?: (report: RehabReport) => void;
+  onSaveTrainingSession?: (session: StoredTrainingSession) => void;
+  onSaveSingleReport?: (report: StoredSingleReport) => void;
+  onSaveStageReport?: (report: StoredStageReport) => void;
+  onConfirmStageReport?: (reportId: string, account: string) => void;
+  onPublishStageReport?: (reportId: string, account: string) => void;
   onSaveAssessment?: (record: AssessmentRecord) => void;
   onSaveFollowUpRecord?: (record: FollowUpRecord) => void;
   onDeleteFollowUpRecord?: (recordId: string) => void;
   onDeletePatients?: (patientIds: string[]) => void;
+  onOpenPrescriptionTask?: (taskId: string, patientId?: string) => void;
+  onCreatePrescription?: (patientId: string) => void;
 }) {
   const [selectedId, setSelectedId] = useState(initialPatientId ?? null);
   const [tab, setTab] = useState<PatientWorkspaceTab>(
@@ -391,6 +461,7 @@ export function PatientArchivePage({
   const [statusFilter, setStatusFilter] = useState("全部状态");
   const [ocrPickerOpen, setOcrPickerOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedPatient | null>(null);
+  const [patientFormError, setPatientFormError] = useState("");
   const [treatmentDraft, setTreatmentDraft] =
     useState<CardiopulmonaryTreatmentRecord | null>(
       () =>
@@ -405,7 +476,15 @@ export function PatientArchivePage({
   const [selectedPatientIds, setSelectedPatientIds] = useState<string[]>([]);
   const [followUpDialog, setFollowUpDialog] = useState<{ taskId: string; recordId?: string; readOnly: boolean } | null>(null);
   const selected =
-    patients.find((item) => item.patient_demo_id === selectedId) ?? null;
+    patients.find((item) => item.patient_demo_id === selectedId) ??
+    (editing?.patient_demo_id === selectedId ? editing : null);
+
+  useEffect(() => {
+    if (role === "DOCTOR" && tab === "rehabReports") {
+      setTab("prescriptions");
+    }
+  }, [role, tab]);
+
   const filtered = useMemo(
     () =>
       patients.filter(
@@ -416,7 +495,8 @@ export function PatientArchivePage({
             item.patient_no
               .toLowerCase()
               .includes(patientNoFilter.toLowerCase())) &&
-          (stageFilter === "全部阶段" || item.rehab_stage === stageFilter) &&
+          (stageFilter === "全部阶段" ||
+            normalizeRehabStage(item.rehab_stage) === stageFilter) &&
           (statusFilter === "全部状态" ||
             statusLabels[item.patient_status ?? "rehabilitation"] ===
               statusFilter),
@@ -424,7 +504,71 @@ export function PatientArchivePage({
     [patients, nameFilter, patientNoFilter, stageFilter, statusFilter],
   );
   const canEdit = role !== "DOCTOR";
-  const canImportAssessment = role === "REHAB_EXECUTION";
+  const canEditPatientProfile = canAccessAction(role, "EDIT");
+  const canImportAssessment = canEditPatientProfile;
+
+  function openNewPatientEditor() {
+    const patient = createBlankPatient(patients[0] ?? initialPatients[0], currentAccount);
+    setPatientFormError("");
+    setSelectedId(patient.patient_demo_id);
+    setTab("profile");
+    setEditing(patient);
+  }
+
+  function openExistingPatientEditor(patient: ManagedPatient) {
+    setPatientFormError("");
+    setEditing({ ...patient });
+  }
+
+  function closePatientEditor(preserveDraftSelection = false) {
+    const isUnsavedDraft = editing ? !patients.some((item) => item.patient_demo_id === editing.patient_demo_id) : false;
+    const draftId = editing?.patient_demo_id;
+    setEditing(null);
+    setPatientFormError("");
+    if (!preserveDraftSelection && isUnsavedDraft && selectedId === draftId) {
+      setSelectedId(null);
+    }
+  }
+
+  function savePatientEditor(previousDischargeDate: string, reason: string) {
+    if (!editing) return;
+    const isNewPatient = !patients.some(
+      (item) => item.patient_demo_id === editing.patient_demo_id,
+    );
+    const name = editing.name.trim();
+    const patientNo = editing.patient_no.trim() || generatePatientNo(Date.now());
+    const archiveNo = editing.patient_code.trim() || generateArchiveNo(patientNo, Date.now());
+    const riskLevel = editing.risk_level.trim();
+    if (!name) {
+      setPatientFormError("请填写患者姓名。");
+      return;
+    }
+    if (!riskLevel) {
+      setPatientFormError("请选择风险分层。");
+      return;
+    }
+    const duplicate = patients.some(
+      (item) => item.patient_demo_id !== editing.patient_demo_id && item.patient_no.trim() === patientNo,
+    );
+    if (duplicate) {
+      setPatientFormError(`患者号 ${patientNo} 已存在，请更换后再保存。`);
+      return;
+    }
+    const patient = {
+      ...editing,
+      name,
+      patient_code: archiveNo,
+      patient_no: patientNo,
+      hospital_patient_no: patientNo,
+      risk_level: riskLevel,
+      assigned_doctor: isNewPatient ? currentAccount : editing.assigned_doctor,
+      age: calculateAge(editing.birth_date),
+    };
+    onSavePatient(patient, previousDischargeDate, reason);
+    setSelectedId(patient.patient_demo_id);
+    setTab("profile");
+    closePatientEditor(true);
+  }
 
   if (treatmentDraft && selected)
     return (
@@ -449,35 +593,38 @@ export function PatientArchivePage({
           title="患者档案"
           description="按姓名、患者编号、康复阶段和患者状态查询；本系统不维护完整HIS病历。"
           action={
-            canEdit ? (
-              <div className="flex gap-2">
+            canEditPatientProfile ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={openNewPatientEditor}
+                  className="btn-primary"
+                >
+                  <Plus className="h-4 w-4" />
+                  新增
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary text-red-600 disabled:text-slate-300"
+                  disabled={!selectedPatientIds.length || !canEdit}
+                  onClick={() => {
+                    if (window.confirm(`确认删除已选择的 ${selectedPatientIds.length} 位患者？`)) {
+                      onDeletePatients?.(selectedPatientIds);
+                      setSelectedPatientIds([]);
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  删除
+                </button>
                 {canImportAssessment && <button
                   type="button"
                   onClick={() => setOcrPickerOpen(true)}
                   className="btn-secondary"
                 >
                   <Upload className="h-4 w-4" />
-                  体能评估OCR识别
+                  体能测试记录录入
                 </button>}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setEditing({
-                      ...patients[0],
-                      patient_demo_id: `P-DEMO-${Date.now()}`,
-                      name: "",
-                      patient_no: "",
-                      hospital_patient_no: "",
-                      phone: "",
-                      birth_date: "",
-                      age: 0,
-                    })
-                  }
-                  className="btn-primary"
-                >
-                  <Plus className="h-4 w-4" />
-                  手工补录基础资料
-                </button>
               </div>
             ) : undefined
           }
@@ -513,9 +660,7 @@ export function PatientArchivePage({
                 className="text-field"
               >
                 <option>全部阶段</option>
-                {Array.from(
-                  new Set(patients.map((item) => item.rehab_stage)),
-                ).map((item) => (
+                {rehabStageOptions.map((item) => (
                   <option key={item}>{item}</option>
                 ))}
               </select>
@@ -548,7 +693,7 @@ export function PatientArchivePage({
           </div>
         </section>
         <section className="card mt-4 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3"><span className="text-xs text-slate-500">已选择 {selectedPatientIds.length} 位患者</span>{canEdit && <button type="button" className="btn-primary" disabled={!selectedPatientIds.length} onClick={() => { if (window.confirm(`确认删除已选择的 ${selectedPatientIds.length} 位患者？`)) { onDeletePatients?.(selectedPatientIds); setSelectedPatientIds([]); } }}>删除所选</button>}</div>
+          <div className="border-b border-slate-100 px-5 py-3"><span className="text-xs text-slate-500">已选择 {selectedPatientIds.length} 位患者</span></div>
           <div className="grid grid-cols-[0.35fr_1.1fr_0.8fr_0.75fr_1fr_0.85fr_0.85fr_0.6fr] bg-slate-50 px-5 py-3 text-[10px] font-bold text-slate-400">
             <span><input type="checkbox" aria-label="选择全部患者" checked={Boolean(filtered.length) && filtered.every((item) => selectedPatientIds.includes(item.patient_demo_id))} onChange={(event) => setSelectedPatientIds(event.target.checked ? filtered.map((item) => item.patient_demo_id) : [])} /></span>
             <span>患者</span>
@@ -595,32 +740,10 @@ export function PatientArchivePage({
           const previousDischargeDate = patients.find((item) => item.patient_demo_id === patient.patient_demo_id)?.discharge_date ?? "";
           onSavePatient(patient, previousDischargeDate, "体能评估OCR核对归档");
           onSaveAssessment?.(record);
+          setSelectedId(patient.patient_demo_id);
+          setTab("profile");
           setOcrPickerOpen(false);
         }} />}
-        {editing && (
-          <PatientModal
-            patient={editing}
-            onChange={setEditing}
-            onClose={() => setEditing(null)}
-            onSave={() => {
-              onSavePatient(
-                {
-                  ...editing,
-                  age: calculateAge(editing.birth_date),
-                  patient_no:
-                    editing.patient_no ||
-                    String(patients.length + 1).padStart(6, "0"),
-                  hospital_patient_no:
-                    editing.patient_no ||
-                    String(patients.length + 1).padStart(6, "0"),
-                },
-                "",
-                "",
-              );
-              setEditing(null);
-            }}
-          />
-        )}
       </section>
     );
 
@@ -630,8 +753,20 @@ export function PatientArchivePage({
   const patientTreatments = treatmentRecords.filter(
     (item) => item.patientId === selected.patient_demo_id,
   );
-  const patientSessions = trainingRecords.filter(
+  const patientAppointments = appointments.filter(
     (item) => item.patientId === selected.patient_demo_id,
+  );
+  const patientPrescriptions = prescriptionTasks.filter(
+    (item) => item.patientId === selected.patient_demo_id,
+  );
+  const patientSessions = trainingSessions.filter(
+    (item) => item.patientId === selected.patient_demo_id,
+  );
+  const isEditingSelected = editing?.patient_demo_id === selected.patient_demo_id;
+  const isEditingNewPatient = Boolean(
+    isEditingSelected &&
+      editing &&
+      !patients.some((item) => item.patient_demo_id === editing.patient_demo_id),
   );
   return (
     <section>
@@ -642,7 +777,10 @@ export function PatientArchivePage({
         action={
           <button
             type="button"
-            onClick={() => setSelectedId(null)}
+            onClick={() => {
+              closePatientEditor();
+              setSelectedId(null);
+            }}
             className="btn-secondary"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -655,11 +793,13 @@ export function PatientArchivePage({
           [
             ["profile", "基础档案"],
             ["assessments", "体能评估"],
+            ["prescriptions", "处方管理"],
             ["sessions", "训练记录"],
             ["treatments", "治疗记录"],
-            ["rehabReports", "康复报告"],
+            ...(role === "DOCTOR" ? [] : [["rehabReports", "康复报告"]]),
             ["followups", "随访记录"],
-          ] as const
+            ["appointments", "预约记录"],
+          ] as [PatientWorkspaceTab, string][]
         ).map(([key, label]) => (
           <button
             type="button"
@@ -673,16 +813,26 @@ export function PatientArchivePage({
         ))}
       </div>
       {tab === "profile" && (
-        <Profile
-          patient={selected}
-          canEdit={canEdit}
-          onEdit={() => setEditing({ ...selected })}
-        />
+        isEditingSelected && editing ? (
+          <PatientProfileEditor
+            patient={editing}
+            onChange={setEditing}
+            error={patientFormError}
+            onClose={() => closePatientEditor()}
+            onSave={() => savePatientEditor(selected.discharge_date, isEditingNewPatient ? "新增患者档案" : "基础资料更正")}
+          />
+        ) : (
+          <Profile
+            patient={selected}
+            canEdit={canEditPatientProfile}
+            onEdit={() => openExistingPatientEditor(selected)}
+          />
+        )
       )}
       {tab === "assessments" && (
         <RecordList
           title="体能评估报告"
-          description="支持批量OCR、单张OCR和手工录入；点击记录将在新网页页签打开。"
+          description={role === "DOCTOR" ? "医生可查看患者历次体能评估记录，评估原始数据保持只读。" : "支持批量OCR、单张OCR和手工录入；点击记录进入评估详情。"}
           action={
             canEdit ? (
               <button
@@ -715,8 +865,54 @@ export function PatientArchivePage({
                 onOpenAssessment(selected.patient_demo_id, item.assessmentId)
               }
             >
-              新页签查看
+              查看记录
             </button>,
+          ])}
+        />
+      )}
+      {tab === "prescriptions" && (
+        <RecordList
+          title="处方管理"
+          description={role === "DOCTOR" ? "医生在患者档案内直接进入处方编写、复核与签署；处方来源于体能评估、训练记录和阶段报告。" : "康复师在患者档案内查看处方版本与训练强度，执行过程不改写医生处方。"}
+          action={role === "DOCTOR" && onCreatePrescription ? (
+            <button
+              type="button"
+              className="btn-primary"
+              data-action="ACT-CREATE-PRESCRIPTION"
+              data-ac="AC-DOCTOR-CREATE-PRESCRIPTION-FROM-PATIENT"
+              onClick={() => onCreatePrescription(selected.patient_demo_id)}
+            >
+              <Plus className="h-4 w-4" />
+              新增处方
+            </button>
+          ) : undefined}
+          headers={[
+            "生成时间",
+            "处方号",
+            "版本",
+            "来源",
+            "状态",
+            "责任医生",
+            "操作",
+          ]}
+          rows={patientPrescriptions.map((item) => [
+            item.generatedAt ?? item.updatedAt,
+            item.prescriptionNo,
+            item.version,
+            item.sourceLabel ?? (item.kind === "initial" ? "首次评估" : "调整"),
+            prescriptionStatusText(item.status),
+            item.assignedDoctorName,
+            onOpenPrescriptionTask ? (
+              <button
+                type="button"
+                className="font-bold text-blue-700"
+                onClick={() => onOpenPrescriptionTask(item.id, selected.patient_demo_id)}
+              >
+                {role === "DOCTOR" ? "编辑处方" : "查看处方"}
+              </button>
+            ) : (
+              "未开放"
+            ),
           ])}
         />
       )}
@@ -775,6 +971,7 @@ export function PatientArchivePage({
       {tab === "sessions" && (
         <TrainingWorkspace
           patient={selected}
+          role={role}
           sessions={patientSessions}
           initialRecordId={initialRecordId}
           trainingTab={trainingTab}
@@ -785,11 +982,17 @@ export function PatientArchivePage({
           setStageDraftOpen={setStageDraftOpen}
           stageSent={stageSent}
           setStageSent={setStageSent}
-          canEdit={false}
+          canEdit={true}
           currentAccount={currentAccount}
+          singleReports={singleReports}
+          stageReports={stageReports}
+          patientSnapshot={toReportPatientSnapshot({ ...selected, weight_kg: Number(selected.weight_kg) || undefined })}
+          onSaveStageReport={onSaveStageReport}
+          onConfirmStageReport={onConfirmStageReport}
+          onPublishStageReport={onPublishStageReport}
         />
       )}
-      {tab === "rehabReports" && (
+      {tab === "rehabReports" && role !== "DOCTOR" && (
         <RehabReportWorkspace
           patient={selected}
           reports={rehabReports.filter(
@@ -834,22 +1037,22 @@ export function PatientArchivePage({
           }
         />
       )}
-      {followUpDialog && (() => { const task = followUpTasks.find((item) => item.id === followUpDialog.taskId) ?? { id: followUpDialog.taskId, patientId: selected.patient_demo_id, assignedDoctor: selected.assigned_doctor, milestoneMonth: 1 as const, originalPlannedDate: new Date().toISOString().slice(0, 10), currentDueDate: new Date().toISOString().slice(0, 10), reminderDate: new Date().toISOString().slice(0, 10), status: "due" as const, rescheduleHistory: [] }; const record = followUpRecords.find((item) => item.recordId === followUpDialog.recordId); return <FollowUpDialog task={task} patient={selected} record={record} readOnly={followUpDialog.readOnly} currentAccount={currentAccount} onClose={() => setFollowUpDialog(null)} onSave={(next) => { onSaveFollowUpRecord?.(next); setFollowUpDialog(null); }} />; })()}
-      {editing && (
-        <PatientModal
-          patient={editing}
-          onChange={setEditing}
-          onClose={() => setEditing(null)}
-          onSave={() => {
-            onSavePatient(
-              { ...editing, age: calculateAge(editing.birth_date) },
-              selected.discharge_date,
-              "基础资料更正",
-            );
-            setEditing(null);
-          }}
+      {tab === "appointments" && (
+        <RecordList
+          title="预约记录"
+          description="记录预约来源、到诊状态、工位、确认人和取消/爽约原因，形成建档后的就诊轨迹。"
+          headers={["日期时间", "运动项目", "工位", "状态", "来源", "确认/原因"]}
+          rows={patientAppointments.map((item) => [
+            `${item.date} ${item.time}`,
+            item.project,
+            item.station,
+            appointmentStatusText(item.status),
+            item.source === "external" ? "外部预约/HIS" : "本系统预约",
+            item.checkedInAt ? `${item.checkedInBy ?? "未记录"} ${item.checkedInAt}` : item.cancelledReason || item.note || "未记录",
+          ])}
         />
       )}
+      {followUpDialog && (() => { const task = followUpTasks.find((item) => item.id === followUpDialog.taskId) ?? { id: followUpDialog.taskId, patientId: selected.patient_demo_id, assignedDoctor: selected.assigned_doctor, milestoneMonth: 1 as const, originalPlannedDate: new Date().toISOString().slice(0, 10), currentDueDate: new Date().toISOString().slice(0, 10), reminderDate: new Date().toISOString().slice(0, 10), status: "due" as const, rescheduleHistory: [] }; const record = followUpRecords.find((item) => item.recordId === followUpDialog.recordId); return <FollowUpDialog task={task} patient={selected} record={record} readOnly={followUpDialog.readOnly} currentAccount={currentAccount} onClose={() => setFollowUpDialog(null)} onSave={(next) => { onSaveFollowUpRecord?.(next); setFollowUpDialog(null); }} />; })()}
     </section>
   );
 }
@@ -882,18 +1085,24 @@ function Profile({
           ["姓名", patient.name],
           ["性别/年龄", `${patient.gender} / ${patient.age}岁`],
           ["出生日期", patient.birth_date],
-          ["患者编号", patient.patient_no],
+          ["患者号", patient.patient_no],
+          ["档案号", patient.patient_code],
+          ["风险分层", patient.risk_level || "未分层"],
           ["联系方式", patient.phone || "未提供"],
+          ["患者来源", patient.referral_source || "未提供"],
+          ["责任医生", patient.assigned_doctor || "未提供"],
           [
             "患者状态",
             statusLabels[patient.patient_status ?? "rehabilitation"],
           ],
+          ["病史", cleanMissing(patient.medical_history)],
           ["康复阶段", patient.rehab_stage],
+          ["计划康复日期", patient.planned_rehab_date || "未提供"],
           ["出院日期", patient.discharge_date || "未提供"],
           ["诊断", cleanMissing(patient.diagnosis_summary)],
           ["手术方式/记录", cleanMissing(patient.procedure_history)],
           ["特殊用药", cleanMissing(patient.current_medications)],
-          ["最近训练/评估/随访", "7月25日 / 7月20日 / 未记录"],
+          ["药物过敏", cleanMissing(patient.drug_allergies)],
         ].map(([label, value]) => (
           <Info key={label} label={label} value={value} />
         ))}
@@ -959,7 +1168,8 @@ function RecordList({
 
 function TrainingWorkspace(props: {
   patient: ManagedPatient;
-  sessions: typeof trainingRecords;
+  role: Exclude<Role, "PATIENT">;
+  sessions: StoredTrainingSession[];
   initialRecordId?: string | null;
   trainingTab: TrainingTab;
   setTrainingTab: (v: TrainingTab) => void;
@@ -971,8 +1181,18 @@ function TrainingWorkspace(props: {
   setStageSent: (v: boolean) => void;
   canEdit: boolean;
   currentAccount: string;
+  singleReports: StoredSingleReport[];
+  stageReports: StoredStageReport[];
+  patientSnapshot: ReturnType<typeof toReportPatientSnapshot>;
+  onSaveStageReport?: (report: StoredStageReport) => void;
+  onConfirmStageReport?: (reportId: string, account: string) => void;
+  onPublishStageReport?: (reportId: string, account: string) => void;
 }) {
   const { sessions } = props;
+  const [selectedSingleReportId, setSelectedSingleReportId] = useState<string | null>(props.initialRecordId ?? null);
+  useEffect(() => {
+    setSelectedSingleReportId(props.initialRecordId ?? null);
+  }, [props.initialRecordId, props.patient.patient_demo_id]);
   const prescriptionCycleSessions = sessions.filter(
     (item) => item.prescriptionTaskId === "RX-TASK-001",
   );
@@ -996,12 +1216,12 @@ function TrainingWorkspace(props: {
         ))}
       </div>
       {props.trainingTab === "single" &&
-        (props.initialRecordId ? (
-          <SingleReportCard reportId={props.initialRecordId} />
+        (selectedSingleReportId ? (
+          <SingleReportCard reportId={selectedSingleReportId} reports={props.singleReports} onBack={() => setSelectedSingleReportId(null)} />
         ) : (
           <RecordList
             title="单次报告"
-            description="与患者端同步；点击后在新网页页签查看。"
+            description="与患者端同步；点击后查看同一份完整单次报告。"
             headers={[
               "报告号",
               "训练日期",
@@ -1011,7 +1231,7 @@ function TrainingWorkspace(props: {
               "状态",
               "操作",
             ]}
-            rows={singleTrainingReportDetails
+            rows={props.singleReports
               .filter(
                 (item) => item.patientId === props.patient.patient_demo_id,
               )
@@ -1025,20 +1245,28 @@ function TrainingWorkspace(props: {
                 <button
                   className="text-blue-700"
                   onClick={() =>
-                    openPatientRecord(
-                      props.patient.patient_demo_id,
-                      "sessions",
-                      item.id,
-                      "single",
-                    )
+                    setSelectedSingleReportId(item.id)
                   }
                 >
-                  新页签查看
+                  查看完整报告
                 </button>,
               ])}
           />
         ))}
       {props.trainingTab === "stage" && (
+        <StageReportWorkspace
+          patient={props.patientSnapshot}
+          sessions={sessions}
+          reports={props.stageReports}
+          role={props.role}
+          currentAccount={props.currentAccount}
+          canEdit={props.canEdit}
+          onSave={props.onSaveStageReport ?? (() => undefined)}
+          onConfirm={props.onConfirmStageReport}
+          onPublish={props.onPublishStageReport}
+        />
+      )}
+      {false && props.trainingTab === "stage" && (
         <section className="card p-5">
           <SectionHeader
             title="阶段报告"
@@ -1105,7 +1333,7 @@ function TrainingWorkspace(props: {
                       />
                       <b>{item.date}</b>
                       <span>
-                        {item.project} · {item.duration}分钟
+                        {item.exerciseType} · {item.totalMinutes}分钟
                       </span>
                     </label>
                   ))}
@@ -1122,11 +1350,11 @@ function TrainingWorkspace(props: {
                 />
                 <Info
                   label="实际总时长"
-                  value={`${sessions.filter((x) => props.selectedStageSessions.includes(x.id)).reduce((sum, x) => sum + x.duration, 0)}分钟`}
+                  value={`${sessions.filter((x) => props.selectedStageSessions.includes(x.id)).reduce((sum, x) => sum + x.totalMinutes, 0)}分钟`}
                 />
                 <Info
                   label="数据完整率"
-                  value={`${Math.round(sessions.filter((x) => props.selectedStageSessions.includes(x.id)).reduce((sum, x) => sum + x.completeness, 0) / Math.max(props.selectedStageSessions.length, 1))}%`}
+                  value={`${Math.round(sessions.filter((x) => props.selectedStageSessions.includes(x.id)).reduce((sum, x) => sum + x.dataCompleteness, 0) / Math.max(props.selectedStageSessions.length, 1))}%`}
                 />
               </div>
               <section className="rounded-xl border border-slate-100 p-4">
@@ -1135,7 +1363,7 @@ function TrainingWorkspace(props: {
                   new Set(
                     sessions
                       .filter((x) => props.selectedStageSessions.includes(x.id))
-                      .map((x) => x.project),
+                      .map((x) => x.exerciseType),
                   ),
                 ).map((project) => (
                   <p key={project} className="mt-2 text-xs text-slate-600">
@@ -1143,7 +1371,7 @@ function TrainingWorkspace(props: {
                     {
                       sessions.filter(
                         (x) =>
-                          x.project === project &&
+                          x.exerciseType === project &&
                           props.selectedStageSessions.includes(x.id),
                       ).length
                     }
@@ -1225,54 +1453,82 @@ function ArchiveHandbookPreview({ report, patientName }: { report: RehabReport; 
 function HandbookStat({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) { return <div className="bg-white p-5"><p className="text-xs font-bold text-slate-400">{label}</p><p className={`mt-2 leading-6 ${strong ? "text-2xl font-bold text-blue-700" : "text-sm font-bold text-slate-800"}`}>{value}</p></div>; }
 function HandbookBlock({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p className="text-xs font-bold text-slate-500">{title}</p><p className="mt-2 text-sm leading-6 text-slate-700">{text || "未采集"}</p></div>; }
 
-function SingleReportCard({ reportId }: { reportId: string }) {
-  const report = singleTrainingReportDetails.find(
-    (item) => item.id === reportId,
-  );
-  if (!report)
-    return (
-      <section className="card p-8 text-center text-xs text-slate-500">
-        未找到该单次报告，可能尚未同步到当前页签。
-      </section>
-    );
-  return (
-    <section className="card p-5">
-      <SectionHeader
-        title={`${report.exercise} · 单次训练报告`}
-        description={`${report.singleReportNo} · ${report.actualStartAt.replace("T", " ").slice(0, 16)}`}
-        action={<StatusBadge tone="green">已生成</StatusBadge>}
-      />
-      <div className="grid grid-cols-5 gap-3">
-        <Info label="实际总时长" value={`${report.totalMinutes}分钟`} />
-        <Info label="实际运动时间" value={`${report.activeMinutes}分钟`} />
-        <Info label="平均心率" value={`${report.hrStats.average} bpm`} />
-        <Info label="峰值心率" value={`${report.hrStats.peak} bpm`} />
-        <Info label="安全摘要" value={report.safetySummary} />
-      </div>
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-100">
-        <div className="grid grid-cols-4 bg-slate-50 px-4 py-3 text-[10px] font-bold text-slate-400">
-          <span>指标</span>
-          <span>热身</span>
-          <span>训练</span>
-          <span>放松</span>
-        </div>
-        {report.phaseVitals.map((item) => (
-          <div
-            key={item.metric}
-            className="grid grid-cols-4 border-t border-slate-100 px-4 py-3 text-xs"
-          >
-            <b>{item.metric}</b>
-            <span>{item.warmup}</span>
-            <span>{item.training}</span>
-            <span>{item.cooldown}</span>
-          </div>
-        ))}
-      </div>
-      <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
-        血压仅展示带测量时间的间歇测量点；缺失指标不按0参与计算。
-      </p>
-    </section>
-  );
+function generatePatientNo(stamp: number) {
+  return `P-${String(stamp).slice(-6)}`;
+}
+
+function generateArchiveNo(patientNo: string, stamp: number) {
+  return `ARCH-${new Date(stamp).getFullYear()}-${patientNo}`;
+}
+
+function createBlankPatient(template: ManagedPatient, actor: string): ManagedPatient {
+  const stamp = Date.now();
+  const now = new Date(stamp).toISOString();
+  const patientNo = generatePatientNo(stamp);
+  return {
+    ...template,
+    patient_demo_id: `P-MANUAL-${stamp}`,
+    patient_code: generateArchiveNo(patientNo, stamp),
+    patient_no: patientNo,
+    hospital_patient_no: patientNo,
+    record_source: "手工补录基础资料",
+    source_file_name: "",
+    ocr_confidence: null,
+    review_status: "待核对",
+    reviewed_by: "",
+    reviewed_at: "",
+    record_status: "有效",
+    workflow_status: "draft",
+    field_status: {},
+    name: "",
+    id_number: "",
+    phone: "",
+    birth_date: "",
+    age: 0,
+    gender: "",
+    emergency_contact: "",
+    emergency_relation: "",
+    emergency_phone: "",
+    assigned_doctor: actor,
+    diagnosis_summary: "",
+    medical_history: "",
+    procedure_history: "",
+    current_medications: "",
+    drug_allergies: "",
+    exercise_precautions: "",
+    referral_source: "",
+    discharge_date: "",
+    planned_rehab_date: "",
+    risk_level: "",
+    rehab_group: "",
+    rehab_stage: "冠心病2期",
+    consent_status: "",
+    consent_time: "",
+    consent_method: "",
+    height_cm: "",
+    weight_kg: "",
+    record_note: "",
+    clinical_confirmed: false,
+    clinical_confirmed_by: "",
+    clinical_confirmed_role: "",
+    clinical_confirmed_at: "",
+    created_by: actor,
+    created_at: now,
+    updated_by: actor,
+    updated_at: now,
+    audit_log: [],
+    assessment: { cpet: "", six_mwt: "", resting_hr: 0 },
+    prescription_version: "待核对",
+    training_status: "待录入",
+    latest_abnormal: "无",
+    report_status: "未生成",
+    last_followup: "未记录",
+    patient_status: "rehabilitation",
+  };
+}
+
+export function SingleReportCard({ reportId, reports, onBack }: { reportId: string; reports: StoredSingleReport[]; onBack: () => void }) {
+  return <SingleTrainingReport reportId={reportId} reports={reports} onBack={onBack} />;
 }
 
 function ActualTrainingCard({
@@ -1312,18 +1568,24 @@ function ActualTrainingCard({
 export function TreatmentRecordPage({
   patient,
   record,
+  encounter,
   role,
   onBack,
   onSave,
+  onAdvanceToDevice,
+  onPaperArchive,
   onCorrect,
   embedded = false,
   readOnly = false,
 }: {
   patient: ManagedPatient;
   record: CardiopulmonaryTreatmentRecord;
+  encounter?: TrainingEncounter;
   role: StaffRole;
   onBack: () => void;
   onSave: (v: CardiopulmonaryTreatmentRecord) => void;
+  onAdvanceToDevice?: (v: CardiopulmonaryTreatmentRecord) => void;
+  onPaperArchive?: (v: CardiopulmonaryTreatmentRecord) => void;
   onCorrect: (v: CardiopulmonaryTreatmentRecord) => void;
   embedded?: boolean;
   readOnly?: boolean;
@@ -1331,6 +1593,8 @@ export function TreatmentRecordPage({
   const [draft, setDraft] = useState(record);
   const locked = readOnly || draft.status === "completed" || role !== "REHAB_EXECUTION";
   const configuredSignature = readStaffSignature(draft.therapist);
+  const preAssessmentReady = Boolean(draft.preAssessment.bloodPressure && draft.preAssessment.heartRate && draft.preAssessment.spo2 && draft.preAssessment.respiratoryRate);
+  const postAssessmentReady = Boolean(draft.postAssessment.bloodPressure && draft.postAssessment.heartRate && draft.postAssessment.spo2 && draft.postAssessment.respiratoryRate && draft.postAssessment.borg);
   const [printReady, setPrintReady] = useState(draft.status === "completed" || Boolean(draft.signature));
   const vital = (
     section: "preAssessment" | "postAssessment",
@@ -1358,7 +1622,13 @@ export function TreatmentRecordPage({
         signatureImage: configuredSignature.imageData,
         treatmentAt: draft.treatmentAt,
         signedAt: new Date().toISOString(),
-      } : draft.signature,
+      } : {
+        mode: "print_hand_sign" as const,
+        signerRole: "REHAB_EXECUTION" as const,
+        signerName: draft.therapist,
+        treatmentAt: draft.treatmentAt,
+        signedAt: new Date().toISOString(),
+      },
     };
     setDraft(next);
     onSave(next);
@@ -1390,6 +1660,7 @@ export function TreatmentRecordPage({
             </div>
           }
         />}
+        {encounter && <section className="mb-4 overflow-hidden rounded-xl border border-blue-200 bg-white"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-blue-50 px-5 py-3"><div><p className="text-[10px] font-bold text-blue-600">本次训练就诊 · {encounter.encounterId}</p><p className="mt-1 text-sm font-bold text-blue-950">{encounter.project} · {encounter.station} · 处方{encounter.prescriptionVersion}</p></div><StatusBadge tone={encounter.status === "completed" ? "green" : "orange"}>{encounterStatusLabel[encounter.status]}</StatusBadge></div><div className="grid grid-cols-4 divide-x divide-slate-100 text-center text-xs"><div className="p-3"><b className="text-slate-800">1. 到诊</b><p className="mt-1 text-emerald-600">已完成</p></div><div className="p-3"><b className="text-slate-800">2. 训练前评估</b><p className="mt-1 text-slate-500">{encounter.preAssessmentCompletedAt ? "已完成" : "当前步骤"}</p></div><div className="p-3"><b className="text-slate-800">3. 设备训练</b><p className="mt-1 text-slate-500">{encounter.sessionId ? "已结束" : "待执行"}</p></div><div className="p-3"><b className="text-slate-800">4. 训后签署</b><p className="mt-1 text-slate-500">{encounter.signedAt ? "已签署" : "待完成"}</p></div></div></section>}
         {draft.actualMetrics && Object.keys(draft.actualMetrics).length > 0 && <section className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4"><div className="flex flex-wrap items-center gap-2"><b className="text-sm text-blue-950">实际数据来源</b>{Object.entries(draft.actualMetrics).map(([key, metric]) => <span key={key} className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs text-blue-800">{metricLabel(key)}：{String(metric.value ?? "未采集")} · {sourceLabel(metric.source)}</span>)}</div><p className="mt-2 text-xs text-blue-700">设备采集和规则计算属于事实数据；AI建议不会写入本区域。</p></section>}
         <section className="card overflow-hidden print:shadow-none">
           {readOnly && <div className="border-b border-blue-200 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-800">上一次治疗记录仅供查看，不可编辑、重新签署或覆盖。</div>}
@@ -1410,14 +1681,15 @@ export function TreatmentRecordPage({
                   "未签署"}
               </p>
               <p className="mt-1 text-[10px] text-slate-400">
-                {configuredSignature ? "已读取后台本人电子签名；保存生成后可一键打印。" : "尚未在后台“签字管理”上传本人电子签名。"}
+                {configuredSignature ? "已读取后台本人电子签名；保存生成后可一键打印。" : "未上传签名图片，将以本人姓名签署并在打印版保留手签位置。"}
               </p>
             </div>
             {!locked ? (
               <div className="flex gap-2">
+                {encounter?.status === "pre_assessment" && onAdvanceToDevice && <button disabled={!preAssessmentReady} onClick={() => onAdvanceToDevice(draft)} className="btn-primary disabled:bg-slate-300"><ArrowRight className="h-4 w-4" />保存训前评估并进入设备</button>}
                 <button onClick={saveAndGeneratePrint} className="btn-secondary"><Save className="h-4 w-4" />保存并生成打印版</button>
                 <button
-                  disabled={!draft.signature}
+                  disabled={!draft.signature || (encounter?.status === "post_assessment" && !postAssessmentReady)}
                   onClick={() => {
                     const next = { ...draft, status: "completed" as const };
                     setDraft(next);
@@ -1450,7 +1722,10 @@ export function TreatmentRecordPage({
               )
             )}
             {locked && <button type="button" onClick={printTreatmentRecord} className="btn-secondary"><Printer className="h-4 w-4" />一键打印</button>}
+            {locked && encounter?.status === "completed" && draft.paperSignatureStatus !== "archived" && onPaperArchive && <button type="button" onClick={() => { const next = { ...draft, patientAcknowledged: true, paperSignatureStatus: "archived" as const, paperArchivedAt: new Date().toISOString() }; setDraft(next); onPaperArchive(next); }} className="btn-primary"><CheckCircle2 className="h-4 w-4" />标记患者纸签已归档</button>}
+            {draft.paperSignatureStatus === "archived" && <StatusBadge tone="green">患者纸签已归档</StatusBadge>}
           </div>
+          {!locked && encounter?.status === "post_assessment" && !postAssessmentReady && <p className="border-t border-amber-200 bg-amber-50 px-5 py-2 text-right text-xs font-semibold text-amber-800">补齐训练后血压、心率、SpO₂、呼吸和 Borg 后方可完成。</p>}
         </section>
       </div>
       <TreatmentPrintSheet patient={patient} record={draft} />
@@ -1880,30 +2155,32 @@ function TreatmentVitals({
   );
 }
 
-function PatientModal({
+function PatientProfileEditor({
   patient,
   onChange,
   onClose,
   onSave,
+  error,
 }: {
   patient: ManagedPatient;
   onChange: (v: ManagedPatient) => void;
   onClose: () => void;
   onSave: () => void;
+  error?: string;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6">
-      <section className="w-full max-w-3xl rounded-2xl bg-white p-6">
-        <div className="flex justify-between">
+      <section className="card p-5">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <p className="eyebrow">基础资料</p>
-            <h2 className="mt-1 text-xl font-bold">精简患者档案</h2>
+            <h2 className="mt-1 text-xl font-bold">患者基本信息</h2>
+            <p className="mt-1 text-sm text-slate-500">首次建档只要求姓名和风险分层；患者号、档案号由系统自动生成。</p>
           </div>
-          <button onClick={onClose}>
+          <button type="button" onClick={onClose} aria-label="关闭患者基本信息">
             <X />
           </button>
         </div>
-        <div className="mt-5 grid grid-cols-3 gap-4">
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
           <Field
             label="姓名"
             value={patient.name}
@@ -1917,6 +2194,7 @@ function PatientModal({
               onChange={(e) => onChange({ ...patient, gender: e.target.value })}
               className="text-field"
             >
+              <option value="">请选择</option>
               <option>男</option>
               <option>女</option>
             </select>
@@ -1929,18 +2207,34 @@ function PatientModal({
             onChange={(v) => onChange({ ...patient, birth_date: v })}
           />
           <Field
-            label="患者编号"
+            label="患者号（系统生成）"
             value={patient.patient_no}
-            disabled={false}
-            onChange={(v) =>
-              onChange({ ...patient, patient_no: v, hospital_patient_no: v })
-            }
+            disabled={true}
+            onChange={() => undefined}
+          />
+          <Field
+            label="档案号（系统生成）"
+            value={patient.patient_code}
+            disabled={true}
+            onChange={() => undefined}
           />
           <Field
             label="联系方式"
             value={patient.phone}
             disabled={false}
             onChange={(v) => onChange({ ...patient, phone: v })}
+          />
+          <Field
+            label="患者来源"
+            value={patient.referral_source}
+            disabled={false}
+            onChange={(v) => onChange({ ...patient, referral_source: v })}
+          />
+          <Field
+            label="责任医生（当前登录人）"
+            value={patient.assigned_doctor}
+            disabled={true}
+            onChange={() => undefined}
           />
           <label>
             <span className="field-label">患者状态</span>
@@ -1959,48 +2253,86 @@ function PatientModal({
               <option value="recovered">已康复</option>
             </select>
           </label>
+          <label>
+            <span className="field-label">风险分层 *</span>
+            <select
+              value={patient.risk_level}
+              onChange={(e) => onChange({ ...patient, risk_level: e.target.value })}
+              className="text-field"
+            >
+              <option value="">请选择</option>
+              <option>低危</option>
+              <option>中危</option>
+              <option>高危</option>
+            </select>
+          </label>
+          <label>
+            <span className="field-label">康复阶段</span>
+            <select
+              value={normalizeRehabStage(patient.rehab_stage)}
+              onChange={(e) =>
+                onChange({ ...patient, rehab_stage: e.target.value })
+              }
+              className="text-field"
+            >
+              {rehabStageOptions.map((stage) => (
+                <option key={stage} value={stage}>
+                  {stage}
+                </option>
+              ))}
+            </select>
+          </label>
           <Field
-            label="康复阶段"
-            value={patient.rehab_stage}
+            label="计划康复日期"
+            type="date"
+            value={patient.planned_rehab_date}
             disabled={false}
-            onChange={(v) => onChange({ ...patient, rehab_stage: v })}
+            onChange={(v) => onChange({ ...patient, planned_rehab_date: v })}
           />
           <Field
             label="出院日期"
             type="date"
             value={patient.discharge_date}
             disabled={false}
-            onChange={(v) => onChange({ ...patient, discharge_date: v })}
+              onChange={(v) => onChange({ ...patient, discharge_date: v })}
           />
-          <Field
-            label="诊断（外部资料）"
+
+          <TextAreaField
+            label="病史"
+            value={patient.medical_history}
+            onChange={(v) => onChange({ ...patient, medical_history: v })}
+          />
+          <TextAreaField
+            label="诊断"
             value={patient.diagnosis_summary}
-            disabled={false}
             onChange={(v) => onChange({ ...patient, diagnosis_summary: v })}
           />
-          <Field
+          <TextAreaField
             label="手术方式/记录"
             value={patient.procedure_history}
-            disabled={false}
             onChange={(v) => onChange({ ...patient, procedure_history: v })}
           />
-          <Field
+          <TextAreaField
             label="特殊用药"
             value={patient.current_medications}
-            disabled={false}
             onChange={(v) => onChange({ ...patient, current_medications: v })}
           />
+          <TextAreaField
+            label="药物过敏"
+            value={patient.drug_allergies}
+            onChange={(v) => onChange({ ...patient, drug_allergies: v })}
+          />
         </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="btn-secondary">
+        {error && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-5">
+          <button type="button" onClick={onClose} className="btn-secondary">
             取消
           </button>
-          <button onClick={onSave} className="btn-primary">
+          <button type="button" onClick={onSave} className="btn-primary">
             保存
           </button>
         </div>
       </section>
-    </div>
   );
 }
 
@@ -2066,30 +2398,32 @@ function OcrImportDialog({ patients, currentAccount, onClose, onConfirm }: { pat
   const [archiveMode, setArchiveMode] = useState<"update" | "new">("update");
   const [draft, setDraft] = useState<OcrAssessmentImportDraft>({
     sourceFileName: "",
-    patientFields: { name: seed?.name ?? "", gender: seed?.gender ?? "", birthDate: seed?.birth_date ?? "", patientNo: seed?.patient_no ?? "", phone: seed?.phone ?? "", diagnosis: seed?.diagnosis_summary ?? "", weightKg: 62.4 },
+    patientFields: { name: seed?.name ?? "", gender: seed?.gender ?? "", birthDate: seed?.birth_date ?? "", patientNo: seed?.patient_no ?? "", phone: seed?.phone ?? "", diagnosis: seed?.diagnosis_summary ?? "", riskLevel: seed?.risk_level ?? "中危", weightKg: 62.4 },
     assessmentFields: { assessedAt: new Date().toISOString().slice(0, 10), preBloodPressure: "128/78", prePulse: 72, postBloodPressure: "136/82", postPulse: 88, sideBySideSec: 10, semiTandemSec: 10, tandemSec: 8.2, walkTrial1Sec: 6.4, walkTrial2Sec: 6.1, chairTrial1Sec: 14.2, chairTrial2Sec: 13.8, maxSpeed1: 0.62, maxSpeed2: 0.66, leftGrip1: 18.2, leftGrip2: 18.6, rightGrip1: 19.1, rightGrip2: 19.4, upperStrength: "4级", lowerStrength: "4级", notes: "" },
     confidence: 86,
-    fieldConfidence: { patientNo: 98, name: 97, diagnosis: 78, tandemSec: 74, leftGrip2: 76 }
+    fieldConfidence: { patientNo: 98, name: 97, riskLevel: 90, diagnosis: 78, tandemSec: 74, leftGrip2: 76 }
   });
-  const patientNo = String(draft.patientFields.patientNo ?? "").trim();
-  const exactMatch = patients.find((item) => item.patient_no === patientNo);
+  const recognizedPatientNo = String(draft.patientFields.patientNo ?? "").trim();
+  const exactMatch = recognizedPatientNo ? patients.find((item) => item.patient_no === recognizedPatientNo) : undefined;
   const demographicMatch = patients.find((item) => item.name === draft.patientFields.name && item.gender === draft.patientFields.gender && item.birth_date === draft.patientFields.birthDate);
   const match = exactMatch ?? demographicMatch;
   const setPatientField = (key: string, value: string) => setDraft((current) => ({ ...current, patientFields: { ...current.patientFields, [key]: value } }));
   const setAssessmentField = (key: string, value: string) => setDraft((current) => ({ ...current, assessmentFields: { ...current.assessmentFields, [key]: value } }));
 
   function confirm() {
-    if (!patientNo) return setError("患者编号未识别，请人工补充后再归档。");
-    if (!String(draft.patientFields.name ?? "").trim()) return setError("请核对患者姓名。");
-    if (archiveMode === "update" && !match) return setError("未匹配到现有患者，请选择新建基础患者或修正患者编号。");
     const now = new Date().toISOString();
+    const patientNo = recognizedPatientNo || generatePatientNo(Date.now());
+    const riskLevel = String(draft.patientFields.riskLevel ?? "").trim();
+    if (!String(draft.patientFields.name ?? "").trim()) return setError("请核对患者姓名。");
+    if (!riskLevel) return setError("请选择风险分层。");
+    if (archiveMode === "update" && !match) return setError("未匹配到现有患者，请选择新建基础患者或修正患者编号。");
     const base = archiveMode === "update" && match ? match : seed;
     if (!base) return setError("缺少患者基础模板，无法归档。");
     const patientId = archiveMode === "update" && match ? match.patient_demo_id : `P-OCR-${Date.now()}`;
     const birthDate = String(draft.patientFields.birthDate ?? "");
     const patient: ManagedPatient = {
-      ...base, patient_demo_id: patientId, patient_code: archiveMode === "update" && match ? match.patient_code : `CRH-P-OCR-${patientNo}`, patient_no: patientNo, hospital_patient_no: patientNo,
-      name: String(draft.patientFields.name ?? ""), gender: String(draft.patientFields.gender ?? ""), birth_date: birthDate, age: calculateAge(birthDate), phone: String(draft.patientFields.phone ?? ""), diagnosis_summary: String(draft.patientFields.diagnosis ?? "未提供"), weight_kg: draft.patientFields.weightKg == null ? "" : String(draft.patientFields.weightKg),
+      ...base, patient_demo_id: patientId, patient_code: archiveMode === "update" && match ? match.patient_code : generateArchiveNo(patientNo, Date.now()), patient_no: patientNo, hospital_patient_no: patientNo,
+      name: String(draft.patientFields.name ?? ""), gender: String(draft.patientFields.gender ?? ""), birth_date: birthDate, age: calculateAge(birthDate), phone: String(draft.patientFields.phone ?? ""), diagnosis_summary: String(draft.patientFields.diagnosis ?? "未提供"), risk_level: riskLevel, assigned_doctor: archiveMode === "update" && match ? match.assigned_doctor : currentAccount, rehab_stage: archiveMode === "update" && match ? normalizeRehabStage(match.rehab_stage) : "冠心病2期", weight_kg: draft.patientFields.weightKg == null ? "" : String(draft.patientFields.weightKg),
       record_source: "OCR单张导入", source_file_name: draft.sourceFileName, ocr_confidence: draft.confidence, review_status: "已确认", reviewed_by: currentAccount, reviewed_at: now, updated_by: currentAccount, updated_at: now,
       created_by: archiveMode === "update" && match ? match.created_by : currentAccount, created_at: archiveMode === "update" && match ? match.created_at : now,
       audit_log: [...(archiveMode === "update" && match ? match.audit_log : []), `${now.slice(0, 10)} ${currentAccount}核对并归档体能评估OCR资料`]
@@ -2105,10 +2439,10 @@ function OcrImportDialog({ patients, currentAccount, onClose, onConfirm }: { pat
     onConfirm(patient, record);
   }
 
-  const fields: [string, string, "patient" | "assessment"][] = [["name", "姓名", "patient"], ["gender", "性别", "patient"], ["birthDate", "出生日期", "patient"], ["patientNo", "患者编号", "patient"], ["phone", "联系电话", "patient"], ["diagnosis", "诊断", "patient"], ["weightKg", "体重(kg)", "patient"], ["assessedAt", "评估日期", "assessment"], ["preBloodPressure", "评估前血压", "assessment"], ["prePulse", "评估前脉搏", "assessment"], ["postBloodPressure", "评估后血压", "assessment"], ["postPulse", "评估后脉搏", "assessment"], ["sideBySideSec", "双脚并立(s)", "assessment"], ["semiTandemSec", "半前后站立(s)", "assessment"], ["tandemSec", "前后站立(s)", "assessment"], ["walkTrial1Sec", "4米步行1(s)", "assessment"], ["walkTrial2Sec", "4米步行2(s)", "assessment"], ["chairTrial1Sec", "椅子坐立1(s)", "assessment"], ["chairTrial2Sec", "椅子坐立2(s)", "assessment"], ["leftGrip1", "左手握力1(kg)", "assessment"], ["rightGrip1", "右手握力1(kg)", "assessment"]];
+  const fields: [string, string, "patient" | "assessment"][] = [["name", "姓名", "patient"], ["riskLevel", "风险分层", "patient"], ["gender", "性别", "patient"], ["birthDate", "出生日期", "patient"], ["patientNo", "患者号", "patient"], ["phone", "联系电话", "patient"], ["diagnosis", "诊断", "patient"], ["weightKg", "体重(kg)", "patient"], ["assessedAt", "评估日期", "assessment"], ["preBloodPressure", "评估前血压", "assessment"], ["prePulse", "评估前脉搏", "assessment"], ["postBloodPressure", "评估后血压", "assessment"], ["postPulse", "评估后脉搏", "assessment"], ["sideBySideSec", "双脚并立(s)", "assessment"], ["semiTandemSec", "半前后站立(s)", "assessment"], ["tandemSec", "前后站立(s)", "assessment"], ["walkTrial1Sec", "4米步行1(s)", "assessment"], ["walkTrial2Sec", "4米步行2(s)", "assessment"], ["chairTrial1Sec", "椅子坐立1(s)", "assessment"], ["chairTrial2Sec", "椅子坐立2(s)", "assessment"], ["leftGrip1", "左手握力1(kg)", "assessment"], ["rightGrip1", "右手握力1(kg)", "assessment"]];
 
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/45 p-4"><section className="mx-auto my-6 w-full max-w-5xl rounded-2xl bg-white shadow-2xl"><div className="flex items-start justify-between border-b border-slate-100 p-5"><div><p className="eyebrow">体能评估OCR识别</p><h2 className="mt-1 text-xl font-bold">{phase === "upload" ? "上传一份体能评估报告" : "核对识别结果后归档"}</h2><p className="mt-1 text-sm text-slate-500">OCR仅辅助填写，未经人工确认不会写入患者档案。</p></div><button type="button" onClick={onClose}><X className="h-5 w-5 text-slate-400" /></button></div>
-    {phase === "upload" ? <div className="p-8"><label className="flex min-h-60 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/50 text-center"><Upload className="h-10 w-10 text-blue-500" /><b className="mt-4 text-base">选择 JPG、PNG 或 PDF</b><span className="mt-2 text-sm text-slate-500">选择后模拟OCR识别并进入人工核对</span><input className="sr-only" type="file" accept="image/*,.pdf" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setDraft((current) => ({ ...current, sourceFileName: file.name })); window.setTimeout(() => setPhase("review"), 300); }} /></label></div> : <><div className="grid gap-4 p-5 lg:grid-cols-[1fr_280px]"><div><div className="mb-3 flex items-center justify-between"><h3 className="text-base font-bold">患者信息与体能测试结果</h3><StatusBadge tone="orange">OCR {draft.confidence}% · 待核对</StatusBadge></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([key, label, group]) => { const confidence = draft.fieldConfidence[key] ?? 90; const value = group === "patient" ? draft.patientFields[key] : draft.assessmentFields[key]; return <label key={key} className={`rounded-xl border p-3 ${confidence < 80 ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}><span className="flex justify-between text-xs font-bold text-slate-600"><span>{label}</span><span className={confidence < 80 ? "text-amber-700" : "text-slate-400"}>{confidence}%</span></span><input className="text-field mt-2" value={value ?? ""} placeholder="未识别" onChange={(event) => group === "patient" ? setPatientField(key, event.target.value) : setAssessmentField(key, event.target.value)} /></label>; })}</div></div><aside className="space-y-3"><section className="rounded-xl border border-blue-100 bg-blue-50 p-4"><b className="text-sm text-blue-950">患者匹配</b><p className="mt-2 text-sm text-blue-800">{match ? `已匹配：${match.name} · ${match.patient_no}` : "未匹配现有患者"}</p><p className="mt-1 text-xs text-blue-600">{exactMatch ? "患者编号精确匹配" : demographicMatch ? "人口学信息辅助匹配" : "请修正编号或选择新建"}</p></section><label className="flex gap-2 rounded-xl border border-slate-200 p-3 text-sm"><input type="radio" checked={archiveMode === "update"} onChange={() => setArchiveMode("update")} />更新匹配患者</label><label className="flex gap-2 rounded-xl border border-slate-200 p-3 text-sm"><input type="radio" checked={archiveMode === "new"} onChange={() => setArchiveMode("new")} />新建基础患者</label><section className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">黄色字段置信度低于80%，缺失值保持空白，不按0归档。</section></aside></div>{error && <p className="mx-5 mb-3 text-sm font-semibold text-red-600">{error}</p>}<div className="flex justify-end gap-2 border-t border-slate-100 p-4"><button type="button" className="btn-secondary" onClick={() => setPhase("upload")}>重新上传</button><button type="button" className="btn-primary" onClick={confirm}><Save className="h-4 w-4" />确认并归档</button></div></>}
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/45 p-4"><section className="mx-auto my-6 w-full max-w-5xl rounded-2xl bg-white shadow-2xl"><div className="flex items-start justify-between border-b border-slate-100 p-5"><div><p className="eyebrow">体能测试记录录入</p><h2 className="mt-1 text-xl font-bold">{phase === "upload" ? "上传体能测试记录" : "核对识别结果后归档"}</h2><p className="mt-1 text-sm text-slate-500">OCR仅辅助填写，未经人工确认不会写入患者档案。</p></div><button type="button" onClick={onClose}><X className="h-5 w-5 text-slate-400" /></button></div>
+    {phase === "upload" ? <div className="grid gap-4 p-8 md:grid-cols-2"><label className="flex min-h-60 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/50 text-center"><Upload className="h-10 w-10 text-blue-500" /><b className="mt-4 text-base">图片上传</b><span className="mt-2 text-sm text-slate-500">支持 JPG、PNG，选择后进入人工核对</span><input className="sr-only" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setDraft((current) => ({ ...current, sourceFileName: file.name })); window.setTimeout(() => setPhase("review"), 300); }} /></label><label className="flex min-h-60 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 text-center"><FileText className="h-10 w-10 text-emerald-500" /><b className="mt-4 text-base">PDF文件扫描</b><span className="mt-2 text-sm text-slate-500">支持 PDF 扫描件，选择后进入人工核对</span><input className="sr-only" type="file" accept=".pdf,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setDraft((current) => ({ ...current, sourceFileName: file.name })); window.setTimeout(() => setPhase("review"), 300); }} /></label></div> : <><div className="grid gap-4 p-5 lg:grid-cols-[1fr_280px]"><div><div className="mb-3 flex items-center justify-between"><h3 className="text-base font-bold">患者信息与体能测试结果</h3><StatusBadge tone="orange">OCR {draft.confidence}% · 待核对</StatusBadge></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([key, label, group]) => { const confidence = draft.fieldConfidence[key] ?? 90; const value = group === "patient" ? draft.patientFields[key] : draft.assessmentFields[key]; return <label key={key} className={`rounded-xl border p-3 ${confidence < 80 ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}><span className="flex justify-between text-xs font-bold text-slate-600"><span>{label}</span><span className={confidence < 80 ? "text-amber-700" : "text-slate-400"}>{confidence}%</span></span>{key === "riskLevel" ? <select className="text-field mt-2" value={String(value ?? "")} onChange={(event) => setPatientField(key, event.target.value)}><option value="">请选择</option><option>低危</option><option>中危</option><option>高危</option></select> : <input className="text-field mt-2" value={value ?? ""} placeholder="未识别" onChange={(event) => group === "patient" ? setPatientField(key, event.target.value) : setAssessmentField(key, event.target.value)} />}</label>; })}</div></div><aside className="space-y-3"><section className="rounded-xl border border-blue-100 bg-blue-50 p-4"><b className="text-sm text-blue-950">患者匹配</b><p className="mt-2 text-sm text-blue-800">{match ? `已匹配：${match.name} · ${match.patient_no}` : "未匹配现有患者"}</p><p className="mt-1 text-xs text-blue-600">{exactMatch ? "患者号精确匹配" : demographicMatch ? "人口学信息辅助匹配" : "可直接新建基础患者"}</p></section><label className="flex gap-2 rounded-xl border border-slate-200 p-3 text-sm"><input type="radio" checked={archiveMode === "update"} onChange={() => setArchiveMode("update")} />更新匹配患者</label><label className="flex gap-2 rounded-xl border border-slate-200 p-3 text-sm"><input type="radio" checked={archiveMode === "new"} onChange={() => setArchiveMode("new")} />新建基础患者</label><section className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">黄色字段置信度低于80%，缺失值保持空白，不按0归档；未识别患者号时，新建会自动生成患者号和档案号。</section></aside></div>{error && <p className="mx-5 mb-3 text-sm font-semibold text-red-600">{error}</p>}<div className="flex justify-end gap-2 border-t border-slate-100 p-4"><button type="button" className="btn-secondary" onClick={() => setPhase("upload")}>重新上传</button><button type="button" className="btn-primary" onClick={confirm}><Save className="h-4 w-4" />确认并归档</button></div></>}
   </section></div>;
 }
 
@@ -2167,6 +2501,29 @@ function Field({
     </label>
   );
 }
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label>
+      <span className="field-label">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="text-field min-h-24 resize-y py-2"
+        placeholder="未提供"
+      />
+    </label>
+  );
+}
+
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-slate-50 p-3">
