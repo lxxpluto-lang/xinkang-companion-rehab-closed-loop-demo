@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { canAccessPage, firstPageForRole, roleMeta } from "./accessControl";
 import { DoctorLayout } from "./components/Layout";
 import { StaffLogin } from "./components/StaffLogin";
@@ -63,8 +63,10 @@ import {
   type TrainingEncounterStatus
 } from "./trainingEncounterData";
 import { normalizeDeviceLoginCode, publishDeviceHandoff, type DeviceHandoff } from "./deviceHandoffData";
+import { clinicalStateKeys, fetchClinicalBootstrap, persistClinicalState, subscribeClinicalState, type ClinicalStateDocument, type ClinicalStateKey } from "./clinicalStateApi";
 
 type SystemKey = "chooser" | "staffLogin" | "doctor" | "patient";
+type ClinicalBackendMode = "checking" | "database" | "offline";
 const adminConsolePages: DoctorPageKey[] = ["orgPermissions", "documentConfig"];
 const seededFollowUpData = createInitialFollowUpData(initialPatients);
 const seededAssessmentRecords = createDemoAssessmentRecords(initialPatients);
@@ -138,13 +140,72 @@ export default function App() {
   const [alertRules, setAlertRules] = useState<AlertRule[]>(() => readDemoStore("xinkang-alert-rules", initialAlertRules));
   const [appointments, setAppointments] = useState<Appointment[]>(() => alignAppointmentsToCurrentDemoDay(mergeSeedDefaults(readDemoStore("xinkang-appointments", initialAppointments), initialAppointments, (item) => item.id)));
   const [trainingEncounters, setTrainingEncounters] = useState<TrainingEncounter[]>(() => mergeSeedRecords(readDemoStore(TRAINING_ENCOUNTER_STORE, []), initialTrainingEncounters, (item) => item.encounterId));
+  const [clinicalBackendMode, setClinicalBackendMode] = useState<ClinicalBackendMode>("checking");
+  const suppressStatePersistRef = useRef(new Set<ClinicalStateKey>());
 
   const currentAccount = accountName || roleMeta[role].account;
   const scopedFollowUpTasks = role === "DOCTOR"
     ? followUpTasks.filter((task) => task.assignedDoctor === currentAccount)
     : followUpTasks;
   const publishedTrainingVideos = trainingVideos.filter((video) => video.status === "PUBLISHED" && video.url);
+  function applyClinicalStateDocument(document: Pick<ClinicalStateDocument, "key" | "value">) {
+    suppressStatePersistRef.current.add(document.key);
+    switch (document.key) {
+      case clinicalStateKeys.patients:
+        setPatients((document.value as ManagedPatient[]).map((patient) => ({ ...patient, rehab_stage: normalizeRehabStage(patient.rehab_stage) })));
+        break;
+      case clinicalStateKeys.assessments: setAssessmentRecords(document.value as AssessmentRecord[]); break;
+      case clinicalStateKeys.prescriptionTasks: setPrescriptionTasks(document.value as PrescriptionTask[]); break;
+      case clinicalStateKeys.prescriptionContents: setPrescriptionContents(document.value as Record<string, PrescriptionContent>); break;
+      case clinicalStateKeys.appointments: setAppointments(alignAppointmentsToCurrentDemoDay(document.value as Appointment[])); break;
+      case clinicalStateKeys.trainingEncounters: setTrainingEncounters(document.value as TrainingEncounter[]); break;
+      case clinicalStateKeys.treatments: setTreatmentRecords(document.value as CardiopulmonaryTreatmentRecord[]); break;
+      case clinicalStateKeys.trainingSessions: setTrainingSessions(document.value as StoredTrainingSession[]); break;
+      case clinicalStateKeys.singleReports: setSingleReports(document.value as StoredSingleReport[]); break;
+      case clinicalStateKeys.stageReports: setStageReports(document.value as StoredStageReport[]); break;
+      case clinicalStateKeys.alertEvents: setAlertEvents(document.value as AlertEvent[]); break;
+      case clinicalStateKeys.alertRules: setAlertRules(document.value as AlertRule[]); break;
+      case clinicalStateKeys.rehabReports: setRehabReports(document.value as RehabReport[]); break;
+      case clinicalStateKeys.followUpTasks: setFollowUpTasks(document.value as FollowUpTask[]); break;
+      case clinicalStateKeys.followUpRecords: setFollowUpRecords(document.value as FollowUpRecord[]); break;
+      case clinicalStateKeys.patientClinicalProfiles: setPatientClinicalProfiles(document.value as PatientClinicalProfile[]); break;
+      case clinicalStateKeys.clinicalNarratives: setClinicalNarratives(document.value as ClinicalNarrativeRecord[]); break;
+      case clinicalStateKeys.trainingVideos: setTrainingVideos(document.value as TrainingVideo[]); break;
+    }
+  }
+
+  function persistState(key: ClinicalStateKey, value: unknown) {
+    if (clinicalBackendMode === "checking") return;
+    if (suppressStatePersistRef.current.delete(key)) return;
+    if (clinicalBackendMode === "database") {
+      void persistClinicalState(key, value).catch((error) => console.error("Clinical state persistence failed", key, error));
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
   useEffect(() => {
+    let disposed = false;
+    void fetchClinicalBootstrap().then((bootstrap) => {
+      if (disposed) return;
+      for (const [key, document] of Object.entries(bootstrap.documents)) {
+        if (!document) continue;
+        applyClinicalStateDocument({ key: key as ClinicalStateKey, value: document.value });
+      }
+      setClinicalBackendMode("database");
+    }).catch(() => {
+      if (!disposed) setClinicalBackendMode("offline");
+    });
+    return () => { disposed = true; };
+  }, []);
+
+  useEffect(() => {
+    if (clinicalBackendMode !== "database") return;
+    return subscribeClinicalState((document) => applyClinicalStateDocument(document));
+  }, [clinicalBackendMode]);
+
+  useEffect(() => {
+    if (clinicalBackendMode !== "offline") return;
     const sync = (event: StorageEvent) => {
       if (event.key === "xinkang-assessments") setAssessmentRecords(readDemoStore("xinkang-assessments", seededAssessmentRecords));
       if (event.key === "xinkang-treatments") setTreatmentRecords(readDemoStore("xinkang-treatments", initialTreatmentRecords));
@@ -155,20 +216,26 @@ export default function App() {
     };
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
-  }, []);
+  }, [clinicalBackendMode]);
 
-  useEffect(() => { localStorage.setItem("xinkang-prescription-tasks", JSON.stringify(prescriptionTasks)); }, [prescriptionTasks]);
-  useEffect(() => { localStorage.setItem("xinkang-prescription-contents", JSON.stringify(prescriptionContents)); }, [prescriptionContents]);
-  useEffect(() => { localStorage.setItem("xinkang-alert-events", JSON.stringify(alertEvents)); }, [alertEvents]);
-  useEffect(() => { localStorage.setItem("xinkang-alert-rules", JSON.stringify(alertRules)); }, [alertRules]);
-  useEffect(() => { localStorage.setItem("xinkang-appointments", JSON.stringify(appointments)); }, [appointments]);
-  useEffect(() => { localStorage.setItem(TRAINING_ENCOUNTER_STORE, JSON.stringify(trainingEncounters)); }, [trainingEncounters]);
-  useEffect(() => { localStorage.setItem("xinkang-patients", JSON.stringify(patients)); }, [patients]);
-  useEffect(() => { localStorage.setItem("xinkang-followup-tasks", JSON.stringify(followUpTasks)); }, [followUpTasks]);
-  useEffect(() => { localStorage.setItem("xinkang-followup-records", JSON.stringify(followUpRecords)); }, [followUpRecords]);
-  useEffect(() => { localStorage.setItem(TRAINING_SESSION_STORE, JSON.stringify(trainingSessions)); }, [trainingSessions]);
-  useEffect(() => { localStorage.setItem(SINGLE_REPORT_STORE, JSON.stringify(singleReports)); }, [singleReports]);
-  useEffect(() => { localStorage.setItem(STAGE_REPORT_STORE, JSON.stringify(stageReports)); }, [stageReports]);
+  useEffect(() => { persistState(clinicalStateKeys.patients, patients); }, [patients, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.assessments, assessmentRecords); }, [assessmentRecords, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.prescriptionTasks, prescriptionTasks); }, [prescriptionTasks, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.prescriptionContents, prescriptionContents); }, [prescriptionContents, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.appointments, appointments); }, [appointments, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.trainingEncounters, trainingEncounters); }, [trainingEncounters, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.treatments, treatmentRecords); }, [treatmentRecords, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.trainingSessions, trainingSessions); }, [trainingSessions, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.singleReports, singleReports); }, [singleReports, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.stageReports, stageReports); }, [stageReports, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.alertEvents, alertEvents); }, [alertEvents, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.alertRules, alertRules); }, [alertRules, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.rehabReports, rehabReports); }, [rehabReports, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.followUpTasks, followUpTasks); }, [followUpTasks, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.followUpRecords, followUpRecords); }, [followUpRecords, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.patientClinicalProfiles, patientClinicalProfiles); }, [patientClinicalProfiles, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.clinicalNarratives, clinicalNarratives); }, [clinicalNarratives, clinicalBackendMode]);
+  useEffect(() => { persistState(clinicalStateKeys.trainingVideos, trainingVideos); }, [trainingVideos, clinicalBackendMode]);
 
   function resetViewScroll() {
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
@@ -595,7 +662,6 @@ export default function App() {
   function saveAssessmentRecord(record: AssessmentRecord) {
     setAssessmentRecords((items) => {
       const next = items.some((item) => item.assessmentId === record.assessmentId) ? items.map((item) => item.assessmentId === record.assessmentId ? record : item) : [record, ...items];
-      localStorage.setItem("xinkang-assessments", JSON.stringify(next));
       return next;
     });
     setPatients((items) => items.map((patient) => patient.patient_demo_id === record.patientId ? {
@@ -630,7 +696,6 @@ export default function App() {
       : record;
     setTreatmentRecords((items) => {
       const next = items.some((item) => item.treatmentId === savedRecord.treatmentId) ? items.map((item) => item.treatmentId === savedRecord.treatmentId ? savedRecord : item) : [savedRecord, ...items];
-      localStorage.setItem("xinkang-treatments", JSON.stringify(next));
       return next;
     });
     setPatients((items) => items.map((patient) => patient.patient_demo_id === savedRecord.patientId ? { ...patient, updated_by: savedRecord.therapist, updated_at: savedRecord.treatmentAt, audit_log: [...patient.audit_log, `${savedRecord.treatmentAt.slice(0, 10)} ${savedRecord.therapist}${savedRecord.status === "completed" ? "完成并签署" : "保存"}心肺康复治疗记录`] } : patient));
@@ -685,7 +750,6 @@ export default function App() {
   function saveRehabReport(report: RehabReport) {
     setRehabReports((items) => {
       const next = items.some((item) => item.reportId === report.reportId) ? items.map((item) => item.reportId === report.reportId ? report : item) : [report, ...items];
-      localStorage.setItem("xinkang-rehab-reports", JSON.stringify(next));
       return next;
     });
     if (report.status === "published") {
@@ -879,9 +943,10 @@ function mergeSeedDefaults<T extends object>(stored: T[], seeds: T[], getId: (it
 }
 
 function alignAppointmentsToCurrentDemoDay(appointments: Appointment[]) {
-  const dateParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const dateParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
   const values = Object.fromEntries(dateParts.map((item) => [item.type, item.value]));
   const today = `${values.year}-${values.month}-${values.day}`;
+  const currentTime = `${values.hour}:${values.minute}`;
   const seedIds = new Set(initialAppointments.map((item) => item.id));
   const replaceDate = (value?: string) => value ? value.replace(/^\d{4}-\d{2}-\d{2}/, today) : value;
   return appointments.map((appointment) => {
@@ -890,6 +955,7 @@ function alignAppointmentsToCurrentDemoDay(appointments: Appointment[]) {
     return {
       ...appointment,
       date: today,
+      time: appointment.id === "APT-LXX-TODAY" ? currentTime : appointment.time,
       checkedInAt: replaceDate(appointment.checkedInAt),
       statusConfirmedAt: replaceDate(appointment.statusConfirmedAt)
     };

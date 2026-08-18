@@ -73,7 +73,7 @@ export type DailyTrainingTask = {
 };
 
 export type LiveTrainingAlert = {
-  type: "heart_rate";
+  type: "heart_rate" | "symptom";
   severity: "warning" | "critical";
   active: boolean;
   message: string;

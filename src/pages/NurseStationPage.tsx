@@ -86,10 +86,17 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
     const newestActive = executableEncounters.find((item) => ["in_training", "paused"].includes(item.status));
     if (!newestActive || newestActive.encounterId === activeEncounterId) return;
     const selected = executableEncounters.find((item) => item.encounterId === activeEncounterId);
-    if (!selected || !["in_training", "paused"].includes(selected.status) || newestActive.updatedAt > selected.updatedAt) {
+    const selectedIsCurrentWorkflow = selected && ["ready_for_device", "device_ready", "in_training", "paused", "awaiting_next_task", "post_assessment"].includes(selected.status);
+    if (!selectedIsCurrentWorkflow) {
       chooseEncounter(newestActive);
     }
   }, [executableEncounters]);
+
+  useEffect(() => {
+    if (!initialEncounterId || initialEncounterId === activeEncounterId) return;
+    const requested = executableEncounters.find((item) => item.encounterId === initialEncounterId);
+    if (requested) chooseEncounter(requested);
+  }, [initialEncounterId, executableEncounters]);
 
   useEffect(() => {
     if (!activeEncounter) return;
@@ -137,7 +144,15 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
     setBikeConnected(false);
     setSafetyEvents([]);
     setLastSession(trainingSessions.find((item) => item.encounterId === encounter.encounterId) ?? null);
-    setStep(encounter.status === "post_assessment" || encounter.status === "completed" ? "summary" : encounter.status === "awaiting_next_task" ? "tasks" : "login");
+    setStep(encounter.status === "post_assessment" || encounter.status === "completed"
+      ? "summary"
+      : encounter.status === "awaiting_next_task"
+        ? "tasks"
+        : encounter.status === "in_training"
+          ? "running"
+          : encounter.status === "paused"
+            ? "paused"
+            : "login");
   }
 
   function buildAdjustments(): ExecutionAdjustment[] {
@@ -180,8 +195,21 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
     onCreateAlert(event);
     setFieldNote(event.onSiteRecord ?? "");
     setSafetyEvents((items) => [...items, event.type]);
-    if (severity === "critical") finishSession(true, event.type);
-    else { onUpdateEncounter(activeEncounter.encounterId, { status: "paused" }); setStep("paused"); }
+    const liveAlert: LiveTrainingAlert = {
+      type: severity === "critical" ? "symptom" : "heart_rate",
+      severity,
+      active: true,
+      message: severity === "critical" ? "患者主诉胸闷，训练已终止并等待医生复核" : "心率超过当前告警阈值，训练已暂停",
+      value: event.value,
+      updatedAt: now.toISOString()
+    };
+    if (severity === "critical") {
+      syncRemoteControl({ status: "terminated", liveAlert, trainingEndedAt: now.toISOString() });
+      finishSession(true, event.type);
+    } else {
+      syncRemoteControl({ status: "paused", liveAlert, liveMetrics: activeEncounter.liveMetrics ? { ...activeEncounter.liveMetrics, heartRate: 158, paused: true, sampledAt: now.toISOString() } : undefined });
+      setStep("paused");
+    }
   }
 
   function finishSession(terminatedEarly = false, symptom = "") {
@@ -251,7 +279,14 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
   function toggleRemotePause() {
     if (!activeEncounter || !["in_training", "paused"].includes(activeEncounter.status)) return;
     const nextPaused = activeEncounter.status !== "paused";
-    syncRemoteControl({ status: nextPaused ? "paused" : "in_training", liveMetrics: activeEncounter.liveMetrics ? { ...activeEncounter.liveMetrics, paused: nextPaused, sampledAt: new Date().toISOString() } : undefined });
+    const now = new Date().toISOString();
+    syncRemoteControl({
+      status: nextPaused ? "paused" : "in_training",
+      liveMetrics: activeEncounter.liveMetrics ? { ...activeEncounter.liveMetrics, paused: nextPaused, sampledAt: now } : undefined,
+      liveAlert: !nextPaused && activeEncounter.liveAlert?.active
+        ? { ...activeEncounter.liveAlert, active: false, message: "复测后指标已恢复，医护允许继续训练", updatedAt: now }
+        : activeEncounter.liveAlert
+    });
     setStep(nextPaused ? "paused" : "running");
   }
 
@@ -334,7 +369,7 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
         {role === "ADMIN" && <p className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">管理员仅查看训练状态、设备数据和异常；临床控制由医生或康复师完成。</p>}
       </div>
     </div>
-    {handoffOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-5" role="dialog" aria-modal="true" aria-labelledby="handoff-title"><article className="w-full max-w-xl overflow-hidden rounded-lg bg-white shadow-2xl"><div className="flex items-start justify-between border-b p-6"><div><p className="eyebrow">训前评估完成 · 设备交接</p><h2 id="handoff-title" className="mt-1 text-xl font-bold">{activeEncounter.patientName}的患者端登录信息</h2></div><button type="button" onClick={() => setHandoffOpen(false)} aria-label="关闭患者登录信息" className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500"><X className="h-5 w-5" /></button></div><div className="p-6"><div className="rounded-lg border border-blue-200 bg-blue-50 p-5 text-center"><p className="text-sm font-bold text-blue-700">当前患者登录号码</p><p className="mt-3 font-mono text-3xl font-bold text-blue-950">{activeEncounter.patientNo}</p><p className="mt-2 text-sm text-blue-800">患者端请输入 <b className="font-mono text-lg">{deviceLoginCode}</b></p></div><p className="mt-4 text-sm leading-6 text-slate-600">患者端核验后会自动带入本次处方、训练项目和工位。号码前缀仅用于院内展示，患者端输入后六位数字即可。</p><div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-4 text-sm"><div><p className="text-xs font-bold text-slate-400">训练项目</p><p className="mt-1 font-bold">{activeEncounter.project}</p></div><div><p className="text-xs font-bold text-slate-400">训练工位</p><p className="mt-1 font-bold">{activeEncounter.station}</p></div><div><p className="text-xs font-bold text-slate-400">处方版本</p><p className="mt-1 font-bold">{activeEncounter.prescriptionVersion}</p></div><div><p className="text-xs font-bold text-slate-400">训练就诊号</p><p className="mt-1 break-all font-mono text-xs font-bold">{activeEncounter.encounterId}</p></div></div></div><div className="flex justify-end gap-3 border-t p-4"><button type="button" onClick={() => { void navigator.clipboard?.writeText(deviceLoginCode); setCopied(true); }} className="btn-secondary"><Copy className="h-4 w-4" />{copied ? "已复制" : "复制6位登录号"}</button><button type="button" onClick={() => setHandoffOpen(false)} className="btn-primary">知道了</button></div></article></div>}
+    {handoffOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-5" role="dialog" aria-modal="true" aria-labelledby="handoff-title"><article className="w-full max-w-xl overflow-hidden rounded-lg bg-white shadow-2xl"><div className="flex items-start justify-between border-b p-6"><div><p className="eyebrow">训前评估完成 · 设备交接</p><h2 id="handoff-title" className="mt-1 text-xl font-bold">{activeEncounter.patientName}的患者端登录信息</h2></div><button type="button" onClick={() => setHandoffOpen(false)} aria-label="关闭患者登录信息" className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500"><X className="h-5 w-5" /></button></div><div className="p-6"><div className="rounded-lg border border-blue-200 bg-blue-50 p-5 text-center"><p className="text-sm font-bold text-blue-700">当前患者登录号码</p><p className="mt-3 font-mono text-3xl font-bold text-blue-950">{activePatient?.patient_code ?? activeEncounter.patientNo}</p><p className="mt-2 text-sm text-blue-800">患者端请输入 <b className="font-mono text-lg">{deviceLoginCode}</b></p></div><p className="mt-4 text-sm leading-6 text-slate-600">患者端核验后会自动带入本次处方、训练项目和工位。号码前缀仅用于院内展示，患者端输入后六位数字即可。</p><div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-4 text-sm"><div><p className="text-xs font-bold text-slate-400">训练项目</p><p className="mt-1 font-bold">{activeEncounter.project}</p></div><div><p className="text-xs font-bold text-slate-400">训练工位</p><p className="mt-1 font-bold">{activeEncounter.station}</p></div><div><p className="text-xs font-bold text-slate-400">处方版本</p><p className="mt-1 font-bold">{activeEncounter.prescriptionVersion}</p></div><div><p className="text-xs font-bold text-slate-400">训练就诊号</p><p className="mt-1 break-all font-mono text-xs font-bold">{activeEncounter.encounterId}</p></div></div></div><div className="flex justify-end gap-3 border-t p-4"><button type="button" onClick={() => { void navigator.clipboard?.writeText(deviceLoginCode); setCopied(true); }} className="btn-secondary"><Copy className="h-4 w-4" />{copied ? "已复制" : "复制6位登录号"}</button><button type="button" onClick={() => setHandoffOpen(false)} className="btn-primary">知道了</button></div></article></div>}
     {endDayOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-5" role="dialog" aria-modal="true" aria-labelledby="end-day-title"><article className="w-full max-w-lg overflow-hidden rounded-lg bg-white shadow-2xl"><div className="flex items-start justify-between border-b p-6"><div><p className="eyebrow">康复师确认</p><h2 id="end-day-title" className="mt-1 text-xl font-bold">是否结束今日训练？</h2></div><button type="button" onClick={() => setEndDayOpen(false)} aria-label="关闭结束训练确认" className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500"><X className="h-5 w-5" /></button></div><div className="p-6"><p className="text-sm leading-6 text-slate-600">已完成 {activeEncounter.dailyTrainingTasks?.filter((item) => item.status === "completed").length ?? 0} 项，共 {activeEncounter.dailyTrainingTasks?.length ?? 0} 项。结束后进入训练后评估，患者端不能继续启动今日项目。</p>{activeEncounter.dailyTrainingTasks?.some((item) => !["completed", "skipped"].includes(item.status)) && <label className="mt-5 block"><span className="field-label">提前结束原因</span><textarea value={endDayReason} onChange={(event) => setEndDayReason(event.target.value)} className="text-field mt-2 min-h-24" placeholder="例如：患者疲劳、当日时间不足、康复师评估后调整" /></label>}{activeEncounter.liveAlert?.active && <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">心率异常尚未解除，请先完成现场处置。</p>}</div><div className="flex justify-end gap-3 border-t p-4"><button type="button" onClick={() => setEndDayOpen(false)} className="btn-secondary">继续下一项</button><button type="button" onClick={endTodayTraining} disabled={Boolean(activeEncounter.liveAlert?.active) || Boolean(activeEncounter.dailyTrainingTasks?.some((item) => !["completed", "skipped"].includes(item.status)) && !endDayReason.trim())} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300">确认结束并进入训后评估</button></div></article></div>}
   </section>;
 }

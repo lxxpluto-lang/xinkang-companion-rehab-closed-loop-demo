@@ -28,6 +28,12 @@ const appointmentStatusTone: Record<AppointmentStatus, "blue" | "green" | "orang
   no_show: "red"
 };
 
+function currentShanghaiDate() {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks, treatmentRecords, alertEvents, appointments, accountId, currentAccount, onOpenFollowUps, onOpenReports, onOpenTraining, onOpenPrescriptions, onOpenPrescriptionTask, onOpenTreatments, onOpenTreatmentRecord, onOpenAlerts, onNavigate }: {
   role: Exclude<Role, "PATIENT">;
   patients: ManagedPatient[];
@@ -52,7 +58,7 @@ export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks
   const pendingFollowUps = followUpTasks.filter((task) => isFollowUpVisibleInPending(task));
   const patientMap = new Map(patients.map((patient) => [patient.patient_demo_id, patient]));
   const pendingAlerts = alertEvents.filter((event) => event.status !== "closed");
-  const todayAppointments = appointments.filter((item) => item.date === "2026-08-05" && item.status !== "cancelled");
+  const todayAppointments = appointments.filter((item) => item.date === currentShanghaiDate() && item.status !== "cancelled");
   if (role === "DOCTOR") {
     const myTasks = prescriptionTasks.filter((task) => task.assignedDoctorId === accountId);
     const myPatientIds = new Set(myTasks.map((task) => task.patientId));
@@ -80,7 +86,7 @@ export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks
       <PageHeader eyebrow="康复师 · 本人任务" title={`${currentAccount}，上午好`} description="优先完成本人名下待填写、待签署的治疗记录，再进入现场训练与随访任务。" action={<button type="button" className="btn-primary" onClick={() => onOpenTreatments("unfinished")}><FileSignature className="h-4 w-4" />{pendingTreatments.length} 条待签署</button>} />
       <div className="mb-5 grid grid-cols-5 gap-3">
         <DoctorMetric label="今日到诊" value={String(todayAppointments.length)} note="进入预约管理" icon={UserCheck} onClick={() => onNavigate("appointments")} />
-        <DoctorMetric label="在训患者" value="2" note="进入训练大屏" icon={MonitorUp} tone="green" onClick={onOpenTraining} />
+        <DoctorMetric label="在训患者" value={String(todayAppointments.filter((item) => item.status === "in_training").length)} note="进入训练大屏" icon={MonitorUp} tone="green" onClick={onOpenTraining} />
         <DoctorMetric label="待核对治疗单" value={String(pendingTreatments.length)} note="本人未完成记录" icon={FileSignature} highlight onClick={() => onOpenTreatments("unfinished")} />
         <DoctorMetric label="异常上报" value={String(pendingFieldAlerts.length)} note="查看待上报事件" icon={AlertTriangle} tone="red" onClick={() => onOpenAlerts("unfinished")} />
         <DoctorMetric label="今日待随访" value={String(dueFollowUps.length)} note="查看未完成随访" icon={PhoneCall} onClick={() => onOpenFollowUps("pending")} />

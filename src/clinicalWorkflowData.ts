@@ -127,12 +127,24 @@ const baseDraft: PrescriptionDraft = {
   stopConditions: "出现持续胸痛、明显气促、晕厥或心悸时立即停止并联系医护。"
 };
 
+const luXuanxuanDraft: PrescriptionDraft = {
+  ...baseDraft,
+  summary: "结合SPPB、基础生命体征和中危分层形成的综合运动处方，由王医生签署后执行。",
+  items: [
+    { category: "呼吸训练", project: "腹式呼吸", intensity: "舒适节律", duration: "10分钟", frequency: "本次训练", reason: "改善呼吸配合并帮助训练前放松。" },
+    { category: "有氧运动", project: "功率车", intensity: "目标心率100–116 bpm；48–62W", duration: "30分钟", frequency: "本次训练", reason: "在监护下提高有氧耐力。" },
+    { category: "抗阻训练", project: "哑铃力量", intensity: "每个动作2组，每组10次", duration: "15分钟", frequency: "本次训练", reason: "提高主要肌群力量并避免憋气。" },
+    { category: "柔韧性训练", project: "全身柔韧训练", intensity: "舒适范围", duration: "10分钟", frequency: "本次训练", reason: "训练后放松并改善关节活动度。" }
+  ]
+};
+
 export const initialPrescriptionTasks: PrescriptionTask[] = [
   { id: "RX-TASK-001", prescriptionNo: "RX-10001-0020", patientId: "P-DEMO-001", patientNo: "P-000001", patientName: "陈女士", age: 62, risk: "中危", rehabStage: "Ⅱ期 · 第4周", diagnosis: "冠心病术后康复期", specialMedication: "β受体阻滞剂（外部资料）", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V2", kind: "adjustment", sourceLabel: "阶段性报告", generatedAt: "2026-08-05 09:20", status: "pending_review", updatedAt: "2026-08-05 09:20", previous: baseDraft, aiSuggestion: { ...baseDraft, summary: "基于最近训练与阶段报告形成的AI辅助草稿，需王医生逐项复核。" } },
   { id: "RX-TASK-002", prescriptionNo: "RX-10002-0011", patientId: "P-DEMO-002", patientNo: "P-000002", patientName: "李先生", age: 58, risk: "低危", rehabStage: "Ⅱ期 · 第2周", diagnosis: "冠心病稳定期", specialMedication: "未提供", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V1", kind: "adjustment", sourceLabel: "单次报告", generatedAt: "2026-08-05 08:45", status: "pending_generation", updatedAt: "2026-08-05 08:45" },
   { id: "RX-TASK-003", prescriptionNo: "RX-10003-0008", patientId: "P-DEMO-003", patientNo: "P-000003", patientName: "赵女士", age: 66, risk: "中危", rehabStage: "Ⅰ期 · 首次评估", diagnosis: "心脏术后早期康复", specialMedication: "抗血小板药物（外部资料）", assignedDoctorId: "doctor002", assignedDoctorName: "李医生", version: "V1", kind: "initial", sourceLabel: "基线评估", generatedAt: "2026-08-04 16:30", status: "pending_signature", updatedAt: "2026-08-04 16:30", aiSuggestion: baseDraft, doctorFinal: baseDraft },
   { id: "RX-TASK-004", prescriptionNo: "RX-10004-0014", patientId: "P-DEMO-004", patientNo: "P-000004", patientName: "周先生", age: 55, risk: "低危", rehabStage: "Ⅱ期 · 第3周", diagnosis: "冠心病康复期", specialMedication: "未提供", assignedDoctorId: "doctor002", assignedDoctorName: "李医生", version: "V2", kind: "adjustment", sourceLabel: "阶段性报告", generatedAt: "2026-08-03 11:10", status: "completed", updatedAt: "2026-08-03 11:10", previous: baseDraft, aiSuggestion: baseDraft, doctorFinal: baseDraft },
-  { id: "RX-TASK-005", prescriptionNo: "RX-10001-0012", patientId: "P-DEMO-001", patientNo: "P-000001", patientName: "陈女士", age: 62, risk: "中危", rehabStage: "Ⅱ期 · 第2周", diagnosis: "冠心病术后康复期", specialMedication: "β受体阻滞剂（外部资料）", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V1", kind: "initial", sourceLabel: "体能评估/SPPB", generatedAt: "2026-07-22 10:10", status: "completed", updatedAt: "2026-07-22 10:30", aiSuggestion: baseDraft, doctorFinal: baseDraft, plannedSessions: 5, cycleEndDate: "2026-08-31" }
+  { id: "RX-TASK-005", prescriptionNo: "RX-10001-0012", patientId: "P-DEMO-001", patientNo: "P-000001", patientName: "陈女士", age: 62, risk: "中危", rehabStage: "Ⅱ期 · 第2周", diagnosis: "冠心病术后康复期", specialMedication: "β受体阻滞剂（外部资料）", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V1", kind: "initial", sourceLabel: "体能评估/SPPB", generatedAt: "2026-07-22 10:10", status: "completed", updatedAt: "2026-07-22 10:30", aiSuggestion: baseDraft, doctorFinal: baseDraft, plannedSessions: 5, cycleEndDate: "2026-08-31" },
+  { id: "RX-LXX-001", prescriptionNo: "RX-256572-0001", patientId: "P-LXX-001", patientNo: "P-256572", patientName: "鲁萱萱", age: 54, risk: "中危", rehabStage: "冠心病2期", diagnosis: "冠心病 PCI 术后康复期", specialMedication: "按当日医嘱核对", assignedDoctorId: "doctor001", assignedDoctorName: "王医生", version: "V1", kind: "initial", sourceLabel: "体能评估/SPPB", generatedAt: "2026-08-19 08:00", status: "completed", updatedAt: "2026-08-19 08:10", aiSuggestion: luXuanxuanDraft, doctorFinal: luXuanxuanDraft, plannedSessions: 12, signedBy: "王医生", signedAt: "2026-08-19T08:10:00+08:00" }
 ];
 
 export const initialAlertEvents: AlertEvent[] = [
@@ -154,7 +166,8 @@ export const initialAppointments: Appointment[] = [
   { id: "APT-002", date: "2026-08-05", time: "11:00", patientId: "P-DEMO-002", patientName: "李先生", risk: "低危", status: "pending", project: "八段锦", station: "训练区02", doctorId: "doctor001", doctorName: "王医生", therapistId: "rehab001", therapistName: "周康复师", note: "首次到诊", source: "local" },
   { id: "APT-003", date: "2026-08-05", time: "14:30", patientId: "P-DEMO-003", patientName: "赵女士", risk: "中危", status: "in_training", project: "功率车", station: "功率车02", doctorId: "doctor002", doctorName: "李医生", therapistId: "rehab001", therapistName: "周康复师", note: "需关注血氧", source: "external", checkedInBy: "周康复师", checkedInAt: "2026-08-05 14:22" },
   { id: "APT-004", date: "2026-08-05", time: "15:45", patientId: "P-DEMO-004", patientName: "周先生", risk: "低危", status: "completed", project: "呼吸训练", station: "训练区01", doctorId: "doctor002", doctorName: "李医生", therapistId: "rehab001", therapistName: "周康复师", note: "已完成", source: "local", checkedInBy: "周康复师", checkedInAt: "2026-08-05 15:40" },
-  { id: "APT-005", date: "2026-08-05", time: "16:30", patientId: "P-DEMO-005", patientName: "孙先生", risk: "低危", status: "no_show", project: "柔韧性训练", station: "训练区03", doctorId: "doctor001", doctorName: "王医生", therapistId: "rehab001", therapistName: "周康复师", note: "电话未接通，待随访确认", source: "local", cancelledReason: "超过预约时间30分钟未到诊", statusConfirmedBy: "周康复师", statusConfirmedAt: "2026-08-05 17:00" }
+  { id: "APT-005", date: "2026-08-05", time: "16:30", patientId: "P-DEMO-005", patientName: "孙先生", risk: "低危", status: "no_show", project: "柔韧性训练", station: "训练区03", doctorId: "doctor001", doctorName: "王医生", therapistId: "rehab001", therapistName: "周康复师", note: "电话未接通，待随访确认", source: "local", cancelledReason: "超过预约时间30分钟未到诊", statusConfirmedBy: "周康复师", statusConfirmedAt: "2026-08-05 17:00" },
+  { id: "APT-LXX-TODAY", date: "2026-08-19", time: "09:00", patientId: "P-LXX-001", patientNo: "P-256572", patientName: "鲁萱萱", risk: "中危", status: "pending", project: "综合运动康复", station: "综合训练区01", doctorId: "doctor001", doctorName: "王医生", therapistId: "rehab001", therapistName: "周康复师", note: "腹式呼吸、功率车、哑铃力量、全身柔韧训练", source: "local", prescriptionTaskId: "RX-LXX-001", prescriptionVersion: "V1", plannedSessions: 12, createdBy: "周康复师", createdAt: "2026-08-19 08:00" }
 ];
 
 export function createAiDraft(task: PrescriptionTask): PrescriptionDraft {

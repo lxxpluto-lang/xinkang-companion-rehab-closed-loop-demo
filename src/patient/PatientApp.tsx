@@ -55,7 +55,7 @@ import { demoDischargeHandbook } from "../dischargeHandbookData";
 import type { PrescriptionContent } from "../prescriptionWorkspaceData";
 import { createStoredTrainingSession, displayReportList, displayReportValue, type StoredSingleReport, type StoredStageReport, type StoredTrainingSession } from "../reportData";
 import type { PrescriptionTask } from "../clinicalWorkflowData";
-import type { DailyTrainingTask, DailyTrainingTaskStatus, LiveTrainingMetrics, TrainingEncounter } from "../trainingEncounterData";
+import type { DailyTrainingTask, DailyTrainingTaskStatus, LiveTrainingAlert, LiveTrainingMetrics, TrainingEncounter } from "../trainingEncounterData";
 import type { ManagedPatient } from "../pages/PatientArchivePage";
 import { normalizeDeviceLoginCode, readDeviceHandoff, updateDeviceHandoff, type DeviceHandoff } from "../deviceHandoffData";
 
@@ -292,6 +292,16 @@ export function PatientApp({
   useEffect(() => () => stopAudioGuidance(), []);
 
   useEffect(() => {
+    if (authenticatedEncounter?.status === "paused") {
+      setPaused(true);
+      setTrainingState("paused");
+    } else if (authenticatedEncounter?.status === "in_training") {
+      setPaused(false);
+      setTrainingState("running");
+    }
+  }, [authenticatedEncounter?.status]);
+
+  useEffect(() => {
     let active = true;
     fetch("/api/training-videos", { cache: "no-store" })
       .then((response) => {
@@ -319,7 +329,8 @@ export function PatientApp({
     if (!authenticatedEncounterId || !authenticatedEncounter?.patientNo) return;
     const timer = window.setInterval(() => {
       void readDeviceHandoff(authenticatedEncounter.patientNo).then((handoff) => {
-        if (!handoff || handoff.encounter.encounterId !== authenticatedEncounterId || handoff.updatedAt === lastRemoteUpdateRef.current) return;
+        if (!handoff || handoff.encounter.encounterId !== authenticatedEncounterId) return;
+        const remoteUpdateChanged = handoff.updatedAt !== lastRemoteUpdateRef.current;
         lastRemoteUpdateRef.current = handoff.updatedAt;
         const remote = handoff.encounter;
         setRemoteHandoff(handoff);
@@ -336,20 +347,20 @@ export function PatientApp({
         if (remote.status === "paused") {
           setPaused(true);
           setTrainingState("paused");
-        } else if (remote.status === "in_training" && authenticatedEncounter.status === "paused") {
+        } else if (remote.status === "in_training") {
           setPaused(false);
           setTrainingState("running");
         }
-        if (remote.status === "awaiting_next_task") {
+        if (remote.status === "awaiting_next_task" && remoteUpdateChanged) {
           stopAudioGuidance();
           setPaused(false);
           const nextTask = remote.dailyTrainingTasks?.find((item) => item.status === "pending");
           if (nextTask) setExercise(nextTask.exerciseKey as Exercise);
-          setView("home");
+          setView((current) => ["report", "profile", "calendar"].includes(current) ? current : "home");
         }
-        if (["post_assessment", "pending_signature", "completed", "terminated"].includes(remote.status)) {
+        if (["post_assessment", "pending_signature", "completed", "terminated"].includes(remote.status) && remoteUpdateChanged) {
           stopAudioGuidance();
-          setView("home");
+          setView((current) => ["report", "profile", "calendar"].includes(current) ? current : "home");
         }
       }).catch(() => undefined);
     }, 1500);
@@ -447,6 +458,7 @@ export function PatientApp({
   }
 
   function loginToEncounter(encounter: TrainingEncounter, handoff?: DeviceHandoff) {
+    lastRemoteUpdateRef.current = handoff?.updatedAt ?? "";
     const task = handoff?.prescriptionTask ?? prescriptionTasks.find((item) => item.id === encounter.prescriptionTaskId);
     const content = handoff?.prescriptionContent ?? (task ? prescriptionContents[task.id] : undefined);
     const linkedPrescription = getDevicePrescription(task, content);
@@ -477,7 +489,9 @@ export function PatientApp({
       dailyTrainingTasks: dailyTasks
     };
     onUpdateEncounter(encounter.encounterId, loginPatch);
-    void updateDeviceHandoff(encounter.patientNo, loginPatch).catch(() => undefined);
+    void updateDeviceHandoff(encounter.patientNo, loginPatch)
+      .then((saved) => { lastRemoteUpdateRef.current = saved.updatedAt; })
+      .catch(() => undefined);
     const existingSessionCount = trainingSessions.filter((item) => item.patientId === encounter.patientId && item.completed).length;
     dailyTasks
       .filter((item) => ["completed", "partially_completed", "interrupted"].includes(item.status) && item.recordedMetrics)
@@ -732,7 +746,7 @@ export function PatientApp({
               onInterrupt={interruptTraining}
             />
           )}
-          {view === "videoTraining" && selectedTrainingVideo && <VideoTrainingScreen video={selectedTrainingVideo} monitoringEnabled={Boolean(authenticatedEncounter?.wearableConnectedAt)} paused={paused} onConnectMonitoring={() => { setBackpack(true); syncActiveEncounter({ wearableConnectedAt: new Date().toISOString() }); }} onBack={leaveVideoTraining} onMetrics={syncLiveMetrics} onFinish={completeVideoTraining} />}
+          {view === "videoTraining" && selectedTrainingVideo && <VideoTrainingScreen video={selectedTrainingVideo} monitoringEnabled={Boolean(authenticatedEncounter?.wearableConnectedAt)} paused={paused} alert={authenticatedEncounter?.liveAlert} onConnectMonitoring={() => { setBackpack(true); syncActiveEncounter({ wearableConnectedAt: new Date().toISOString() }); }} onBack={leaveVideoTraining} onMetrics={syncLiveMetrics} onFinish={completeVideoTraining} />}
           {view === "result" && (
             <ResultScreen
               totalMinutes={totalMinutes}
@@ -1060,7 +1074,7 @@ function PatientHandbookModal({ onClose, prescription }: { onClose: () => void; 
 
 function PatientHandbookSection({ title, items, warning = false }: { title: string; items: string[]; warning?: boolean }) { return <section className={`rounded-2xl border p-4 ${warning ? "border-rose-100 bg-rose-50" : "border-slate-100"}`}><h3 className={`font-bold ${warning ? "text-rose-800" : "text-slate-900"}`}>{title}</h3><ul className="mt-3 space-y-2">{items.map((item) => <li key={item} className="flex gap-2 text-xs leading-5 text-slate-600"><CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${warning ? "text-rose-500" : "text-emerald-500"}`} />{item}</li>)}</ul></section>; }
 
-function VideoTrainingScreen({ video, monitoringEnabled, paused, onConnectMonitoring, onBack, onMetrics, onFinish }: { video: PublishedTrainingVideo; monitoringEnabled: boolean; paused: boolean; onConnectMonitoring: () => void; onBack: (recordedSeconds: number) => void; onMetrics: (metrics: LiveTrainingMetrics) => void; onFinish: () => void }) {
+function VideoTrainingScreen({ video, monitoringEnabled, paused, alert, onConnectMonitoring, onBack, onMetrics, onFinish }: { video: PublishedTrainingVideo; monitoringEnabled: boolean; paused: boolean; alert?: LiveTrainingAlert; onConnectMonitoring: () => void; onBack: (recordedSeconds: number) => void; onMetrics: (metrics: LiveTrainingMetrics) => void; onFinish: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [started, setStarted] = useState(false);
@@ -1107,7 +1121,7 @@ function VideoTrainingScreen({ video, monitoringEnabled, paused, onConnectMonito
         <div className="relative min-h-0 flex-1 bg-black">
           {video.source === "link" ? <iframe title={video.title} src={video.url} className="absolute inset-0 h-full w-full border-0" allow="autoplay; fullscreen" /> : <video ref={videoRef} title={video.title} src={video.url} className="absolute inset-0 h-full w-full object-contain" controls playsInline onLoadedMetadata={(event) => setVideoDuration(event.currentTarget.duration)} />}
           {monitoringEnabled && showMonitoring && <div className="absolute inset-x-4 bottom-4 z-10 grid grid-cols-4 gap-2 rounded-2xl bg-slate-950/75 p-3 text-white backdrop-blur-md"><div className="col-span-2 rounded-xl bg-white/10 p-3"><div className="flex items-center gap-2"><HeartPulse className="h-4 w-4 text-rose-300" /><span className="text-[10px] font-bold">实时心率</span></div><p className="mt-1 text-2xl font-bold">{liveHeartRate}<span className="ml-1 text-[9px] text-white/60">bpm</span></p></div><div className="rounded-xl bg-white/10 p-3"><p className="text-[9px] text-white/60">血氧</p><p className="mt-2 text-xl font-bold">{liveOxygen}<span className="ml-1 text-[9px] text-white/60">%</span></p></div><div className="rounded-xl bg-white/10 p-3"><p className="text-[9px] text-white/60">记录时间</p><p className="mt-2 text-xl font-bold tabular-nums">{time}</p></div></div>}
-          {paused && <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/55"><div className="rounded-2xl bg-white px-8 py-5 text-center shadow-xl"><Pause className="mx-auto h-8 w-8 text-medical-700" /><p className="mt-2 font-bold text-slate-900">医生已暂停本项训练</p><p className="mt-1 text-xs text-slate-500">请保持休息，等待医生恢复训练。</p></div></div>}
+          {paused && <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/55"><div className={`rounded-2xl bg-white px-8 py-5 text-center shadow-xl ${alert?.active ? "border-2 border-red-300" : ""}`}><Pause className={`mx-auto h-8 w-8 ${alert?.active ? "text-red-600" : "text-medical-700"}`} /><p className="mt-2 font-bold text-slate-900">{alert?.active ? "训练异常，医护已暂停" : "医生已暂停本项训练"}</p><p className="mt-1 text-xs text-slate-500">{alert?.active ? alert.message : "请保持休息，等待医生恢复训练。"}</p></div></div>}
         </div>
         {monitoringEnabled && showMonitoring && <div className="flex items-center gap-5 border-t border-white/10 bg-[#102c3b] px-5 py-3 text-xs text-white"><span className="font-bold text-teal-200">实时采集</span><span>心率 <b className="ml-1 text-base">{liveHeartRate} bpm</b></span><span>血氧 <b className="ml-1 text-base">{liveOxygen}%</b></span><span>时间 <b className="ml-1 text-base">{time}</b></span></div>}
       </article>
@@ -2093,9 +2107,9 @@ function buildDailyTrainingTasks(encounter: TrainingEncounter, task?: Prescripti
     seen.add(exerciseKey);
     const exerciseName = exerciseKey === "bike" ? "功率车"
       : exerciseKey === "diaphragmatic" ? "腹式呼吸"
-      : exerciseKey === "dumbbell" ? "哑铃"
+      : exerciseKey === "dumbbell" ? "哑铃力量"
       : exerciseKey === "resistanceBand" ? "弹力带"
-      : exerciseKey === "flexibilityFull" ? "全身柔韧"
+      : exerciseKey === "flexibilityFull" ? "全身柔韧训练"
       : exerciseKey === "baduanjin" ? "八段锦"
       : exerciseKey === "taichi" ? "太极拳"
       : item.project.split(/[、，,／]/)[0] || item.category;

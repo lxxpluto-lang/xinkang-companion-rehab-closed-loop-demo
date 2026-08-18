@@ -192,7 +192,7 @@ const profiles = [
   ],
 ] as const;
 
-export const initialPatients: ManagedPatient[] = demoPatients.map(
+const baseInitialPatients: ManagedPatient[] = demoPatients.map(
   (raw, index) => {
     const [name, no, birth, gender, phone, stage, discharge, status] =
       profiles[index];
@@ -258,6 +258,32 @@ export const initialPatients: ManagedPatient[] = demoPatients.map(
     };
   },
 );
+
+export const initialPatients: ManagedPatient[] = [
+  ...baseInitialPatients,
+  {
+    ...baseInitialPatients[0],
+    patient_demo_id: "P-LXX-001",
+    patient_code: "P-256572",
+    patient_no: "256572",
+    hospital_patient_no: "256572",
+    name: "鲁萱萱",
+    birth_date: "1972-06-18",
+    age: calculateAge("1972-06-18"),
+    phone: "138****6572",
+    assigned_doctor: "王医生",
+    risk_level: "中危",
+    rehab_stage: "冠心病2期",
+    diagnosis_summary: "冠心病 PCI 术后康复期",
+    procedure_history: "PCI术后",
+    prescription_version: "V1",
+    training_status: "待开始院内训练",
+    patient_status: "prescription_opened",
+    created_at: "2026-08-19 08:00",
+    updated_at: "2026-08-19 08:00",
+    audit_log: ["系统生成脱敏演示患者及当天运动康复处方"]
+  }
+];
 
 export function calculateAge(birthDate: string) {
   const birth = new Date(`${birthDate}T00:00:00`);

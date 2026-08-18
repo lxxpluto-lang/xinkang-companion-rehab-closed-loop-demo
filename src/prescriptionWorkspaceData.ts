@@ -235,5 +235,5 @@ export const defaultPrescriptionContent: PrescriptionContent = {
 };
 
 export const initialPrescriptionContents: Record<string, PrescriptionContent> = Object.fromEntries(
-  ["RX-TASK-001", "RX-TASK-002", "RX-TASK-003", "RX-TASK-004", "RX-TASK-005", "RX-TASK-006"].map((taskId) => [taskId, { ...defaultPrescriptionContent, rehabGoals: [...defaultPrescriptionContent.rehabGoals], breathingModes: [...defaultPrescriptionContent.breathingModes], warmupModes: [...defaultPrescriptionContent.warmupModes], aerobicModes: [...defaultPrescriptionContent.aerobicModes], resistanceModes: [...defaultPrescriptionContent.resistanceModes], flexibilityModes: [...defaultPrescriptionContent.flexibilityModes], inheritedFields: [] }])
+  ["RX-TASK-001", "RX-TASK-002", "RX-TASK-003", "RX-TASK-004", "RX-TASK-005", "RX-TASK-006", "RX-LXX-001"].map((taskId) => [taskId, { ...defaultPrescriptionContent, rehabGoals: [...defaultPrescriptionContent.rehabGoals], breathingModes: [...defaultPrescriptionContent.breathingModes], warmupModes: [...defaultPrescriptionContent.warmupModes], aerobicModes: [...defaultPrescriptionContent.aerobicModes], resistanceModes: [...defaultPrescriptionContent.resistanceModes], flexibilityModes: [...defaultPrescriptionContent.flexibilityModes], inheritedFields: [] }])
 );
