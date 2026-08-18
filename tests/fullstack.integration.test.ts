@@ -74,19 +74,28 @@ describe("full-stack rehabilitation workflow", () => {
     const realtimeUpdate = new Promise<any>((resolve) => socket?.once("handoff:updated", resolve));
 
     const completedTasks = tasks.map((task) => task.exerciseKey === "bike" ? { ...task, status: "completed", completedAt: new Date().toISOString() } : task);
+    const liveAlert = { type: "heart_rate_high", severity: "high", active: true, message: "心率异常", detectedAt: new Date().toISOString() };
     const response = await fetch(`${baseUrl}/api/device-handoffs/${TEST_LOGIN_CODE}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ encounter: { status: "awaiting_next_task", activeTrainingTaskId: `${TEST_ENCOUNTER_ID}-TASK-2`, dailyTrainingTasks: completedTasks, liveMetrics: { heartRate: 106, spo2: 98, speedKmh: 12.4, distanceKm: 0.8, powerW: 52, cadenceRpm: 61, caloriesKcal: 18, sampledAt: new Date().toISOString() } } })
+      body: JSON.stringify({ encounter: { status: "awaiting_next_task", activeTrainingTaskId: `${TEST_ENCOUNTER_ID}-TASK-2`, dailyTrainingTasks: completedTasks, liveMetrics: { heartRate: 158, spo2: 94, speedKmh: 12.4, distanceKm: 0.8, powerW: 52, cadenceRpm: 61, caloriesKcal: 18, sampledAt: new Date().toISOString() }, liveAlert } })
     });
     expect(response.status).toBe(200);
     const update = await realtimeUpdate;
-    expect(update.encounter.liveMetrics.heartRate).toBe(106);
+    expect(update.encounter.liveMetrics.heartRate).toBe(158);
     expect(update.encounter.dailyTrainingTasks.find((task: any) => task.exerciseKey === "bike").status).toBe("completed");
     expect(update.encounter.dailyTrainingTasks.find((task: any) => task.exerciseKey === "breathing").status).toBe("pending");
 
     const storedTasks = await context.prisma.trainingTask.findMany({ where: { encounterId: TEST_ENCOUNTER_ID }, orderBy: { order: "asc" } });
     expect(storedTasks.map((task) => task.status)).toEqual(["pending", "completed"]);
     expect(await context.prisma.metricSample.count({ where: { encounterId: TEST_ENCOUNTER_ID } })).toBe(1);
+    expect(await context.prisma.alertEvent.count({ where: { encounterId: TEST_ENCOUNTER_ID, status: "active", severity: "high" } })).toBe(1);
+
+    expect((await fetch(`${baseUrl}/api/device-handoffs/${TEST_LOGIN_CODE}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ encounter: { status: "paused", pauseOrigin: "doctor", liveAlert } })
+    })).status).toBe(200);
+    expect(await context.prisma.intervention.count({ where: { alert: { encounterId: TEST_ENCOUNTER_ID }, action: "PAUSE_TRAINING" } })).toBe(1);
   });
 });

@@ -64,3 +64,18 @@ curl http://127.0.0.1:8787/api/health
 ## GitHub Pages 限制
 
 GitHub Pages 只托管前端静态文件，不能运行 Fastify、PostgreSQL 或 Socket.IO。Pages 会保留离线原型演示，但跨设备联动与持久化必须使用本地全栈地址或公网服务器地址。远程前后端分离时设置 `VITE_API_BASE_URL` 后重新构建。
+
+## 当前公网演示
+
+公网全栈环境部署在 `http://118.178.93.70`。服务器使用 Docker Compose 运行应用与 PostgreSQL 16，Nginx 在 80 端口提供同源前端、API 和 Socket.IO 入口。
+
+更新步骤：
+
+```bash
+cd /opt/xinkang-companion
+git pull --ff-only origin main
+docker compose up -d --build
+curl http://127.0.0.1:8787/api/health
+```
+
+服务器 `.env` 权限为 `600`，数据库口令只保存在服务器，不提交到 Git。正式医疗环境上线前仍需配置域名与 HTTPS、SSO/JWT、服务端角色授权、备份恢复、访问审计留存和真实设备协议。

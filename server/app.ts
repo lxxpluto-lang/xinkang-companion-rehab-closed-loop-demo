@@ -200,6 +200,52 @@ async function saveDeviceHandoff(prisma: PrismaClient, handoff: Record<string, a
     }
   }
 
+  const liveAlert = asObject(encounter.liveAlert);
+  if (Object.keys(liveAlert).length) {
+    const alertType = String(liveAlert.type ?? "training_alert");
+    const alertId = String(liveAlert.id ?? `ALERT-${encounterId}-${alertType.replace(/[^a-zA-Z0-9_-]+/g, "-")}`);
+    const alertStatus = liveAlert.active === false || liveAlert.status === "closed" ? "closed" : String(liveAlert.status ?? "active");
+    const operator = String(encounter.controlledBy ?? encounter.therapist ?? "system");
+    await prisma.alertEvent.upsert({
+      where: { id: alertId },
+      update: {
+        encounterId,
+        severity: String(liveAlert.severity ?? "warning"),
+        status: alertStatus,
+        occurredAt: safeDate(liveAlert.detectedAt ?? liveAlert.updatedAt),
+        payload: asJson(liveAlert)
+      },
+      create: {
+        id: alertId,
+        patientId,
+        encounterId,
+        severity: String(liveAlert.severity ?? "warning"),
+        status: alertStatus,
+        occurredAt: safeDate(liveAlert.detectedAt ?? liveAlert.updatedAt),
+        payload: asJson(liveAlert)
+      }
+    });
+
+    const interventionAction = encounter.status === "paused"
+      ? "PAUSE_TRAINING"
+      : alertStatus === "closed"
+        ? "CLOSE_ALERT"
+        : "";
+    if (interventionAction) {
+      const existingIntervention = await prisma.intervention.findFirst({ where: { alertId, action: interventionAction } });
+      if (!existingIntervention) {
+        await prisma.intervention.create({
+          data: {
+            alertId,
+            operator,
+            action: interventionAction,
+            payload: asJson({ status: encounter.status, pauseOrigin: encounter.pauseOrigin, recordedAt: new Date().toISOString() })
+          }
+        });
+      }
+    }
+  }
+
   const savedHandoff = { ...handoff, loginCode, encounter: { ...encounter, encounterId }, updatedAt: new Date().toISOString() };
   const session = await prisma.deviceSession.upsert({
     where: { loginCode },
