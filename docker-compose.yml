@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-xinkang}
+      POSTGRES_USER: ${POSTGRES_USER:-xinkang}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xinkang_local_demo}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - xinkang-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xinkang} -d ${POSTGRES_DB:-xinkang}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-xinkang}:${POSTGRES_PASSWORD:-xinkang_local_demo}@db:5432/${POSTGRES_DB:-xinkang}?schema=public
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8787
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://127.0.0.1:8787}
+    ports:
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-8787}:8787"
+    volumes:
+      - ${TRAINING_VIDEO_DIR:-./public}:/app/training-videos:ro
+
+volumes:
+  xinkang-postgres:

@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id
+  username     String   @unique
+  displayName  String
+  role         String
+  passwordHash String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([role, active])
+}
+
+model Patient {
+  id             String              @id
+  patientNo      String              @unique
+  loginCode      String              @unique
+  name           String
+  gender         String?
+  birthDate      DateTime?
+  riskLevel      String
+  rehabStage     String
+  assignedDoctor String?
+  profile        Json
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  assessments    Assessment[]
+  prescriptions  Prescription[]
+  appointments   Appointment[]
+  encounters     TrainingEncounter[]
+  alerts         AlertEvent[]
+  stageReports   StageReport[]
+  followUps      FollowUp[]
+}
+
+model Assessment {
+  id         String   @id
+  patientId  String
+  type       String
+  status     String
+  assessedAt DateTime
+  assessor   String?
+  payload    Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  patient    Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, assessedAt])
+}
+
+model Prescription {
+  id             String              @id
+  prescriptionNo String              @unique
+  patientId      String
+  version        String
+  status         String
+  assignedDoctor String?
+  signedBy       String?
+  signedAt       DateTime?
+  payload        Json
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  patient        Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  items          PrescriptionItem[]
+  appointments   Appointment[]
+  encounters     TrainingEncounter[]
+  stageReports   StageReport[]
+
+  @@unique([patientId, version])
+  @@index([patientId, status])
+}
+
+model PrescriptionItem {
+  id             String       @id
+  prescriptionId String
+  order          Int
+  category       String
+  exerciseKey    String
+  exerciseName   String
+  intensity      String?
+  duration       String?
+  frequency      String?
+  rationale      String?
+  payload        Json
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([prescriptionId, order])
+}
+
+model Appointment {
+  id             String             @id
+  patientId      String
+  prescriptionId String?
+  scheduledAt    DateTime
+  status         String
+  station        String?
+  project        String?
+  doctorName     String?
+  therapistName  String?
+  note           String?
+  payload        Json
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  patient        Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  prescription   Prescription?      @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+  encounter      TrainingEncounter?
+
+  @@index([scheduledAt, status])
+  @@index([patientId, scheduledAt])
+}
+
+model TrainingEncounter {
+  id                   String                @id
+  appointmentId        String                @unique
+  patientId            String
+  prescriptionId       String?
+  status               String
+  activeTaskId         String?
+  station              String?
+  therapist            String?
+  startedAt            DateTime?
+  endedAt              DateTime?
+  postAssessedAt       DateTime?
+  signedAt             DateTime?
+  payload              Json
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  appointment          Appointment           @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patient              Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  prescription         Prescription?         @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+  tasks                TrainingTask[]
+  deviceSessions       DeviceSession[]
+  metricSamples        MetricSample[]
+  alerts               AlertEvent[]
+  treatmentAssessments TreatmentAssessment[]
+  singleReports        SingleReport[]
+
+  @@index([patientId, status])
+  @@index([updatedAt])
+}
+
+model TrainingTask {
+  id           String            @id
+  encounterId  String
+  order        Int
+  category     String
+  exerciseKey  String
+  exerciseName String
+  status       String
+  startedAt    DateTime?
+  completedAt  DateTime?
+  payload      Json
+  encounter    TrainingEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  metrics      MetricSample[]
+
+  @@unique([encounterId, order])
+  @@index([encounterId, status])
+}
+
+model DeviceSession {
+  id          String            @id @default(cuid())
+  encounterId String
+  loginCode   String            @unique
+  handoff     Json
+  connectedAt DateTime?
+  lastSeenAt  DateTime          @default(now())
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  encounter   TrainingEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId])
+}
+
+model MetricSample {
+  id           BigInt            @id @default(autoincrement())
+  encounterId  String
+  taskId       String?
+  capturedAt   DateTime
+  heartRate    Int?
+  spo2         Int?
+  systolic     Int?
+  diastolic    Int?
+  speedKmh     Float?
+  distanceKm   Float?
+  powerW       Int?
+  cadenceRpm   Int?
+  caloriesKcal Float?
+  values       Json
+  encounter    TrainingEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  task         TrainingTask?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([encounterId, capturedAt])
+}
+
+model AlertEvent {
+  id            String             @id
+  patientId     String
+  encounterId   String?
+  severity      String
+  status        String
+  occurredAt    DateTime
+  payload       Json
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  patient       Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter     TrainingEncounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  interventions Intervention[]
+
+  @@index([status, severity])
+}
+
+model Intervention {
+  id        String     @id @default(cuid())
+  alertId   String
+  operator  String
+  action    String
+  payload   Json
+  createdAt DateTime   @default(now())
+  alert     AlertEvent @relation(fields: [alertId], references: [id], onDelete: Cascade)
+}
+
+model TreatmentAssessment {
+  id          String            @id
+  encounterId String
+  phase       String
+  status      String
+  operator    String?
+  signedAt    DateTime?
+  payload     Json
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  encounter   TrainingEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@unique([encounterId, phase])
+}
+
+model SingleReport {
+  id          String            @id
+  encounterId String
+  patientId   String
+  status      String
+  generatedAt DateTime
+  payload     Json
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  encounter   TrainingEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, generatedAt])
+}
+
+model StageReport {
+  id             String        @id
+  patientId      String
+  prescriptionId String?
+  version        Int
+  status         String
+  generatedAt    DateTime
+  payload        Json
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  patient        Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  prescription   Prescription? @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+
+  @@unique([patientId, version])
+}
+
+model FollowUp {
+  id          String    @id
+  patientId   String
+  dueAt       DateTime
+  status      String
+  assignee    String?
+  payload     Json
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  patient     Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([dueAt, status])
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  entityType String
+  entityId   String
+  action     String
+  actor      String
+  source     String
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+}
+
+model StateDocument {
+  key       String   @id
+  value     Json
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
