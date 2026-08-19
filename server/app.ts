@@ -7,6 +7,7 @@ import { extname, join, resolve } from "node:path";
 import { Server as SocketIOServer } from "socket.io";
 import { z } from "zod";
 import { clinicalStateKeySet, readStateDocuments, writeStateDocument, type ClinicalStateKey } from "./stateRepository.js";
+import { archivePatient, restorePatient, validateAppointment } from "./clinicalOperations.js";
 
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
 const asObject = (value: unknown) => value && typeof value === "object" ? value as Record<string, any> : {};
@@ -37,14 +38,61 @@ export function createApp(prisma = new PrismaClient()) {
   app.put("/api/state/:key", async (request, reply) => {
     const key = String((request.params as { key: string }).key);
     if (!clinicalStateKeySet.has(key)) return reply.code(400).send({ message: "Unsupported clinical state key" });
-    const body = z.object({ value: z.unknown() }).parse(request.body);
-    const document = await writeStateDocument(prisma, key as ClinicalStateKey, body.value);
+    const body = z.object({ value: z.unknown(), expectedVersion: z.number().int().positive().optional() }).parse(request.body);
+    let document;
+    try {
+      document = await writeStateDocument(prisma, key as ClinicalStateKey, body.value, body.expectedVersion);
+    } catch (error) {
+      if ((error as { statusCode?: number }).statusCode === 409) return reply.code(409).send({ message: "状态已在其他浏览器更新，请刷新后重试", currentVersion: (error as { currentVersion?: number }).currentVersion });
+      throw error;
+    }
     io.emit("state:updated", document);
     return document;
   });
 
+  app.get("/api/appointment-candidates", async () => {
+    const patients = await prisma.patient.findMany({
+      where: { status: "active" },
+      include: { prescriptions: { where: { status: "completed", signedAt: { not: null } }, orderBy: { signedAt: "desc" } } },
+      orderBy: { updatedAt: "desc" }
+    });
+    return patients.filter((patient) => patient.prescriptions.length > 0).map((patient) => ({
+      patientId: patient.id,
+      patientNo: patient.patientNo,
+      name: patient.name,
+      prescriptions: patient.prescriptions.map((prescription) => ({ id: prescription.id, prescriptionNo: prescription.prescriptionNo, version: prescription.version }))
+    }));
+  });
+
+  app.post("/api/appointments/validate", async (request, reply) => {
+    const body = z.object({ patientId: z.string().min(1), prescriptionId: z.string().min(1) }).parse(request.body);
+    const result = await validateAppointment(prisma, body.patientId, body.prescriptionId);
+    if (!result.valid) return reply.code(result.statusCode).send({ message: result.message });
+    return result;
+  });
+
+  app.post("/api/patients/:patientId/archive", async (request, reply) => {
+    const patientId = String((request.params as { patientId: string }).patientId);
+    const body = z.object({ actor: z.string().min(1), role: z.string(), reason: z.string().min(1), source: z.string().optional() }).parse(request.body);
+    const result = await archivePatient(prisma, patientId, body);
+    if (!result.ok) return reply.code(result.statusCode).send({ message: result.message });
+    result.documents.forEach((document) => io.emit("state:updated", document));
+    io.emit("patient:archived", { patientId, impact: result.impact });
+    return result;
+  });
+
+  app.post("/api/patients/:patientId/restore", async (request, reply) => {
+    const patientId = String((request.params as { patientId: string }).patientId);
+    const body = z.object({ actor: z.string().min(1), role: z.string(), reason: z.string().default("恢复演示档案"), source: z.string().optional() }).parse(request.body);
+    const result = await restorePatient(prisma, patientId, body);
+    if (!result.ok) return reply.code(result.statusCode).send({ message: result.message });
+    result.documents.forEach((document) => io.emit("state:updated", document));
+    io.emit("patient:restored", { patientId });
+    return result;
+  });
+
   app.get("/api/device-handoffs", async () => {
-    const sessions = await prisma.deviceSession.findMany({ orderBy: { updatedAt: "desc" } });
+    const sessions = await prisma.deviceSession.findMany({ where: { status: "active", encounter: { patient: { status: "active" } } }, orderBy: { updatedAt: "desc" } });
     return sessions.map((session) => session.handoff);
   });
 
@@ -54,7 +102,14 @@ export function createApp(prisma = new PrismaClient()) {
     if (!/^\d{6}$/.test(loginCode) || !handoff.patient || !handoff.encounter || !handoff.prescriptionTask) {
       return reply.code(400).send({ message: "Invalid device handoff" });
     }
-    const saved = await saveDeviceHandoff(prisma, { ...handoff, loginCode, updatedAt: new Date().toISOString() });
+    let saved;
+    try {
+      saved = await saveDeviceHandoff(prisma, { ...handoff, loginCode, updatedAt: new Date().toISOString() });
+    } catch (error) {
+      const statusCode = (error as { statusCode?: number }).statusCode;
+      if (statusCode) return reply.code(statusCode).send({ message: (error as Error).message });
+      throw error;
+    }
     io.to(`handoff:${loginCode}`).emit("handoff:updated", saved);
     io.emit("handoff:list-updated", { loginCode, updatedAt: saved.updatedAt });
     return saved;
@@ -62,19 +117,28 @@ export function createApp(prisma = new PrismaClient()) {
 
   app.get("/api/device-handoffs/:loginCode", async (request, reply) => {
     const loginCode = normalizeLoginCode((request.params as { loginCode: string }).loginCode);
-    const session = await prisma.deviceSession.findUnique({ where: { loginCode } });
+    const session = await prisma.deviceSession.findFirst({ where: { loginCode }, orderBy: [{ status: "asc" }, { updatedAt: "desc" }], include: { encounter: { include: { patient: { select: { status: true } } } } } });
     if (!session) return reply.code(404).send({ message: "Device handoff not found" });
+    if (session.status !== "active" || session.encounter.patient.status !== "active") return reply.code(410).send({ message: "患者登录会话已撤销" });
     return session.handoff;
   });
 
   app.patch("/api/device-handoffs/:loginCode", async (request, reply) => {
     const loginCode = normalizeLoginCode((request.params as { loginCode: string }).loginCode);
-    const current = await prisma.deviceSession.findUnique({ where: { loginCode } });
+    const current = await prisma.deviceSession.findFirst({ where: { loginCode }, orderBy: [{ status: "asc" }, { updatedAt: "desc" }], include: { encounter: { include: { patient: { select: { status: true } } } } } });
     if (!current) return reply.code(404).send({ message: "Device handoff not found" });
+    if (current.status !== "active" || current.encounter.patient.status !== "active") return reply.code(410).send({ message: "患者登录会话已撤销" });
     const patch = asObject(asObject(request.body).encounter);
     const handoff = asObject(current.handoff);
     const encounter: Record<string, any> = { ...asObject(handoff.encounter), ...patch, updatedAt: new Date().toISOString() };
-    const saved = await saveDeviceHandoff(prisma, { ...handoff, loginCode, encounter, updatedAt: new Date().toISOString() });
+    let saved;
+    try {
+      saved = await saveDeviceHandoff(prisma, { ...handoff, loginCode, encounter, updatedAt: new Date().toISOString() });
+    } catch (error) {
+      const statusCode = (error as { statusCode?: number }).statusCode;
+      if (statusCode) return reply.code(statusCode).send({ message: (error as Error).message });
+      throw error;
+    }
     io.to(`handoff:${loginCode}`).emit("handoff:updated", saved);
     io.emit("encounter:updated", { encounterId: encounter.encounterId, loginCode, encounter });
     return saved;
@@ -138,17 +202,32 @@ async function saveDeviceHandoff(prisma: PrismaClient, handoff: Record<string, a
   const appointmentId = String(encounter.appointmentId ?? `APT-${loginCode}`);
   const encounterId = String(encounter.encounterId ?? `ENC-${appointmentId}`);
 
-  await prisma.patient.upsert({
-    where: { id: patientId },
-    update: { patientNo, loginCode, name: String(patient.name ?? encounter.patientName ?? "待核对患者"), riskLevel: String(patient.risk_level ?? prescription.risk ?? "中危"), rehabStage: String(patient.rehab_stage ?? prescription.rehabStage ?? "冠心病2期"), assignedDoctor: String(patient.assigned_doctor ?? prescription.assignedDoctorName ?? "") || null, profile: asJson(patient) },
-    create: { id: patientId, patientNo, loginCode, name: String(patient.name ?? encounter.patientName ?? "待核对患者"), gender: String(patient.gender ?? "") || null, riskLevel: String(patient.risk_level ?? prescription.risk ?? "中危"), rehabStage: String(patient.rehab_stage ?? prescription.rehabStage ?? "冠心病2期"), assignedDoctor: String(patient.assigned_doctor ?? prescription.assignedDoctorName ?? "") || null, profile: asJson(patient) }
-  });
+  const existingPatient = await prisma.patient.findFirst({ where: { OR: [{ id: patientId }, { loginCode }] }, select: { id: true, status: true } });
+  if (!existingPatient) {
+    const error = new Error("患者档案不存在，不能创建设备交接");
+    Object.assign(error, { statusCode: 404 });
+    throw error;
+  }
+  if (existingPatient.status === "archived") {
+    const error = new Error("患者档案已归档，登录会话不可用");
+    Object.assign(error, { statusCode: 410 });
+    throw error;
+  }
+  const appointmentValidation = await validateAppointment(prisma, existingPatient.id, prescriptionId);
+  if (!appointmentValidation.valid) {
+    const error = new Error(appointmentValidation.message);
+    Object.assign(error, { statusCode: appointmentValidation.statusCode });
+    throw error;
+  }
+  const revokedSession = await prisma.deviceSession.findFirst({ where: { loginCode, status: "revoked", encounterId }, select: { status: true } });
+  if (revokedSession) {
+    const error = new Error("该登录号码对应的旧会话已撤销，请完成新的训前评估后生成新会话");
+    Object.assign(error, { statusCode: 410 });
+    throw error;
+  }
 
-  await prisma.prescription.upsert({
-    where: { id: prescriptionId },
-    update: { status: String(prescription.status ?? "completed"), assignedDoctor: String(prescription.assignedDoctorName ?? "") || null, signedBy: String(prescription.signedBy ?? "") || null, signedAt: prescription.signedAt ? safeDate(prescription.signedAt) : null, payload: asJson({ ...prescription, content: handoff.prescriptionContent }) },
-    create: { id: prescriptionId, prescriptionNo: String(prescription.prescriptionNo ?? prescriptionId), patientId, version: String(prescription.version ?? encounter.prescriptionVersion ?? "V1"), status: String(prescription.status ?? "completed"), assignedDoctor: String(prescription.assignedDoctorName ?? "") || null, signedBy: String(prescription.signedBy ?? "") || null, signedAt: prescription.signedAt ? safeDate(prescription.signedAt) : null, payload: asJson({ ...prescription, content: handoff.prescriptionContent }) }
-  });
+  await prisma.patient.update({ where: { id: existingPatient.id }, data: { profile: asJson(patient) } });
+  await prisma.prescription.update({ where: { id: prescriptionId }, data: { payload: asJson({ ...prescription, content: handoff.prescriptionContent }) } });
 
   await prisma.appointment.upsert({
     where: { id: appointmentId },
@@ -247,11 +326,10 @@ async function saveDeviceHandoff(prisma: PrismaClient, handoff: Record<string, a
   }
 
   const savedHandoff = { ...handoff, loginCode, encounter: { ...encounter, encounterId }, updatedAt: new Date().toISOString() };
-  const session = await prisma.deviceSession.upsert({
-    where: { loginCode },
-    update: { encounterId, handoff: asJson(savedHandoff), lastSeenAt: new Date(), connectedAt: encounter.deviceLoggedInAt ? safeDate(encounter.deviceLoggedInAt) : null },
-    create: { encounterId, loginCode, handoff: asJson(savedHandoff), connectedAt: encounter.deviceLoggedInAt ? safeDate(encounter.deviceLoggedInAt) : null }
-  });
+  const activeSession = await prisma.deviceSession.findFirst({ where: { loginCode, status: "active" } });
+  const session = activeSession
+    ? await prisma.deviceSession.update({ where: { id: activeSession.id }, data: { encounterId, handoff: asJson(savedHandoff), lastSeenAt: new Date(), connectedAt: encounter.deviceLoggedInAt ? safeDate(encounter.deviceLoggedInAt) : null } })
+    : await prisma.deviceSession.create({ data: { encounterId, loginCode, handoff: asJson(savedHandoff), status: "active", connectedAt: encounter.deviceLoggedInAt ? safeDate(encounter.deviceLoggedInAt) : null } });
   await prisma.auditLog.create({ data: { entityType: "TrainingEncounter", entityId: encounterId, action: "DEVICE_HANDOFF_UPSERT", actor: String(encounter.therapist ?? "system"), source: "api", after: asJson(savedHandoff) } });
   return { ...savedHandoff, updatedAt: session.updatedAt.toISOString() };
 }

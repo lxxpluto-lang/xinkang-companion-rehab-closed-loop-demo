@@ -30,6 +30,10 @@ model Patient {
   riskLevel      String
   rehabStage     String
   assignedDoctor String?
+  status         String              @default("active")
+  archivedAt     DateTime?
+  archivedBy     String?
+  archiveReason  String?
   profile        Json
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
@@ -40,6 +44,8 @@ model Patient {
   alerts         AlertEvent[]
   stageReports   StageReport[]
   followUps      FollowUp[]
+
+  @@index([status, updatedAt])
 }
 
 model Assessment {
@@ -97,22 +103,23 @@ model PrescriptionItem {
 }
 
 model Appointment {
-  id             String             @id
-  patientId      String
-  prescriptionId String?
-  scheduledAt    DateTime
-  status         String
-  station        String?
-  project        String?
-  doctorName     String?
-  therapistName  String?
-  note           String?
-  payload        Json
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  patient        Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  prescription   Prescription?      @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
-  encounter      TrainingEncounter?
+  id              String             @id
+  patientId       String
+  prescriptionId  String?
+  scheduledAt     DateTime
+  status          String
+  station         String?
+  project         String?
+  doctorName      String?
+  therapistName   String?
+  note            String?
+  cancelledReason String?
+  payload         Json
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  patient         Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  prescription    Prescription?      @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+  encounter       TrainingEncounter?
 
   @@index([scheduledAt, status])
   @@index([patientId, scheduledAt])
@@ -167,17 +174,23 @@ model TrainingTask {
 }
 
 model DeviceSession {
-  id          String            @id @default(cuid())
-  encounterId String
-  loginCode   String            @unique
-  handoff     Json
-  connectedAt DateTime?
-  lastSeenAt  DateTime          @default(now())
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  encounter   TrainingEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  id           String            @id @default(cuid())
+  encounterId  String
+  loginCode    String
+  handoff      Json
+  status       String            @default("active")
+  revokedAt    DateTime?
+  revokedBy    String?
+  revokeReason String?
+  connectedAt  DateTime?
+  lastSeenAt   DateTime          @default(now())
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  encounter    TrainingEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
 
   @@index([encounterId])
+  @@index([loginCode, status])
+  @@index([status, lastSeenAt])
 }
 
 model MetricSample {
@@ -306,5 +319,12 @@ model StateDocument {
   key       String   @id
   value     Json
   version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model DemoSeed {
+  id        String   @id
+  version   String
+  seededAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
