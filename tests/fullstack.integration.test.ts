@@ -56,14 +56,24 @@ describe("full-stack rehabilitation workflow", () => {
 
   it("persists a clinical state document", async () => {
     const payload = [{ id: "VIDEO-INTEGRATION", title: "测试视频", status: "PUBLISHED" }];
+    const bootstrapBefore = await fetch(`${baseUrl}/api/bootstrap`).then((item) => item.json()) as any;
+    const version = bootstrapBefore.documents["xinkang-training-videos"].version;
     const response = await fetch(`${baseUrl}/api/state/xinkang-training-videos`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ value: payload })
+      body: JSON.stringify({ value: payload, expectedVersion: version })
     });
     expect(response.status).toBe(200);
     const bootstrap = await fetch(`${baseUrl}/api/bootstrap`).then((item) => item.json()) as any;
     expect(bootstrap.documents["xinkang-training-videos"].value).toEqual(payload);
+
+    const staleResponse = await fetch(`${baseUrl}/api/state/xinkang-training-videos`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ value: [{ id: "STALE-BROWSER" }] })
+    });
+    expect(staleResponse.status).toBe(409);
+    expect((await fetch(`${baseUrl}/api/bootstrap`).then((item) => item.json()) as any).documents["xinkang-training-videos"].value).toEqual(payload);
   });
 
   it("keeps task completion isolated and broadcasts live metrics", async () => {

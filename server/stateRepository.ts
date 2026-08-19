@@ -44,7 +44,7 @@ export async function readStateDocuments(prisma: DbClient) {
 
 export async function writeStateDocument(prisma: DbClient, key: ClinicalStateKey, value: unknown, expectedVersion?: number) {
   const current = await prisma.stateDocument.findUnique({ where: { key }, select: { version: true } });
-  if (expectedVersion !== undefined && current && current.version !== expectedVersion) {
+  if (current && (expectedVersion === undefined || current.version !== expectedVersion)) {
     const error = new Error("STATE_VERSION_CONFLICT");
     Object.assign(error, { statusCode: 409, currentVersion: current.version });
     throw error;

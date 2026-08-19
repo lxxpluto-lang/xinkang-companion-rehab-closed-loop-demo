@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `GET` | `/api/health` | 检查 Node、PostgreSQL 与实时服务 |
 | `GET` | `/api/bootstrap` | 获取全部临床状态文档 |
-| `PUT` | `/api/state/:key` | 保存一个业务状态集合并同步规范化表 |
+| `PUT` | `/api/state/:key` | 携带 `expectedVersion` 保存业务投影并同步规范化表；版本冲突返回 `409` |
 | `GET` | `/api/appointment-candidates` | 获取有效患者及其已签署有效处方 |
 | `POST` | `/api/appointments/validate` | 在预约或到诊前复核患者与处方关系 |
 | `POST` | `/api/patients/:patientId/archive` | 管理员事务化归档患者及未完成业务 |
@@ -36,6 +36,7 @@
 ## 写入原则
 
 - 状态变化必须包含场次或任务 ID，不根据名称猜测记录。
+- 已存在的 StateDocument 必须携带当前 `expectedVersion`；旧浏览器无版本写入和过期快照写入均返回 `409`。
 - 医护端暂停、恢复、提前完成和异常会同时写入交接快照并广播。
 - `liveAlert` 会按场次与异常类型写入 `AlertEvent`；异常暂停和解除分别写入 `Intervention`，重复广播不会重复生成同类处置。
 - 前端实时指标不维护第二套业务副本；界面读取同一 `TrainingEncounter.liveMetrics`。
