@@ -11,7 +11,7 @@ const demoAccounts: Array<{
   scope: string;
   permissions: string[];
 }> = [
-  { username: "admin", name: "林管理员", role: "ADMIN", icon: ShieldCheck, scope: "配置权限", permissions: ["组织账号与权限", "异常规则配置", "视频与打印模板", "临床业务只读"] },
+  { username: "admin", name: "林管理员", role: "ADMIN", icon: ShieldCheck, scope: "全院全权限", permissions: ["医生与康复师全部业务", "处方及临床数据补录", "组织权限与规则配置", "签署、发布和审计"] },
   { username: "doctor001", name: "王医生", role: "DOCTOR", icon: Stethoscope, scope: "医疗团队", permissions: ["团队患者查看", "本人处方复核签署", "异常复核闭环", "远程训练控制"] },
   { username: "doctor002", name: "李医生", role: "DOCTOR", icon: Stethoscope, scope: "医疗团队", permissions: ["团队患者查看", "本人处方复核签署", "异常复核闭环", "远程训练控制"] },
   { username: "rehab001", name: "周康复师", role: "REHAB_EXECUTION", icon: UserRoundCog, scope: "当前康复中心", permissions: ["患者与体能评估", "治疗和训练记录", "异常现场处置", "预约与电话随访"] }

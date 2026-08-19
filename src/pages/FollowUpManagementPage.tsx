@@ -68,10 +68,10 @@ export function FollowUpManagementPage({ role, currentAccount, patients, tasks, 
   const selectedTask = selectedTaskId ? scopedTasks.find((task) => task.id === selectedTaskId) : undefined;
   const selectedPatient = selectedTask ? patientMap.get(selectedTask.patientId) : undefined;
   const selectedRecord = selectedTask ? records.filter((record) => record.taskId === selectedTask.id).sort((a, b) => b.contactedAt.localeCompare(a.contactedAt))[0] : undefined;
-  const title = role === "DOCTOR" ? "我的随访管理" : role === "REHAB_EXECUTION" ? "中心随访管理" : "随访管理只读总览";
+  const title = role === "DOCTOR" ? "我的随访管理" : role === "REHAB_EXECUTION" ? "中心随访管理" : "全院随访管理";
 
   return <section data-testid="page-VIEW-FOLLOWUPS">
-    <PageHeader eyebrow="院后康复 · 最小随访闭环" title={title} description="系统仅提供到期提醒、电话拨号和联系结果记录；1/3/6个月节点为Demo规则，正式周期待医院确认。" action={<StatusBadge tone={role === "ADMIN" ? "gray" : "blue"}>{role === "ADMIN" ? "管理员只读" : "可执行电话随访"}</StatusBadge>} />
+    <PageHeader eyebrow="院后康复 · 最小随访闭环" title={title} description="系统仅提供到期提醒、电话拨号和联系结果记录；1/3/6个月节点为Demo规则，正式周期待医院确认。" action={<StatusBadge tone="blue">可执行电话随访</StatusBadge>} />
 
     <div className="mb-4 grid gap-3 sm:grid-cols-2">
       <Metric label="待随访" value={pendingCount} icon={<CalendarClock className="h-5 w-5" />} tone="orange" />
@@ -93,14 +93,14 @@ export function FollowUpManagementPage({ role, currentAccount, patients, tasks, 
           return <div key={task.id} className="grid grid-cols-[1fr_0.8fr_0.9fr_0.9fr_0.75fr_0.8fr_1fr] items-center border-t border-slate-100 px-5 py-3 text-sm">
             <button type="button" onClick={() => onOpenPatient(patient.patient_demo_id)} className="text-left font-bold text-blue-700">{patient.name}</button>
             <span className="font-mono text-xs">{patient.patient_no}</span><span>{task.assignedDoctor}</span><span>{patient.phone || "未录入"}</span><span>出院后{task.milestoneMonth}个月</span><span>{task.currentDueDate}</span>
-            <div className="flex items-center gap-2"><StatusBadge tone={statusTone(status)}>{followUpStatusLabels[status]}</StatusBadge>{status !== "completed" && role !== "ADMIN" && <><a className="btn-secondary !min-h-8 !px-2" href={`tel:${patient.phone}`}><Phone className="h-3.5 w-3.5" />拨打</a><button type="button" className="btn-primary !min-h-8 !px-2" onClick={() => setSelectedTaskId(task.id)}>记录结果</button></>}{(status === "completed" || role === "ADMIN") && <button type="button" className="btn-secondary !min-h-8 !px-2" onClick={() => setSelectedTaskId(task.id)}>查看</button>}</div>
+            <div className="flex items-center gap-2"><StatusBadge tone={statusTone(status)}>{followUpStatusLabels[status]}</StatusBadge>{status !== "completed" && <><a className="btn-secondary !min-h-8 !px-2" href={`tel:${patient.phone}`}><Phone className="h-3.5 w-3.5" />拨打</a><button type="button" className="btn-primary !min-h-8 !px-2" onClick={() => setSelectedTaskId(task.id)}>记录结果</button></>}{status === "completed" && <button type="button" className="btn-secondary !min-h-8 !px-2" onClick={() => setSelectedTaskId(task.id)}>查看</button>}</div>
           </div>;
         })}
         {!visibleTasks.length && <p className="py-14 text-center text-sm text-slate-400">当前没有符合条件的随访任务</p>}
       </div></div>
     </section>
 
-    {selectedTask && selectedPatient && <FollowUpDialog task={selectedTask} patient={selectedPatient} record={selectedRecord} readOnly={role === "ADMIN" || effectiveFollowUpStatus(selectedTask) === "completed"} currentAccount={currentAccount} onClose={() => setSelectedTaskId(null)} onSave={(record) => { onSaveRecord(record); setSelectedTaskId(null); }} />}
+    {selectedTask && selectedPatient && <FollowUpDialog task={selectedTask} patient={selectedPatient} record={selectedRecord} readOnly={effectiveFollowUpStatus(selectedTask) === "completed"} currentAccount={currentAccount} onClose={() => setSelectedTaskId(null)} onSave={(record) => { onSaveRecord(record); setSelectedTaskId(null); }} />}
   </section>;
 }
 

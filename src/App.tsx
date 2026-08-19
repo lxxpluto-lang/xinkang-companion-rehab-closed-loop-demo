@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { canAccessPage, firstPageForRole, roleMeta } from "./accessControl";
+import { canAccessPage, canActAs, firstPageForRole, roleMeta } from "./accessControl";
 import { DoctorLayout } from "./components/Layout";
 import { StaffLogin } from "./components/StaffLogin";
 import { SystemChooser } from "./components/SystemChooser";
@@ -305,7 +305,8 @@ export default function App() {
   }
 
   function createPrescriptionForPatient(patientId: string) {
-    if (role !== "DOCTOR" || !["doctor001", "doctor002"].includes(accountId)) return;
+    if (!canActAs(role, "DOCTOR")) return;
+    if (role === "DOCTOR" && !["doctor001", "doctor002"].includes(accountId)) return;
     const patient = patients.find((item) => item.patient_demo_id === patientId);
     if (!patient || patient.record_status === "已归档") return;
     const patientTasks = prescriptionTasks.filter((item) => item.patientId === patientId);
@@ -320,6 +321,8 @@ export default function App() {
     const taskId = `RX-TASK-${stamp}`;
     const patientDigits = patient.patient_no.replace(/\D/g, "").slice(-6) || String(stamp).slice(-6);
     const generatedAt = new Date().toLocaleString("zh-CN", { hour12: false }).replace(/\//g, "-");
+    const assignedDoctorName = role === "ADMIN" ? patient.assigned_doctor || "王医生" : currentAccount;
+    const assignedDoctorId: PrescriptionTask["assignedDoctorId"] = assignedDoctorName === "李医生" ? "doctor002" : "doctor001";
     const task: PrescriptionTask = {
       id: taskId,
       prescriptionNo: `RX-${patientDigits}-${String(stamp).slice(-4)}`,
@@ -331,8 +334,8 @@ export default function App() {
       rehabStage: patient.rehab_stage,
       diagnosis: patient.diagnosis_summary,
       specialMedication: patient.current_medications,
-      assignedDoctorId: accountId as PrescriptionTask["assignedDoctorId"],
-      assignedDoctorName: currentAccount,
+      assignedDoctorId,
+      assignedDoctorName,
       version: `V${nextVersion}`,
       kind: patientTasks.length ? "adjustment" : "initial",
       sourceLabel: latestAssessment ? `体能评估/SPPB · ${latestAssessment.assessedAt.slice(0, 10)}` : "患者基础档案",
@@ -587,7 +590,6 @@ export default function App() {
   }
 
   function saveFollowUpRecord(record: FollowUpRecord) {
-    if (role === "ADMIN") return;
     const patient = patients.find((item) => item.patient_demo_id === record.patientId);
     if (!patient) return;
     const targetTask = followUpTasks.find((task) => task.id === record.taskId) ?? {
@@ -897,12 +899,12 @@ export default function App() {
   }
 
   function confirmStageReport(reportId: string, account: string) {
-    if (role !== "DOCTOR") return;
+    if (!canActAs(role, "DOCTOR")) return;
     setStageReports((items) => items.map((item) => item.reportId === reportId ? { ...item, status: "confirmed", confirmedBy: account, confirmedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : item));
   }
 
   function publishStageReport(reportId: string, account: string) {
-    if (role !== "DOCTOR") return;
+    if (!canActAs(role, "DOCTOR")) return;
     setStageReports((items) => items.map((item) => item.reportId === reportId ? { ...item, status: "sent", sentBy: account, sentAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : item));
   }
 

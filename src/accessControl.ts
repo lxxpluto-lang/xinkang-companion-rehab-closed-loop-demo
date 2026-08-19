@@ -67,6 +67,10 @@ export function can(role: Role, action: PermissionAction) {
   return roleActions[role].includes(action);
 }
 
+export function canActAs(role: Role, capability: Exclude<Role, "PATIENT">) {
+  return role === "ADMIN" || role === capability;
+}
+
 export function firstPageForRole(role: Role): DoctorPageKey {
   return navItems.find((item) => item.roles.includes(role))?.key ?? "dashboard";
 }

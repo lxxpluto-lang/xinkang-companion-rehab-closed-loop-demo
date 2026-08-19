@@ -112,16 +112,16 @@ export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks
   }
 
   return <section data-testid="page-VIEW-DASHBOARD">
-    <PageHeader eyebrow="康复管理系统 · 管理视图" title="林管理员，上午好" description="查看系统运行和内容发布情况；管理员不能编辑治疗记录或代替康复师完成业务签署。" action={<StatusBadge tone="blue"><FileText className="h-3.5 w-3.5" />只读概览</StatusBadge>} />
+    <PageHeader eyebrow="康复管理系统 · 全权限视图" title="林管理员，上午好" description="可进入医生与康复师全部业务流程进行数据补录、复核、签署和发布；所有操作以管理员本人身份留痕。" action={<StatusBadge tone="blue"><FileText className="h-3.5 w-3.5" />全院全权限</StatusBadge>} />
     <div className="mb-5 grid grid-cols-5 gap-4">
       <StatCard label="有效患者" value={String(activePatients.length)} note="归档患者不计入" icon={<UsersRound className="h-5 w-5" />} />
       <StatCard label="累计训练记录" value="42" note="设备与人工记录" icon={<Activity className="h-5 w-5" />} />
       <StatCard label="待生成阶段报告" value="3" note="选择具体训练记录" tone="orange" icon={<Sparkles className="h-5 w-5" />} />
       <StatCard label="平均完成率" value="83%" note="本月训练" tone="green" icon={<TrendingUp className="h-5 w-5" />} />
-      <StatCard label="异常待复核" value={String(pendingAlerts.length)} note="全中心只读" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
+      <StatCard label="异常待复核" value={String(pendingAlerts.length)} note="可现场记录与复核" tone="red" icon={<AlertTriangle className="h-5 w-5" />} />
     </div>
     <div className="grid gap-5 lg:grid-cols-2">
-      <section className="card p-5"><SectionHeader title="阶段报告概览" description="管理员只读查看，报告由康复师在患者档案内生成并发送。" />
+      <section className="card p-5"><SectionHeader title="阶段报告概览" description="管理员可生成、复核并发送报告，操作以管理员本人身份留痕。" />
         <div className="mt-4 space-y-3">{[
           ["陈女士", "最近4次训练数据已齐", "含1次胸闷事件", "orange"],
           ["李先生", "已有6次完成记录", "可生成阶段草稿", "blue"],

@@ -158,8 +158,9 @@ export function PrescriptionWorkspacePage({
   const [signatureName, setSignatureName] = useState(task.signedBy ?? currentAccount);
   const [signatureError, setSignatureError] = useState("");
   const readonly = task.status === "completed" || task.status === "withdrawn" || task.status === "archived";
-  const editable = role === "DOCTOR" && task.assignedDoctorId === accountId && !readonly;
-  const canManageRehabReport = role === "DOCTOR" && task.assignedDoctorId === accountId;
+  const canManageAssignedPrescription = role === "ADMIN" || (role === "DOCTOR" && task.assignedDoctorId === accountId);
+  const editable = canManageAssignedPrescription && !readonly;
+  const canManageRehabReport = canManageAssignedPrescription;
   const patientReports = singleReports.filter((item) => item.patientId === task.patientId);
   const patientAssessments = assessmentRecords.filter((item) => item.patientId === task.patientId && item.status !== "draft");
   const patientStageReports = stageReports.filter((item) => item.patientId === task.patientId);
@@ -227,7 +228,7 @@ export function PrescriptionWorkspacePage({
     if (!editable || !finalDraft || !responsibilityConfirmed) return;
     const now = new Date().toLocaleString("zh-CN", { hour12: false });
     if (task.status === "pending_signature" && signatureName.trim() !== currentAccount) {
-      setSignatureError(`签署姓名必须与当前登录医生“${currentAccount}”一致。`);
+      setSignatureError(`签署姓名必须与当前登录账号“${currentAccount}”一致。`);
       return;
     }
     saveWorkspace();

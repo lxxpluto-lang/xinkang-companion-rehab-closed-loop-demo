@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlertCircle, Ban, CalendarDays, CheckCircle2, ClipboardList, ClipboardPenLine, Eye, MonitorUp, Plus, RefreshCcw, Search, UserCheck, X } from "lucide-react";
+import { can as canAccessAction, canActAs } from "../accessControl";
 import { PageHeader, StatCard, StatusBadge } from "../components/UI";
 import type { Appointment, AppointmentStatus, PrescriptionTask } from "../clinicalWorkflowData";
 import type { PrescriptionContent } from "../prescriptionWorkspaceData";
@@ -54,7 +55,7 @@ export function AppointmentManagementPage({ role, accountId, currentAccount, pat
   const [recordDateFrom, setRecordDateFrom] = useState("");
   const [recordDateTo, setRecordDateTo] = useState("");
   const activePatientIds = useMemo(() => new Set(patients.filter((item) => item.record_status !== "已归档" && item.archive_status !== "archived").map((item) => item.patient_demo_id)), [patients]);
-  const signedPrescriptions = useMemo(() => prescriptionTasks.filter((item) => activePatientIds.has(item.patientId) && item.status === "completed" && item.doctorFinal && item.signedAt), [prescriptionTasks, activePatientIds]);
+  const signedPrescriptions = useMemo(() => prescriptionTasks.filter((item) => activePatientIds.has(item.patientId) && item.status === "completed" && item.doctorFinal && item.signedAt && (role !== "DOCTOR" || item.assignedDoctorId === accountId)), [prescriptionTasks, activePatientIds, role, accountId]);
   const visibleAppointments = useMemo(() => appointments.filter((item) => role !== "DOCTOR" || item.doctorId === accountId), [appointments, role, accountId]);
   const rows = useMemo(() => visibleAppointments.filter((item) => item.date === selectedDate), [visibleAppointments, selectedDate]);
   const recordRows = useMemo(() => {
@@ -69,7 +70,8 @@ export function AppointmentManagementPage({ role, accountId, currentAccount, pat
   const prescriptionMap = useMemo(() => new Map(prescriptionTasks.map((item) => [item.id, item])), [prescriptionTasks]);
   const calendarMonth = useMemo(() => buildCalendarMonth(selectedDate), [selectedDate]);
   const counts = (status: AppointmentStatus) => rows.filter((item) => item.status === status).length;
-  const canEdit = role === "REHAB_EXECUTION";
+  const canEdit = canAccessAction(role, "CREATE");
+  const canExecuteWorkflow = canActAs(role, "REHAB_EXECUTION");
 
   function createDraft() {
     if (!signedPrescriptions.length) return;
@@ -85,10 +87,10 @@ export function AppointmentManagementPage({ role, accountId, currentAccount, pat
       status: "pending",
       project: "待选择处方",
       station: "功率车01",
-      doctorId: "doctor001",
-      doctorName: "",
-      therapistId: accountId,
-      therapistName: currentAccount,
+      doctorId: role === "DOCTOR" && ["doctor001", "doctor002"].includes(accountId) ? accountId as Appointment["doctorId"] : "doctor001",
+      doctorName: role === "DOCTOR" ? currentAccount : "",
+      therapistId: role === "REHAB_EXECUTION" ? accountId : "rehab001",
+      therapistName: role === "REHAB_EXECUTION" ? currentAccount : "周康复师",
       note: "",
       source: "local",
       createdBy: currentAccount,
@@ -191,7 +193,7 @@ export function AppointmentManagementPage({ role, accountId, currentAccount, pat
   }
 
   function workflowAction(appointment: Appointment, encounter?: TrainingEncounter) {
-    if (!canEdit || ["cancelled", "no_show"].includes(appointment.status)) return null;
+    if (!canExecuteWorkflow || ["cancelled", "no_show"].includes(appointment.status)) return null;
     if (appointment.status === "pending") {
       const hasSignedPrescription = signedPrescriptions.some((item) => item.id === appointment.prescriptionTaskId || item.patientId === appointment.patientId);
       return <button disabled={!hasSignedPrescription} className="text-xs font-bold text-emerald-700 disabled:text-slate-300" onClick={() => onCheckIn(appointment.id)}>{hasSignedPrescription ? "确认到诊并建记录" : "缺少生效处方"}</button>;
@@ -212,7 +214,7 @@ export function AppointmentManagementPage({ role, accountId, currentAccount, pat
   }
 
   const headerAction = activeView === "schedule"
-    ? canEdit ? <button className="btn-primary" disabled={!signedPrescriptions.length} onClick={createDraft}><Plus className="h-4 w-4" />新建预约</button> : <StatusBadge tone="blue">{role === "DOCTOR" ? "医生" : "管理员"}只读视图</StatusBadge>
+    ? <button className="btn-primary" disabled={!signedPrescriptions.length} onClick={createDraft}><Plus className="h-4 w-4" />新建预约</button>
     : <StatusBadge tone="blue">共 {visibleAppointments.length} 条预约记录</StatusBadge>;
 
   return <section data-testid="page-VIEW-APPOINTMENTS">

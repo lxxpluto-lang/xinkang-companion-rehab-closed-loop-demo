@@ -99,7 +99,7 @@ type View =
   | "videoTraining"
   | "result";
 
-type Exercise =
+export type Exercise =
   | "diaphragmatic"
   | "mindfulness"
   | "bike"
@@ -141,6 +141,36 @@ const exerciseVideoSubtypes: Partial<Record<Exercise, string>> = {
   baduanjin: "八段锦",
   taichi: "太极拳"
 };
+
+const exerciseVideoCategories: Record<Exercise, PublishedTrainingVideo["category"]> = {
+  diaphragmatic: "呼吸训练",
+  mindfulness: "呼吸训练",
+  bike: "有氧运动",
+  elliptical: "有氧运动",
+  dumbbell: "抗阻运动",
+  resistanceBand: "抗阻运动",
+  flexibilityUpper: "柔韧性运动",
+  flexibilityLower: "柔韧性运动",
+  flexibilityFull: "柔韧性运动",
+  baduanjin: "中医运动",
+  taichi: "中医运动"
+};
+
+function fallbackTrainingVideo(exercise: Exercise): PublishedTrainingVideo {
+  const subtype = exerciseVideoSubtypes[exercise] ?? "现场指导训练";
+  return {
+    id: `VIDEO-FALLBACK-${exercise}`,
+    title: `${subtype}现场指导`,
+    category: exerciseVideoCategories[exercise],
+    subtype,
+    source: "upload",
+    url: ""
+  };
+}
+
+export function resolvePatientTrainingVideo(videos: PublishedTrainingVideo[], exercise: Exercise) {
+  return videos.find((video) => video.subtype === exerciseVideoSubtypes[exercise]) ?? fallbackTrainingVideo(exercise);
+}
 
 const patient = {
   name: patientMasterChen.name,
@@ -265,7 +295,7 @@ export function PatientApp({
     sessions: authenticatedPrescriptionTask?.plannedSessions ?? patient.sessions,
     completed: trainingSessions.filter((item) => item.patientId === authenticatedPatient.patient_demo_id && item.completed).length
   } : patient;
-  const selectedTrainingVideo = publishedTrainingVideos.find((video) => video.subtype === exerciseVideoSubtypes[exercise]) ?? publishedTrainingVideos[0] ?? null;
+  const selectedTrainingVideo = resolvePatientTrainingVideo(publishedTrainingVideos, exercise);
   const completedPatientSessions = trainingSessions.filter((item) => item.completed && (!authenticatedPatientId || item.patientId === authenticatedPatientId)).sort((a, b) => a.actualStartAt.localeCompare(b.actualStartAt));
   const currentMonth = new Date().toISOString().slice(0, 7);
   const latestSessionDate = completedPatientSessions.at(-1)?.date ?? completedPatientSessions.at(-1)?.actualStartAt.slice(0, 10) ?? "";
@@ -746,7 +776,7 @@ export function PatientApp({
               onInterrupt={interruptTraining}
             />
           )}
-          {view === "videoTraining" && selectedTrainingVideo && <VideoTrainingScreen video={selectedTrainingVideo} monitoringEnabled={Boolean(authenticatedEncounter?.wearableConnectedAt)} paused={paused} alert={authenticatedEncounter?.liveAlert} onConnectMonitoring={() => { setBackpack(true); syncActiveEncounter({ wearableConnectedAt: new Date().toISOString() }); }} onBack={leaveVideoTraining} onMetrics={syncLiveMetrics} onFinish={completeVideoTraining} />}
+          {view === "videoTraining" && <VideoTrainingScreen video={selectedTrainingVideo} monitoringEnabled={Boolean(authenticatedEncounter?.wearableConnectedAt)} paused={paused} alert={authenticatedEncounter?.liveAlert} onConnectMonitoring={() => { setBackpack(true); syncActiveEncounter({ wearableConnectedAt: new Date().toISOString() }); }} onBack={leaveVideoTraining} onMetrics={syncLiveMetrics} onFinish={completeVideoTraining} />}
           {view === "result" && (
             <ResultScreen
               totalMinutes={totalMinutes}
@@ -1119,7 +1149,7 @@ function VideoTrainingScreen({ video, monitoringEnabled, paused, alert, onConnec
           <div className="flex items-center gap-2"><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">{monitoringEnabled ? `已记录 ${time}` : "未连接监测设备"}</span><button type="button" onClick={openFullscreen} className="flex h-10 items-center gap-2 rounded-xl bg-white/10 px-3 text-xs font-bold text-white hover:bg-white/15"><Maximize2 className="h-4 w-4" />全屏 / 投屏</button></div>
         </div>
         <div className="relative min-h-0 flex-1 bg-black">
-          {video.source === "link" ? <iframe title={video.title} src={video.url} className="absolute inset-0 h-full w-full border-0" allow="autoplay; fullscreen" /> : <video ref={videoRef} title={video.title} src={video.url} className="absolute inset-0 h-full w-full object-contain" controls playsInline onLoadedMetadata={(event) => setVideoDuration(event.currentTarget.duration)} />}
+          {video.url ? video.source === "link" ? <iframe title={video.title} src={video.url} className="absolute inset-0 h-full w-full border-0" allow="autoplay; fullscreen" /> : <video ref={videoRef} title={video.title} src={video.url} className="absolute inset-0 h-full w-full object-contain" controls playsInline onLoadedMetadata={(event) => setVideoDuration(event.currentTarget.duration)} /> : <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#102c3b] px-8 text-center text-white"><Play className="h-16 w-16 text-teal-300" /><h2 className="mt-5 text-2xl font-bold">{video.subtype}现场指导</h2><p className="mt-3 max-w-xl text-sm leading-7 text-teal-50/75">当前未配置训练视频，请在康复师现场指导下完成动作。连接监测设备后仍会正常记录心率、血氧和训练时间。</p></div>}
           {monitoringEnabled && showMonitoring && <div className="absolute inset-x-4 bottom-4 z-10 grid grid-cols-4 gap-2 rounded-2xl bg-slate-950/75 p-3 text-white backdrop-blur-md"><div className="col-span-2 rounded-xl bg-white/10 p-3"><div className="flex items-center gap-2"><HeartPulse className="h-4 w-4 text-rose-300" /><span className="text-[10px] font-bold">实时心率</span></div><p className="mt-1 text-2xl font-bold">{liveHeartRate}<span className="ml-1 text-[9px] text-white/60">bpm</span></p></div><div className="rounded-xl bg-white/10 p-3"><p className="text-[9px] text-white/60">血氧</p><p className="mt-2 text-xl font-bold">{liveOxygen}<span className="ml-1 text-[9px] text-white/60">%</span></p></div><div className="rounded-xl bg-white/10 p-3"><p className="text-[9px] text-white/60">记录时间</p><p className="mt-2 text-xl font-bold tabular-nums">{time}</p></div></div>}
           {paused && <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/55"><div className={`rounded-2xl bg-white px-8 py-5 text-center shadow-xl ${alert?.active ? "border-2 border-red-300" : ""}`}><Pause className={`mx-auto h-8 w-8 ${alert?.active ? "text-red-600" : "text-medical-700"}`} /><p className="mt-2 font-bold text-slate-900">{alert?.active ? "训练异常，医护已暂停" : "医生已暂停本项训练"}</p><p className="mt-1 text-xs text-slate-500">{alert?.active ? alert.message : "请保持休息，等待医生恢复训练。"}</p></div></div>}
         </div>

@@ -199,7 +199,7 @@ function DocumentConfigPage({ role, currentAccount }: { role: Exclude<Role, "PAT
   const [signatureFile, setSignatureFile] = useState(existingSignature?.fileName ?? "尚未上传");
   const [signatureImage, setSignatureImage] = useState(existingSignature?.imageData ?? "");
   const [saved, setSaved] = useState(false);
-  const canMaintainOwnSignature = role === "DOCTOR" || role === "REHAB_EXECUTION";
+  const canMaintainOwnSignature = role === "ADMIN" || role === "DOCTOR" || role === "REHAB_EXECUTION";
   const visibleRows = role === "REHAB_EXECUTION"
     ? documentRows.filter((row) => row.name === "治疗记录打印模板" || row.name === "个人电子签名" || row.name === "签名日期规则")
     : role === "DOCTOR"

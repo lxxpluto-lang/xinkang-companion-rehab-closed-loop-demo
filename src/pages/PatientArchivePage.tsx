@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { demoPatients } from "../mockData";
-import { can as canAccessAction } from "../accessControl";
+import { can as canAccessAction, canActAs } from "../accessControl";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import { calculateSppb, createBlankSppb, type AssessmentRecord, type OcrAssessmentImportDraft } from "../assessmentData";
 import type { FollowUpRecord, FollowUpTask } from "../followUpData";
@@ -540,6 +540,8 @@ export function PatientArchivePage({
   const canArchive = role === "ADMIN";
   const canEditPatientProfile = canAccessAction(role, "EDIT");
   const canImportAssessment = canEditPatientProfile;
+  const canManagePrescription = canActAs(role, "DOCTOR");
+  const canEnterTreatment = canActAs(role, "REHAB_EXECUTION");
 
   function openNewPatientEditor() {
     const patient = createBlankPatient(patients[0] ?? initialPatients[0], currentAccount);
@@ -922,13 +924,13 @@ export function PatientArchivePage({
       {tab === "prescriptions" && (
         <RecordList
           title="处方管理"
-          description={role === "DOCTOR" ? "医生在患者档案内直接进入处方编写、复核与签署；处方来源于体能评估、训练记录和阶段报告。" : "康复师在患者档案内查看处方版本与训练强度，执行过程不改写医生处方。"}
-          action={role === "DOCTOR" && onCreatePrescription ? (
+          description={role === "ADMIN" ? "管理员可补录、编辑、复核和签署任意患者处方，操作以管理员本人身份留痕。" : role === "DOCTOR" ? "医生在患者档案内直接进入处方编写、复核与签署；处方来源于体能评估、训练记录和阶段报告。" : "康复师在患者档案内查看处方版本与训练强度，执行过程不改写医生处方。"}
+          action={canManagePrescription && onCreatePrescription ? (
             <button
               type="button"
               className="btn-primary"
               data-action="ACT-CREATE-PRESCRIPTION"
-              data-ac="AC-DOCTOR-CREATE-PRESCRIPTION-FROM-PATIENT"
+              data-ac="AC-CLINICAL-CREATE-PRESCRIPTION-FROM-PATIENT"
               onClick={() => onCreatePrescription(selected.patient_demo_id)}
             >
               <Plus className="h-4 w-4" />
@@ -957,7 +959,7 @@ export function PatientArchivePage({
                 className="font-bold text-blue-700"
                 onClick={() => onOpenPrescriptionTask(item.id, selected.patient_demo_id)}
               >
-                {role === "DOCTOR" ? "编辑处方" : "查看处方"}
+                {canManagePrescription && !["completed", "withdrawn", "archived"].includes(item.status) ? "编辑处方" : "查看处方"}
               </button>
             ) : (
               "未开放"
@@ -970,7 +972,7 @@ export function PatientArchivePage({
           title="心肺康复治疗记录"
           description="严格记录训练前、实施项目、训练后评估和签名日期。"
           action={
-            role === "REHAB_EXECUTION" ? (
+            canEnterTreatment ? (
               <button
                 type="button"
                 onClick={() =>
@@ -1640,7 +1642,8 @@ export function TreatmentRecordPage({
   readOnly?: boolean;
 }) {
   const [draft, setDraft] = useState(record);
-  const locked = readOnly || draft.status === "completed" || role !== "REHAB_EXECUTION";
+  const canEnterTreatment = canActAs(role, "REHAB_EXECUTION");
+  const locked = readOnly || draft.status === "completed" || !canEnterTreatment;
   const configuredSignature = readStaffSignature(draft.therapist);
   const preAssessmentReady = Boolean(draft.preAssessment.bloodPressure && draft.preAssessment.heartRate && draft.preAssessment.spo2 && draft.preAssessment.respiratoryRate);
   const postAssessmentReady = Boolean(draft.postAssessment.bloodPressure && draft.postAssessment.heartRate && draft.postAssessment.spo2 && draft.postAssessment.respiratoryRate && draft.postAssessment.borg);
@@ -1666,14 +1669,14 @@ export function TreatmentRecordPage({
       status: "draft" as const,
       signature: configuredSignature ? {
         mode: "uploaded" as const,
-        signerRole: "REHAB_EXECUTION" as const,
+        signerRole: role === "ADMIN" ? "ADMIN" as const : "REHAB_EXECUTION" as const,
         signerName: draft.therapist,
         signatureImage: configuredSignature.imageData,
         treatmentAt: draft.treatmentAt,
         signedAt: new Date().toISOString(),
       } : {
         mode: "print_hand_sign" as const,
-        signerRole: "REHAB_EXECUTION" as const,
+        signerRole: role === "ADMIN" ? "ADMIN" as const : "REHAB_EXECUTION" as const,
         signerName: draft.therapist,
         treatmentAt: draft.treatmentAt,
         signedAt: new Date().toISOString(),
@@ -1695,7 +1698,7 @@ export function TreatmentRecordPage({
         {!embedded && <PageHeader
           eyebrow="患者档案 · 治疗记录"
           title={`${patient.name} · 心肺康复治疗记录`}
-          description={`${draft.treatmentNo} · 治疗记录仅由康复师填写和签字，医生与管理员只读查看。`}
+          description={`${draft.treatmentNo} · 治疗记录由康复师填写；管理员可补录，所有操作按当前账号留痕。`}
           action={
             <div className="flex gap-2">
               <button onClick={onBack} className="btn-secondary">
@@ -1752,7 +1755,7 @@ export function TreatmentRecordPage({
                 <button type="button" disabled={!printReady} onClick={printTreatmentRecord} className="btn-primary disabled:bg-slate-300"><Printer className="h-4 w-4" />一键打印</button>
               </div>
             ) : (
-              !readOnly && role === "REHAB_EXECUTION" && (
+              !readOnly && canEnterTreatment && (
                 <button
                   onClick={() =>
                     onCorrect({

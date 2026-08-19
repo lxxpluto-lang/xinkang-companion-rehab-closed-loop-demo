@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, Calculator, CheckCircle2, FileImage, Files, PenLine, Printer, Save, ScanLine, X } from "lucide-react";
 import { calculateSppb, createBlankSppb, hasSppbInput, type AssessmentRecord } from "../assessmentData";
+import { canActAs } from "../accessControl";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { StaffRole } from "../types";
 import type { ManagedPatient } from "./PatientArchivePage";
@@ -25,7 +26,8 @@ export function AssessmentWorkspacePage({ role, currentAccount, patients, record
   const [draft, setDraft] = useState<AssessmentRecord>(() => cloneRecord(initialRecord ?? createBlankSppb(patient, patientRecords.length + 1, currentAccount)));
   const [ruleOpen, setRuleOpen] = useState(false);
   const [message, setMessage] = useState("");
-  const disabled = role !== "REHAB_EXECUTION" || draft.status === "completed";
+  const canEnterAssessment = canActAs(role, "REHAB_EXECUTION");
+  const disabled = !canEnterAssessment || draft.status === "completed";
 
   function selectMode(next: Mode) {
     setMode(next);
@@ -36,7 +38,7 @@ export function AssessmentWorkspacePage({ role, currentAccount, patients, record
   }
 
   function simulateOcr(files: File[]) {
-    if (!files.length || role !== "REHAB_EXECUTION") return;
+    if (!files.length || !canEnterAssessment) return;
     const base = createBlankSppb(patient, patientRecords.length + 1, currentAccount);
     const scored = calculateSppb({
       balance: { sideBySideSec: 10, semiTandemSec: 10, tandemSec: 8.2, score: 0 },
@@ -49,7 +51,7 @@ export function AssessmentWorkspacePage({ role, currentAccount, patients, record
   }
 
   function save(status: AssessmentRecord["status"]) {
-    if (role !== "REHAB_EXECUTION") return;
+    if (!canEnterAssessment) return;
     const scored = calculateSppb(draft.sppb);
     const now = new Date().toISOString();
     const next: AssessmentRecord = { ...draft, sppb: { ...draft.sppb, ...scored }, status, therapist: currentAccount, enteredBy: currentAccount, completedAt: status === "completed" ? now : undefined };
@@ -70,7 +72,7 @@ export function AssessmentWorkspacePage({ role, currentAccount, patients, record
             <ModeButton active={mode === "single_ocr"} icon={ScanLine} title="单张OCR" note="一张图片或PDF" onClick={() => selectMode("single_ocr")} />
             <ModeButton active={mode === "manual"} icon={PenLine} title="手工录入" note="打开空白评估表" onClick={() => selectMode("manual")} />
           </div>
-          {mode !== "manual" && <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-violet-300 bg-violet-50 px-3 py-3 text-xs font-bold text-violet-800"><FileImage className="h-4 w-4" />{mode === "batch_ocr" ? "选择多份文件" : "选择一份文件"}<input className="sr-only" type="file" multiple={mode === "batch_ocr"} accept="image/*,.pdf" disabled={role !== "REHAB_EXECUTION"} onChange={(event) => simulateOcr(Array.from(event.target.files ?? []))} /></label>}
+          {mode !== "manual" && <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-violet-300 bg-violet-50 px-3 py-3 text-xs font-bold text-violet-800"><FileImage className="h-4 w-4" />{mode === "batch_ocr" ? "选择多份文件" : "选择一份文件"}<input className="sr-only" type="file" multiple={mode === "batch_ocr"} accept="image/*,.pdf" disabled={!canEnterAssessment} onChange={(event) => simulateOcr(Array.from(event.target.files ?? []))} /></label>}
           {message && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-[10px] leading-5 text-amber-800">{message}</p>}
         </section>
         <section className="card p-4"><SectionHeader title="历史评估" />

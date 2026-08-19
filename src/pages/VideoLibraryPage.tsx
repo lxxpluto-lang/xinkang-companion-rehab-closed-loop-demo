@@ -97,7 +97,7 @@ export function VideoLibraryPage({
   function addExternalLink() {
     const url = externalUrl.trim();
     if (!/^https?:\/\//.test(url)) return;
-    addRecord({ id: `VIDEO-LINK-${Date.now()}`, title: title.trim() || "外部训练视频", category, subtype, source: "link", url, status: "DRAFT", updatedBy: role === "DOCTOR" ? "王医生" : "周康复师" });
+    addRecord({ id: `VIDEO-LINK-${Date.now()}`, title: title.trim() || "外部训练视频", category, subtype, source: "link", url, status: "DRAFT", updatedBy: role === "ADMIN" ? "林管理员" : role === "DOCTOR" ? "王医生" : "周康复师" });
     setExternalUrl("");
   }
 

@@ -208,7 +208,7 @@ export type AiSuggestion = {
 
 export type TreatmentSignature = {
   mode: "uploaded" | "print_hand_sign";
-  signerRole: "REHAB_EXECUTION";
+  signerRole: "ADMIN" | "REHAB_EXECUTION";
   signerName: string;
   signatureImage?: string;
   treatmentAt: string;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, FileHeart, Plus, Save, Send, Sparkles } from "lucide-react";
+import { canActAs } from "../accessControl";
 import { SectionHeader, StatusBadge } from "../components/UI";
 import {
   createStoredStageReport,
@@ -35,6 +36,8 @@ const statusLabel: Record<StoredStageReport["status"], string> = {
 const emptyComparison = () => ({ metric: "", before: "", after: "", meaning: "" });
 
 export function StageReportWorkspace({ patient, sessions, reports, role, currentAccount, canEdit, onSave, onConfirm, onPublish }: Props) {
+  const canPrepare = canActAs(role, "REHAB_EXECUTION");
+  const canDoctorReview = canActAs(role, "DOCTOR");
   const patientReports = useMemo(() => reports.filter((report) => report.patientId === patient.patientId).sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? "")), [patient.patientId, reports]);
   const [selectedId, setSelectedId] = useState<string | null>(patientReports[0]?.reportId ?? null);
   const [draft, setDraft] = useState<StoredStageReport | null>(patientReports[0] ?? null);
@@ -106,7 +109,7 @@ export function StageReportWorkspace({ patient, sessions, reports, role, current
   }
 
   function confirm() {
-    if (!draft || role !== "DOCTOR" || draft.selectedSessionIds.length < 2 || !draft.clinicalConclusion.summary.trim()) return;
+    if (!draft || !canDoctorReview || draft.selectedSessionIds.length < 2 || !draft.clinicalConclusion.summary.trim()) return;
     const next = { ...draft, status: "confirmed" as const, confirmedBy: currentAccount, confirmedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     setDraft(next);
     onSave(next);
@@ -114,7 +117,7 @@ export function StageReportWorkspace({ patient, sessions, reports, role, current
   }
 
   function publish() {
-    if (!draft || role !== "DOCTOR" || draft.status !== "confirmed") return;
+    if (!draft || !canDoctorReview || draft.status !== "confirmed") return;
     const next = { ...draft, status: "sent" as const, sentBy: currentAccount, sentAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     setDraft(next);
     onSave(next);
@@ -148,8 +151,8 @@ export function StageReportWorkspace({ patient, sessions, reports, role, current
         <SectionHeader title="医生审核结论" description="医学结论必须由医生确认后才能发送患者端。" />
         <div className="mt-4 grid gap-3 md:grid-cols-2"><Field label="医生总结" value={draft.clinicalConclusion.summary} disabled={locked || !canEdit} onChange={(value) => updateClinical({ summary: value })} /><Field label="下一步处方说明" value={draft.clinicalConclusion.nextPrescription} disabled={locked || !canEdit} onChange={(value) => updateClinical({ nextPrescription: value })} /><Field label="复评要求" value={draft.clinicalConclusion.reassessment} disabled={locked || !canEdit} onChange={(value) => updateClinical({ reassessment: value })} /><Field label="下次随访" value={draft.clinicalConclusion.nextFollowUp} disabled={locked || !canEdit} onChange={(value) => updateClinical({ nextFollowUp: value })} /></div>
         <div className="mt-3 grid gap-3 md:grid-cols-2"><ListEditor label="已完成目标" items={draft.clinicalConclusion.achievedGoals} disabled={locked || !canEdit} onChange={(achievedGoals) => updateClinical({ achievedGoals })} /><ListEditor label="待完成目标" items={draft.clinicalConclusion.pendingGoals} disabled={locked || !canEdit} onChange={(pendingGoals) => updateClinical({ pendingGoals })} /></div>
-        <div className="mt-4 flex flex-wrap justify-end gap-2">{canEdit && !locked && <><button type="button" className="btn-secondary" onClick={() => save("draft")}><Save className="h-4 w-4" />保存草稿</button>{role === "REHAB_EXECUTION" && <button type="button" className="btn-primary" onClick={() => save("pending_doctor_review")}><Send className="h-4 w-4" />提交医生审核</button>}{role === "DOCTOR" && <button type="button" disabled={draft.selectedSessionIds.length < 2 || !draft.clinicalConclusion.summary.trim()} className="btn-primary disabled:bg-slate-300" onClick={confirm}><CheckCircle2 className="h-4 w-4" />医生确认</button>}</>}{role === "DOCTOR" && draft.status === "confirmed" && <button type="button" className="btn-primary" onClick={publish}><Send className="h-4 w-4" />发送患者端</button>}</div>
-        {role === "REHAB_EXECUTION" && canEdit && !locked && <button type="button" className="btn-secondary mt-3" onClick={generateFacts}><Sparkles className="h-4 w-4" />重新生成事实汇总</button>}
+        <div className="mt-4 flex flex-wrap justify-end gap-2">{canEdit && !locked && <><button type="button" className="btn-secondary" onClick={() => save("draft")}><Save className="h-4 w-4" />保存草稿</button>{canPrepare && <button type="button" className="btn-primary" onClick={() => save("pending_doctor_review")}><Send className="h-4 w-4" />提交医生审核</button>}{canDoctorReview && <button type="button" disabled={draft.selectedSessionIds.length < 2 || !draft.clinicalConclusion.summary.trim()} className="btn-primary disabled:bg-slate-300" onClick={confirm}><CheckCircle2 className="h-4 w-4" />医生确认</button>}</>}{canDoctorReview && draft.status === "confirmed" && <button type="button" className="btn-primary" onClick={publish}><Send className="h-4 w-4" />发送患者端</button>}</div>
+        {canPrepare && canEdit && !locked && <button type="button" className="btn-secondary mt-3" onClick={generateFacts}><Sparkles className="h-4 w-4" />重新生成事实汇总</button>}
       </section>
     </>}
   </div>;
