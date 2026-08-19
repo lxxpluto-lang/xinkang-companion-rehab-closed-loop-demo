@@ -27,7 +27,7 @@ cp .env.example .env
 npm ci
 npm run db:generate
 npm run db:deploy
-npm run db:seed
+npm run db:seed:init
 npm run build:all
 npm start
 ```
@@ -60,6 +60,19 @@ curl http://127.0.0.1:8787/api/health
 ```
 
 重启后重新打开浏览器，预约、任务、指标、报告仍应存在。数据库卷为 `xinkang-postgres`；不要使用 `docker compose down -v`，除非明确要删除全部演示数据。
+
+## 种子与重置保护
+
+```bash
+npm run db:seed:init
+npm run data:check
+CONFIRM_DEMO_RESET=YES npm run db:seed:reset
+```
+
+- `db:seed:init` 仅在空数据库初始化，服务重启时发现已有业务数据会跳过。
+- `db:seed:reset` 仅用于脱敏演示环境，必须显式确认；执行前自动在 `backups/demo-reset/` 生成时间戳 `pg_dump`。
+- 重置在一个事务中重建六个业务场景，并在提交前运行 `data:check`；检查失败会整体回滚。
+- Docker 启动只运行 migration 和 `seed:init`，不会无条件覆盖已经归档或修改的数据。
 
 ## GitHub Pages 限制
 

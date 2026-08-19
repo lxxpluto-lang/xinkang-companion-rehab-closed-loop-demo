@@ -7,3 +7,4 @@ server-dist/
 .env.*
 !.env.example
 postgres-data/
+backups/

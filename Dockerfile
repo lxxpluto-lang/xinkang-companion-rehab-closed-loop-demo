@@ -17,7 +17,9 @@ RUN apt-get update \
 COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/server ./server
+COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server-dist ./server-dist
 EXPOSE 8787
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run db:seed && node server-dist/server/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run db:seed:init && node server-dist/server/index.js"]

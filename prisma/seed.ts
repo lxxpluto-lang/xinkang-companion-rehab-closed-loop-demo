@@ -1,146 +1,77 @@
-import { PrismaClient, type Prisma } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { createDemoFixture } from "./demoFixture.js";
+import { synchronizeAllStateDocuments } from "../server/stateRepository.js";
+import { runDataCheck } from "../scripts/dataCheck.js";
 
 const prisma = new PrismaClient();
-
-function shanghaiNow() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return {
-    date: `${values.year}-${values.month}-${values.day}`,
-    time: `${values.hour}:${values.minute}`
-  };
-}
-
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
+const seedId = "closed-loop-demo";
+const seedVersion = "2026-08-19-six-scenarios-v1";
 
-async function main() {
-  const now = shanghaiNow();
-  const appointmentId = `APT-LXX-${now.date.replaceAll("-", "")}`;
-  const encounterId = `ENC-${appointmentId}`;
-
-  await Promise.all([
-    prisma.user.upsert({ where: { id: "admin" }, update: {}, create: { id: "admin", username: "admin", displayName: "林管理员", role: "ADMIN", passwordHash: "demo-only:123456" } }),
-    prisma.user.upsert({ where: { id: "doctor001" }, update: {}, create: { id: "doctor001", username: "doctor001", displayName: "王医生", role: "DOCTOR", passwordHash: "demo-only:123456" } }),
-    prisma.user.upsert({ where: { id: "doctor002" }, update: {}, create: { id: "doctor002", username: "doctor002", displayName: "李医生", role: "DOCTOR", passwordHash: "demo-only:1234567" } }),
-    prisma.user.upsert({ where: { id: "rehab001" }, update: {}, create: { id: "rehab001", username: "rehab001", displayName: "周康复师", role: "REHAB_EXECUTION", passwordHash: "demo-only:123456" } })
-  ]);
-
-  await prisma.patient.upsert({
-    where: { id: "P-LXX-001" },
-    update: { patientNo: "P-256572", loginCode: "256572", name: "鲁萱萱", riskLevel: "中危", rehabStage: "冠心病2期", assignedDoctor: "王医生" },
-    create: {
-      id: "P-LXX-001",
-      patientNo: "P-256572",
-      loginCode: "256572",
-      name: "鲁萱萱",
-      gender: "女",
-      riskLevel: "中危",
-      rehabStage: "冠心病2期",
-      assignedDoctor: "王医生",
-      profile: asJson({ diagnosis: "冠心病 PCI 术后康复期", source: "脱敏演示种子数据", therapist: "周康复师" })
+async function seed(reset: boolean) {
+  if (!reset) {
+    const [marker, patientCount] = await Promise.all([
+      prisma.demoSeed.findUnique({ where: { id: seedId } }),
+      prisma.patient.count()
+    ]);
+    if (marker || patientCount > 0) {
+      console.log(`seed:init skipped; database already contains ${patientCount} patient(s).`);
+      return;
     }
-  });
-
-  await prisma.prescription.upsert({
-    where: { id: "RX-LXX-001" },
-    update: {},
-    create: {
-      id: "RX-LXX-001",
-      prescriptionNo: "RX-256572-0001",
-      patientId: "P-LXX-001",
-      version: "V1",
-      status: "completed",
-      assignedDoctor: "王医生",
-      signedBy: "王医生",
-      signedAt: new Date(),
-      payload: asJson({ source: "SPPB与基础评估", plannedSessions: 12 })
-    }
-  });
-
-  const items = [
-    ["呼吸训练", "breathing", "腹式呼吸", "舒适节律", "10分钟"],
-    ["有氧运动", "bike", "功率车", "目标心率100-116 bpm；48-62W", "30分钟"],
-    ["抗阻训练", "dumbbell", "哑铃力量", "每个动作2组，每组10次", "15分钟"],
-    ["柔韧性训练", "flexibility", "全身柔韧训练", "舒适范围", "10分钟"]
-  ];
-  for (const [index, item] of items.entries()) {
-    await prisma.prescriptionItem.upsert({
-      where: { id: `RX-LXX-001-ITEM-${index + 1}` },
-      update: {},
-      create: {
-        id: `RX-LXX-001-ITEM-${index + 1}`,
-        prescriptionId: "RX-LXX-001",
-        order: index + 1,
-        category: item[0],
-        exerciseKey: item[1],
-        exerciseName: item[2],
-        intensity: item[3],
-        duration: item[4],
-        frequency: "按本次处方执行",
-        rationale: "医生签署处方项目",
-        payload: asJson({})
-      }
-    });
   }
 
-  await prisma.appointment.upsert({
-    where: { id: appointmentId },
-    update: {},
-    create: {
-      id: appointmentId,
-      patientId: "P-LXX-001",
-      prescriptionId: "RX-LXX-001",
-      scheduledAt: new Date(`${now.date}T${now.time}:00+08:00`),
-      status: "arrived",
-      station: "综合训练区01",
-      project: "综合运动康复",
-      doctorName: "王医生",
-      therapistName: "周康复师",
-      note: "当天动态演示预约",
-      payload: asJson({ date: now.date, time: now.time, source: "seed" })
-    }
-  });
+  if (reset && process.env.CONFIRM_DEMO_RESET !== "YES") {
+    throw new Error("Demo reset refused. Set CONFIRM_DEMO_RESET=YES after creating a backup.");
+  }
 
-  await prisma.trainingEncounter.upsert({
-    where: { id: encounterId },
-    update: {},
-    create: {
-      id: encounterId,
-      appointmentId,
-      patientId: "P-LXX-001",
-      prescriptionId: "RX-LXX-001",
-      status: "pre_assessment",
-      station: "综合训练区01",
-      therapist: "周康复师",
-      payload: asJson({ patientNo: "P-256572", prescriptionVersion: "V1", paperSignatureStatus: "not_required" })
+  const fixture = createDemoFixture();
+  await prisma.$transaction(async (tx) => {
+    if (reset) {
+      await tx.$executeRawUnsafe(`TRUNCATE TABLE
+        "Intervention", "MetricSample", "DeviceSession", "TrainingTask", "TreatmentAssessment", "SingleReport",
+        "TrainingEncounter", "Appointment", "PrescriptionItem", "Prescription", "Assessment", "AlertEvent",
+        "StageReport", "FollowUp", "AuditLog", "StateDocument", "Patient", "User", "DemoSeed"
+        RESTART IDENTITY CASCADE`);
     }
-  });
 
-  for (const [index, item] of items.entries()) {
-    await prisma.trainingTask.upsert({
-      where: { id: `${encounterId}-TASK-${index + 1}` },
-      update: {},
-      create: {
-        id: `${encounterId}-TASK-${index + 1}`,
-        encounterId,
-        order: index + 1,
-        category: item[0],
-        exerciseKey: item[1],
-        exerciseName: item[2],
-        status: "pending",
-        payload: asJson({})
+    await Promise.all([
+      tx.user.upsert({ where: { id: "admin" }, update: {}, create: { id: "admin", username: "admin", displayName: "林管理员", role: "ADMIN", passwordHash: "demo-only:123456" } }),
+      tx.user.upsert({ where: { id: "doctor001" }, update: {}, create: { id: "doctor001", username: "doctor001", displayName: "王医生", role: "DOCTOR", passwordHash: "demo-only:123456" } }),
+      tx.user.upsert({ where: { id: "doctor002" }, update: {}, create: { id: "doctor002", username: "doctor002", displayName: "李医生", role: "DOCTOR", passwordHash: "demo-only:1234567" } }),
+      tx.user.upsert({ where: { id: "rehab001" }, update: {}, create: { id: "rehab001", username: "rehab001", displayName: "周康复师", role: "REHAB_EXECUTION", passwordHash: "demo-only:123456" } })
+    ]);
+    for (const [key, value] of Object.entries(fixture.documents)) {
+      await tx.stateDocument.create({ data: { key, value: asJson(value) } });
+    }
+    await synchronizeAllStateDocuments(tx);
+
+    const trainingPatient = fixture.patients[4];
+    const trainingPrescription = fixture.prescriptions[2];
+    const trainingEncounter = fixture.encounters[1];
+    await tx.deviceSession.create({
+      data: {
+        id: "DEVICE-SEED-005", encounterId: trainingEncounter.encounterId, loginCode: trainingPatient.patient_no.replace(/\D/g, "").slice(-6), status: "active",
+        connectedAt: new Date(), lastSeenAt: new Date(),
+        handoff: asJson({ loginCode: trainingPatient.patient_no.replace(/\D/g, "").slice(-6), patient: trainingPatient, prescriptionTask: trainingPrescription,
+          prescriptionContent: (fixture.documents["xinkang-prescription-contents"] as Record<string, unknown>)[trainingPrescription.id], encounter: trainingEncounter, updatedAt: new Date().toISOString() })
       }
     });
-  }
+    await tx.metricSample.create({ data: { encounterId: trainingEncounter.encounterId, taskId: trainingEncounter.activeTrainingTaskId,
+      capturedAt: new Date(), heartRate: 106, spo2: 97, systolic: 126, diastolic: 78, speedKmh: 18.2, distanceKm: 1.4,
+      powerW: 52, cadenceRpm: 62, caloriesKcal: 26, values: asJson(trainingEncounter.liveMetrics ?? {}) } });
+    await tx.auditLog.create({ data: { entityType: "DemoSeed", entityId: seedId, action: reset ? "RESET" : "INITIALIZE", actor: "system-seed", source: "seed",
+      after: asJson({ version: seedVersion, date: fixture.date, scenarios: 6 }) } });
+    await tx.demoSeed.create({ data: { id: seedId, version: seedVersion } });
+    const check = await runDataCheck(tx);
+    if (check.errors.length) throw new Error(`Seed data integrity failed:\n${check.errors.join("\n")}`);
+  }, { timeout: 60_000 });
+  console.log(`Seeded six closed-loop demo scenarios for Asia/Shanghai date ${fixture.date}.`);
 }
 
-main()
+const reset = process.argv.includes("--reset");
+seed(reset)
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
   .finally(async () => prisma.$disconnect());

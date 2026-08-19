@@ -16,7 +16,10 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "npm run db:seed:init",
+    "db:seed:init": "tsx prisma/seed.ts",
+    "db:seed:reset": "bash scripts/reset-demo-db.sh",
+    "data:check": "tsx scripts/dataCheck.ts",
     "test": "vitest run",
     "fullstack": "docker compose up --build"
   },

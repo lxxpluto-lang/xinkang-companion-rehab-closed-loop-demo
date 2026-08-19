@@ -76,6 +76,8 @@ erDiagram
     string id PK
     string patientNo UK
     string loginCode UK
+    string status
+    datetime archivedAt
     string riskLevel
   }
   TRAINING_ENCOUNTER {
@@ -104,9 +106,11 @@ erDiagram
 - 预约状态：`pending`、`confirmed`、`arrived`、`in_training`、`completed`、`cancelled`、`no_show`。
 - 场次状态：`pre_assessment`、`ready_for_device`、`device_ready`、`in_training`、`paused`、`awaiting_next_task`、`post_assessment`、`pending_signature`、`completed`、`terminated`。
 - 任务状态：`pending`、`in_progress`、`completed`、`partially_completed`、`interrupted`、`skipped`。
-- 登录号按患者主档固定，设备交接按登录号唯一更新到当前场次。
+- 登录号按患者主档固定；数据库通过部分唯一索引保证同一登录号最多一个 `active` 设备会话，已撤销会话作为历史保留。
 - 指标通过交接事件即时广播；PostgreSQL 中的指标采样按至少 5 秒间隔及任务结束节点保存，减少高频写入。
-- `StateDocument` 是旧原型数据结构的兼容层；每次写入同时同步到规范化业务表。后续可逐模块删除兼容层，不改变现有页面。
+- `Patient`、`Prescription`、`Appointment`、`TrainingEncounter` 等规范化表是最终事实来源，`StateDocument` 仅是旧页面兼容投影。
+- 状态文档支持乐观版本校验；服务端会保护已归档患者，过期浏览器不能通过旧投影重新激活患者、处方或预约。
+- 患者归档、处方失效、预约取消、随访关闭、设备会话撤销和审计日志在同一数据库事务中完成。
 
 ## 关键假设
 

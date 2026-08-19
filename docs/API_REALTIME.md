@@ -7,6 +7,10 @@
 | `GET` | `/api/health` | 检查 Node、PostgreSQL 与实时服务 |
 | `GET` | `/api/bootstrap` | 获取全部临床状态文档 |
 | `PUT` | `/api/state/:key` | 保存一个业务状态集合并同步规范化表 |
+| `GET` | `/api/appointment-candidates` | 获取有效患者及其已签署有效处方 |
+| `POST` | `/api/appointments/validate` | 在预约或到诊前复核患者与处方关系 |
+| `POST` | `/api/patients/:patientId/archive` | 管理员事务化归档患者及未完成业务 |
+| `POST` | `/api/patients/:patientId/restore` | 管理员恢复患者主档，不恢复旧处方与会话 |
 | `GET` | `/api/device-handoffs` | 获取未完成设备交接列表 |
 | `POST` | `/api/device-handoffs` | 发布患者登录号、处方和当前场次 |
 | `GET` | `/api/device-handoffs/:loginCode` | 患者号登录并读取当前场次 |
@@ -36,4 +40,6 @@
 - `liveAlert` 会按场次与异常类型写入 `AlertEvent`；异常暂停和解除分别写入 `Intervention`，重复广播不会重复生成同类处置。
 - 前端实时指标不维护第二套业务副本；界面读取同一 `TrainingEncounter.liveMetrics`。
 - `AuditLog` 保存设备交接写入的实体、动作、操作者、来源和变更后快照。
+- 已撤销设备会话或已归档患者访问登录接口返回 `410 Gone`。
+- 设备交接不能自行补建患者或处方，只接受数据库中已存在的有效患者和已签处方。
 - 当前接口为院内调研 Demo，生产接入前必须增加 SSO/JWT、角色授权、速率限制、审计留存策略和 TLS。
