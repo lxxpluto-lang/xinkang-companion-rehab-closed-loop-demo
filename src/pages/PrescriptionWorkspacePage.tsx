@@ -45,7 +45,8 @@ const statusLabel: Record<PrescriptionStatus, string> = {
   pending_review: "待复核",
   pending_signature: "待签署",
   completed: "已完成",
-  withdrawn: "已撤回"
+  withdrawn: "已撤回",
+  archived: "已归档失效"
 };
 
 function cloneContent(content: PrescriptionContent): PrescriptionContent {
@@ -156,7 +157,7 @@ export function PrescriptionWorkspacePage({
   const [responsibilityConfirmed, setResponsibilityConfirmed] = useState(false);
   const [signatureName, setSignatureName] = useState(task.signedBy ?? currentAccount);
   const [signatureError, setSignatureError] = useState("");
-  const readonly = task.status === "completed" || task.status === "withdrawn";
+  const readonly = task.status === "completed" || task.status === "withdrawn" || task.status === "archived";
   const editable = role === "DOCTOR" && task.assignedDoctorId === accountId && !readonly;
   const canManageRehabReport = role === "DOCTOR" && task.assignedDoctorId === accountId;
   const patientReports = singleReports.filter((item) => item.patientId === task.patientId);

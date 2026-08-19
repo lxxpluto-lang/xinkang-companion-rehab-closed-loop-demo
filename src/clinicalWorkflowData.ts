@@ -1,6 +1,6 @@
 import type { AiSuggestion } from "./types";
 
-export type PrescriptionStatus = "pending_generation" | "pending_review" | "pending_signature" | "completed" | "withdrawn";
+export type PrescriptionStatus = "pending_generation" | "pending_review" | "pending_signature" | "completed" | "withdrawn" | "archived";
 
 export type PrescriptionItem = {
   category: "呼吸训练" | "热身运动" | "有氧运动" | "抗阻训练" | "柔韧性训练";

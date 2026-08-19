@@ -63,7 +63,7 @@ import {
   type TrainingEncounterStatus
 } from "./trainingEncounterData";
 import { normalizeDeviceLoginCode, publishDeviceHandoff, type DeviceHandoff } from "./deviceHandoffData";
-import { clinicalStateKeys, fetchClinicalBootstrap, persistClinicalState, subscribeClinicalState, type ClinicalStateDocument, type ClinicalStateKey } from "./clinicalStateApi";
+import { archivePatientRecord, clinicalStateKeys, fetchClinicalBootstrap, persistClinicalState, restorePatientRecord, subscribeClinicalState, validateAppointmentRecord, type ClinicalStateDocument, type ClinicalStateKey } from "./clinicalStateApi";
 
 type SystemKey = "chooser" | "staffLogin" | "doctor" | "patient";
 type ClinicalBackendMode = "checking" | "database" | "offline";
@@ -142,13 +142,15 @@ export default function App() {
   const [trainingEncounters, setTrainingEncounters] = useState<TrainingEncounter[]>(() => mergeSeedRecords(readDemoStore(TRAINING_ENCOUNTER_STORE, []), initialTrainingEncounters, (item) => item.encounterId));
   const [clinicalBackendMode, setClinicalBackendMode] = useState<ClinicalBackendMode>("checking");
   const suppressStatePersistRef = useRef(new Set<ClinicalStateKey>());
+  const stateVersionsRef = useRef(new Map<ClinicalStateKey, number>());
 
   const currentAccount = accountName || roleMeta[role].account;
   const scopedFollowUpTasks = role === "DOCTOR"
     ? followUpTasks.filter((task) => task.assignedDoctor === currentAccount)
     : followUpTasks;
   const publishedTrainingVideos = trainingVideos.filter((video) => video.status === "PUBLISHED" && video.url);
-  function applyClinicalStateDocument(document: Pick<ClinicalStateDocument, "key" | "value">) {
+  function applyClinicalStateDocument(document: Pick<ClinicalStateDocument, "key" | "value"> & Partial<Pick<ClinicalStateDocument, "version">>) {
+    if (document.version !== undefined) stateVersionsRef.current.set(document.key, document.version);
     suppressStatePersistRef.current.add(document.key);
     switch (document.key) {
       case clinicalStateKeys.patients:
@@ -178,7 +180,9 @@ export default function App() {
     if (clinicalBackendMode === "checking") return;
     if (suppressStatePersistRef.current.delete(key)) return;
     if (clinicalBackendMode === "database") {
-      void persistClinicalState(key, value).catch((error) => console.error("Clinical state persistence failed", key, error));
+      void persistClinicalState(key, value, stateVersionsRef.current.get(key)).then((document) => {
+        stateVersionsRef.current.set(key, document.version);
+      }).catch((error) => console.error("Clinical state persistence failed", key, error));
       return;
     }
     localStorage.setItem(key, JSON.stringify(value));
@@ -188,9 +192,10 @@ export default function App() {
     let disposed = false;
     void fetchClinicalBootstrap().then((bootstrap) => {
       if (disposed) return;
-      for (const [key, document] of Object.entries(bootstrap.documents)) {
-        if (!document) continue;
-        applyClinicalStateDocument({ key: key as ClinicalStateKey, value: document.value });
+      for (const key of Object.values(clinicalStateKeys)) {
+        const document = bootstrap.documents[key];
+        const emptyValue = key === clinicalStateKeys.prescriptionContents ? {} : [];
+        applyClinicalStateDocument({ key, value: document?.value ?? emptyValue, version: document?.version });
       }
       setClinicalBackendMode("database");
     }).catch(() => {
@@ -302,7 +307,7 @@ export default function App() {
   function createPrescriptionForPatient(patientId: string) {
     if (role !== "DOCTOR" || !["doctor001", "doctor002"].includes(accountId)) return;
     const patient = patients.find((item) => item.patient_demo_id === patientId);
-    if (!patient) return;
+    if (!patient || patient.record_status === "已归档") return;
     const patientTasks = prescriptionTasks.filter((item) => item.patientId === patientId);
     const latestAssessment = assessmentRecords
       .filter((item) => item.patientId === patientId && item.status !== "draft")
@@ -389,7 +394,7 @@ export default function App() {
     setAppointments((items) => items.map((item) => item.id === encounter.appointmentId ? { ...item, status: appointmentStatus, updatedBy: currentAccount, updatedAt: now } : item));
   }
 
-  function checkInAppointment(appointmentId: string) {
+  async function checkInAppointment(appointmentId: string) {
     const appointment = appointments.find((item) => item.id === appointmentId);
     if (!appointment) return;
     const existingEncounter = trainingEncounters.find((item) => item.appointmentId === appointmentId);
@@ -401,7 +406,13 @@ export default function App() {
       .filter((item) => item.patientId === appointment.patientId && item.status === "completed" && item.doctorFinal)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
     const patient = patients.find((item) => item.patient_demo_id === appointment.patientId);
-    if (!prescription || !patient) return;
+    if (!prescription || !patient || patient.record_status === "已归档") return;
+    try {
+      await validateAppointmentRecord(patient.patient_demo_id, prescription.id);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "患者或处方状态已变化，无法到诊。");
+      return;
+    }
     const now = new Date().toISOString();
     const encounterId = `ENC-${appointment.id}-${Date.now()}`;
     const treatmentId = `TREAT-${appointment.id}-${Date.now()}`;
@@ -654,9 +665,27 @@ export default function App() {
     setFollowUpTasks((tasks) => tasks.map((task) => task.id === record.taskId ? { ...task, status: "due", completedAt: undefined, completedBy: undefined, recordId: undefined, lastContactResult: undefined, lastContactAt: undefined } : task));
   }
 
-  function deletePatients(patientIds: string[]) {
-    setPatients((items) => items.filter((item) => !patientIds.includes(item.patient_demo_id)));
-    setSelectedPatientId(null);
+  async function archivePatients(patientIds: string[], reason: string) {
+    try {
+      for (const patientId of patientIds) await archivePatientRecord(patientId, currentAccount, role, reason);
+      const bootstrap = await fetchClinicalBootstrap();
+      Object.entries(bootstrap.documents).forEach(([key, document]) => document && applyClinicalStateDocument({ key: key as ClinicalStateKey, value: document.value, version: document.version }));
+      setSelectedPatientId(null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "患者归档失败");
+      throw error;
+    }
+  }
+
+  async function restorePatients(patientIds: string[]) {
+    try {
+      for (const patientId of patientIds) await restorePatientRecord(patientId, currentAccount, role);
+      const bootstrap = await fetchClinicalBootstrap();
+      Object.entries(bootstrap.documents).forEach(([key, document]) => document && applyClinicalStateDocument({ key: key as ClinicalStateKey, value: document.value, version: document.version }));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "患者恢复失败");
+      throw error;
+    }
   }
 
   function saveAssessmentRecord(record: AssessmentRecord) {
@@ -889,7 +918,7 @@ export default function App() {
 
   const doctorContent: Partial<Record<DoctorPageKey, React.ReactNode>> = {
     dashboard: <DashboardPage role={role} patients={patients} followUpTasks={scopedFollowUpTasks} prescriptionTasks={prescriptionTasks} treatmentRecords={treatmentRecords} alertEvents={alertEvents} appointments={appointments} accountId={accountId} currentAccount={currentAccount} onOpenFollowUps={openFollowUps} onOpenReports={() => { setSelectedPatientId("P-DEMO-001"); setPatientInitialTab("sessions"); navigateDoctor("patients"); }} onOpenTraining={() => navigateDoctor("training")} onOpenPrescriptions={(status) => { setPrescriptionInitialStatus(status); setPrescriptionInitialTab("current"); navigateDoctor("prescriptions"); }} onOpenPrescriptionTask={(taskId) => openPrescriptionTask(taskId, "current")} onOpenTreatments={openTreatmentList} onOpenTreatmentRecord={openTreatmentRecord} onOpenAlerts={openAlerts} onNavigate={navigateDoctor} />,
-    patients: <PatientArchivePage key={`${role}-${selectedPatientId ?? "list"}-${patientInitialTab}-${standaloneRecordId}`} role={role} currentAccount={currentAccount} patients={patients} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} rehabReports={rehabReports} appointments={appointments} prescriptionTasks={prescriptionTasks} trainingSessions={trainingSessions} singleReports={singleReports} stageReports={stageReports} initialPatientId={selectedPatientId} initialTab={patientInitialTab} initialRecordId={standaloneRecordId || null} initialRecordKind={standaloneRecordKind || null} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onOpenPrescriptionTask={(taskId, patientId) => openPrescriptionTask(taskId, "current", patientId)} onCreatePrescription={createPrescriptionForPatient} onSaveAssessment={saveAssessmentRecord} onSaveTreatmentRecord={saveTreatmentRecord} onSaveRehabReport={saveRehabReport} onSaveTrainingSession={saveTrainingSession} onSaveSingleReport={saveSingleReport} onSaveStageReport={saveStageReport} onConfirmStageReport={confirmStageReport} onPublishStageReport={publishStageReport} onSaveFollowUpRecord={saveFollowUpRecord} onDeleteFollowUpRecord={deleteFollowUpRecord} onDeletePatients={deletePatients} />,
+    patients: <PatientArchivePage key={`${role}-${selectedPatientId ?? "list"}-${patientInitialTab}-${standaloneRecordId}`} role={role} currentAccount={currentAccount} patients={patients} followUpTasks={followUpTasks} followUpRecords={followUpRecords} clinicalNarratives={clinicalNarratives} clinicalProfiles={patientClinicalProfiles} assessmentRecords={assessmentRecords} treatmentRecords={treatmentRecords} rehabReports={rehabReports} appointments={appointments} prescriptionTasks={prescriptionTasks} trainingSessions={trainingSessions} singleReports={singleReports} stageReports={stageReports} initialPatientId={selectedPatientId} initialTab={patientInitialTab} initialRecordId={standaloneRecordId || null} initialRecordKind={standaloneRecordKind || null} onSavePatient={savePatientRecord} onUpdatePatient={updatePatientRecord} onOpenFollowUp={(taskId) => openFollowUps("pending", taskId)} onOpenAssessment={openAssessment} onOpenPrescriptionTask={(taskId, patientId) => openPrescriptionTask(taskId, "current", patientId)} onCreatePrescription={createPrescriptionForPatient} onSaveAssessment={saveAssessmentRecord} onSaveTreatmentRecord={saveTreatmentRecord} onSaveRehabReport={saveRehabReport} onSaveTrainingSession={saveTrainingSession} onSaveSingleReport={saveSingleReport} onSaveStageReport={saveStageReport} onConfirmStageReport={confirmStageReport} onPublishStageReport={publishStageReport} onSaveFollowUpRecord={saveFollowUpRecord} onDeleteFollowUpRecord={deleteFollowUpRecord} onArchivePatients={archivePatients} onRestorePatients={restorePatients} />,
     assessment: <AssessmentWorkspacePage key={`${role}-${selectedPatientId ?? "all"}-${selectedAssessmentRecordId ?? "new"}`} role={role} currentAccount={currentAccount} patients={patients} records={assessmentRecords} initialPatientId={selectedPatientId} initialRecordId={selectedAssessmentRecordId} backLabel={assessmentReturnPrescriptionTaskId ? "返回处方相关报告" : "返回患者档案"} onSave={saveAssessmentRecord} onBack={closeAssessment} />,
     followups: <FollowUpManagementPage key={`${role}-${followUpEntryView}-${selectedFollowUpTaskId ?? "list"}`} role={role} currentAccount={currentAccount} patients={patients} tasks={followUpTasks} records={followUpRecords} initialView={followUpEntryView} initialTaskId={selectedFollowUpTaskId} onSaveRecord={saveFollowUpRecord} onOpenPatient={openPatient} />,
     training: <NurseStationPage role={role} currentAccount={currentAccount} encounters={trainingEncounters} appointments={appointments} patients={patients} prescriptions={prescriptionTasks} treatmentRecords={treatmentRecords} trainingSessions={trainingSessions} singleReports={singleReports} stageReports={stageReports} initialEncounterId={selectedTrainingEncounterId} onUpdateEncounter={updateTrainingEncounter} onImportHandoff={importDeviceHandoff} onPublishHandoff={publishEncounterHandoff} onSaveTrainingSession={saveTrainingSession} onCreateAlert={createEncounterAlert} onOpenTreatment={openEncounterTreatment} onGenerateStageReport={(patientId, prescriptionTaskId) => generateStageReportForPatient(patientId, trainingSessions, true, prescriptionTaskId)} />,
@@ -906,7 +935,7 @@ export default function App() {
     })(),
     treatments: <TreatmentManagementPage key={`${selectedTreatmentPatientId ?? "list"}-${selectedTreatmentRecordId ?? "none"}-${treatmentInitialStatus}`} role={role} currentAccount={currentAccount} patients={patients} profiles={patientClinicalProfiles} treatmentRecords={treatmentRecords} prescriptionTasks={prescriptionTasks} encounters={trainingEncounters} singleReports={singleReports} stageReports={stageReports} initialStatus={treatmentInitialStatus} initialPatientId={selectedTreatmentPatientId} initialRecordId={selectedTreatmentRecordId} onOpenRecord={openTreatmentRecord} onBackToList={() => openTreatmentList(treatmentInitialStatus)} onSave={saveTreatmentRecord} onAdvanceToDevice={advanceEncounterToDevice} onPaperArchive={saveTreatmentRecord} onDelete={deleteTreatmentRecords} />,
     alerts: <AlertManagementPage key={`${role}-${accountId}-${alertInitialStatus}`} role={role} accountId={accountId} initialStatus={alertInitialStatus} patients={patients} prescriptionTasks={prescriptionTasks} events={alertEvents} setEvents={setAlertEvents} rules={alertRules} setRules={setAlertRules} />,
-    appointments: <AppointmentManagementPage role={role} accountId={accountId} currentAccount={currentAccount} appointments={appointments} setAppointments={setAppointments} prescriptionTasks={prescriptionTasks} prescriptionContents={prescriptionContents} encounters={trainingEncounters} onCheckIn={checkInAppointment} onOpenTreatment={openTreatmentRecord} onOpenTraining={(encounterId) => { setSelectedTrainingEncounterId(encounterId); setDoctorPage("training"); resetViewScroll(); }} />,
+    appointments: <AppointmentManagementPage role={role} accountId={accountId} currentAccount={currentAccount} patients={patients} appointments={appointments} setAppointments={setAppointments} prescriptionTasks={prescriptionTasks} prescriptionContents={prescriptionContents} encounters={trainingEncounters} onCheckIn={checkInAppointment} onOpenTreatment={openTreatmentRecord} onOpenTraining={(encounterId) => { setSelectedTrainingEncounterId(encounterId); setDoctorPage("training"); resetViewScroll(); }} />,
     videoConfig: <VideoLibraryPage role={role} videos={trainingVideos} setVideos={setTrainingVideos} />
   };
 

@@ -83,6 +83,10 @@ export type ManagedPatient = {
   reviewed_by: string;
   reviewed_at: string;
   record_status: "有效" | "已归档";
+  archive_status?: "active" | "archived";
+  archived_at?: string;
+  archived_by?: string;
+  archive_reason?: string;
   workflow_status: PatientRecordStatus;
   field_status: Record<string, FieldCollectionStatus>;
   name: string;
@@ -390,6 +394,7 @@ function prescriptionStatusText(status: PrescriptionTask["status"]) {
     pending_signature: "待签署",
     completed: "已完成",
     withdrawn: "已撤回",
+    archived: "已归档失效",
   }[status];
 }
 
@@ -424,7 +429,8 @@ export function PatientArchivePage({
   onSaveAssessment,
   onSaveFollowUpRecord,
   onDeleteFollowUpRecord,
-  onDeletePatients,
+  onArchivePatients,
+  onRestorePatients,
   onOpenPrescriptionTask,
   onCreatePrescription,
 }: {
@@ -466,7 +472,8 @@ export function PatientArchivePage({
   onSaveAssessment?: (record: AssessmentRecord) => void;
   onSaveFollowUpRecord?: (record: FollowUpRecord) => void;
   onDeleteFollowUpRecord?: (recordId: string) => void;
-  onDeletePatients?: (patientIds: string[]) => void;
+  onArchivePatients?: (patientIds: string[], reason: string) => Promise<void>;
+  onRestorePatients?: (patientIds: string[]) => Promise<void>;
   onOpenPrescriptionTask?: (taskId: string, patientId?: string) => void;
   onCreatePrescription?: (patientId: string) => void;
 }) {
@@ -530,6 +537,7 @@ export function PatientArchivePage({
     [patients, nameFilter, patientNoFilter, stageFilter, statusFilter],
   );
   const canEdit = role !== "DOCTOR";
+  const canArchive = role === "ADMIN";
   const canEditPatientProfile = canAccessAction(role, "EDIT");
   const canImportAssessment = canEditPatientProfile;
 
@@ -632,16 +640,29 @@ export function PatientArchivePage({
                 <button
                   type="button"
                   className="btn-secondary text-red-600 disabled:text-slate-300"
-                  disabled={!selectedPatientIds.length || !canEdit}
-                  onClick={() => {
-                    if (window.confirm(`确认删除已选择的 ${selectedPatientIds.length} 位患者？`)) {
-                      onDeletePatients?.(selectedPatientIds);
-                      setSelectedPatientIds([]);
-                    }
+                  disabled={!selectedPatientIds.length || !canArchive || selectedPatientIds.some((id) => patients.find((item) => item.patient_demo_id === id)?.record_status === "已归档")}
+                  onClick={async () => {
+                    const reason = window.prompt(`请输入归档 ${selectedPatientIds.length} 位患者的原因：`, "演示档案停用");
+                    if (!reason?.trim()) return;
+                    await onArchivePatients?.(selectedPatientIds, reason.trim());
+                    setSelectedPatientIds([]);
                   }}
                 >
                   <Trash2 className="h-4 w-4" />
-                  删除
+                  归档停用
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary disabled:text-slate-300"
+                  disabled={!selectedPatientIds.length || !canArchive || selectedPatientIds.some((id) => patients.find((item) => item.patient_demo_id === id)?.record_status !== "已归档")}
+                  onClick={async () => {
+                    if (!window.confirm(`恢复已选择的 ${selectedPatientIds.length} 位患者？旧处方、预约和登录会话不会恢复。`)) return;
+                    await onRestorePatients?.(selectedPatientIds);
+                    setSelectedPatientIds([]);
+                  }}
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  恢复档案
                 </button>
                 {canImportAssessment && <button
                   type="button"
@@ -744,14 +765,16 @@ export function PatientArchivePage({
               <span>{patient.rehab_stage}</span>
               <StatusBadge
                 tone={
-                  patient.patient_status === "recovered"
+                  patient.record_status === "已归档"
+                    ? "gray"
+                    : patient.patient_status === "recovered"
                     ? "green"
                     : patient.patient_status === "prescription_opened"
                       ? "orange"
                       : "blue"
                 }
               >
-                {statusLabels[patient.patient_status ?? "rehabilitation"]}
+                {patient.record_status === "已归档" ? "已归档" : statusLabels[patient.patient_status ?? "rehabilitation"]}
               </StatusBadge>
               <span>
                 {patient.patient_demo_id === "P-DEMO-001"

@@ -55,14 +55,16 @@ export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks
   onNavigate: (page: DoctorPageKey) => void;
 }) {
   const [rehabTaskTab, setRehabTaskTab] = useState<"appointments" | "followups">("appointments");
-  const pendingFollowUps = followUpTasks.filter((task) => isFollowUpVisibleInPending(task));
+  const activePatients = patients.filter((patient) => patient.record_status !== "已归档" && patient.archive_status !== "archived");
+  const activePatientIds = new Set(activePatients.map((patient) => patient.patient_demo_id));
+  const pendingFollowUps = followUpTasks.filter((task) => activePatientIds.has(task.patientId) && isFollowUpVisibleInPending(task));
   const patientMap = new Map(patients.map((patient) => [patient.patient_demo_id, patient]));
-  const pendingAlerts = alertEvents.filter((event) => event.status !== "closed");
-  const todayAppointments = appointments.filter((item) => item.date === currentShanghaiDate() && item.status !== "cancelled");
+  const pendingAlerts = alertEvents.filter((event) => activePatientIds.has(event.patientId) && event.status !== "closed");
+  const todayAppointments = appointments.filter((item) => activePatientIds.has(item.patientId) && item.date === currentShanghaiDate() && item.status !== "cancelled");
   if (role === "DOCTOR") {
-    const myTasks = prescriptionTasks.filter((task) => task.assignedDoctorId === accountId);
+    const myTasks = prescriptionTasks.filter((task) => activePatientIds.has(task.patientId) && task.assignedDoctorId === accountId && task.status !== "archived");
     const myPatientIds = new Set(myTasks.map((task) => task.patientId));
-    const pendingPrescriptions = myTasks.filter((task) => task.status !== "completed" && task.status !== "withdrawn");
+    const pendingPrescriptions = myTasks.filter((task) => !["completed", "withdrawn", "archived"].includes(task.status));
     const myPendingAlerts = pendingAlerts.filter((item) => myPatientIds.has(item.patientId) && item.status === "pending_doctor_review");
     const myAppointments = todayAppointments.filter((item) => item.doctorId === accountId);
     return <section data-testid="page-VIEW-DASHBOARD">
@@ -112,7 +114,7 @@ export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks
   return <section data-testid="page-VIEW-DASHBOARD">
     <PageHeader eyebrow="康复管理系统 · 管理视图" title="林管理员，上午好" description="查看系统运行和内容发布情况；管理员不能编辑治疗记录或代替康复师完成业务签署。" action={<StatusBadge tone="blue"><FileText className="h-3.5 w-3.5" />只读概览</StatusBadge>} />
     <div className="mb-5 grid grid-cols-5 gap-4">
-      <StatCard label="患者数据" value={String(patients.length)} note="OCR与人工核对" icon={<UsersRound className="h-5 w-5" />} />
+      <StatCard label="有效患者" value={String(activePatients.length)} note="归档患者不计入" icon={<UsersRound className="h-5 w-5" />} />
       <StatCard label="累计训练记录" value="42" note="设备与人工记录" icon={<Activity className="h-5 w-5" />} />
       <StatCard label="待生成阶段报告" value="3" note="选择具体训练记录" tone="orange" icon={<Sparkles className="h-5 w-5" />} />
       <StatCard label="平均完成率" value="83%" note="本月训练" tone="green" icon={<TrendingUp className="h-5 w-5" />} />

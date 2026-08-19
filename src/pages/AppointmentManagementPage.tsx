@@ -5,6 +5,8 @@ import type { Appointment, AppointmentStatus, PrescriptionTask } from "../clinic
 import type { PrescriptionContent } from "../prescriptionWorkspaceData";
 import { encounterStatusLabel, type TrainingEncounter } from "../trainingEncounterData";
 import type { StaffRole } from "../types";
+import type { ManagedPatient } from "./PatientArchivePage";
+import { validateAppointmentRecord } from "../clinicalStateApi";
 
 const statusLabel: Record<AppointmentStatus, string> = {
   pending: "待到诊",
@@ -30,6 +32,7 @@ type Props = {
   role: StaffRole;
   accountId: string;
   currentAccount: string;
+  patients: ManagedPatient[];
   appointments: Appointment[];
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
   prescriptionTasks: PrescriptionTask[];
@@ -40,7 +43,7 @@ type Props = {
   onOpenTraining: (encounterId: string) => void;
 };
 
-export function AppointmentManagementPage({ role, accountId, currentAccount, appointments, setAppointments, prescriptionTasks, prescriptionContents, encounters, onCheckIn, onOpenTreatment, onOpenTraining }: Props) {
+export function AppointmentManagementPage({ role, accountId, currentAccount, patients, appointments, setAppointments, prescriptionTasks, prescriptionContents, encounters, onCheckIn, onOpenTreatment, onOpenTraining }: Props) {
   const [activeView, setActiveView] = useState<AppointmentView>("schedule");
   const [selectedDate, setSelectedDate] = useState(() => currentShanghaiDate());
   const [editing, setEditing] = useState<Appointment | null>(null);
@@ -50,7 +53,8 @@ export function AppointmentManagementPage({ role, accountId, currentAccount, app
   const [recordStatus, setRecordStatus] = useState<"all" | AppointmentStatus>("all");
   const [recordDateFrom, setRecordDateFrom] = useState("");
   const [recordDateTo, setRecordDateTo] = useState("");
-  const signedPrescriptions = useMemo(() => prescriptionTasks.filter((item) => item.status === "completed" && item.doctorFinal), [prescriptionTasks]);
+  const activePatientIds = useMemo(() => new Set(patients.filter((item) => item.record_status !== "已归档" && item.archive_status !== "archived").map((item) => item.patient_demo_id)), [patients]);
+  const signedPrescriptions = useMemo(() => prescriptionTasks.filter((item) => activePatientIds.has(item.patientId) && item.status === "completed" && item.doctorFinal && item.signedAt), [prescriptionTasks, activePatientIds]);
   const visibleAppointments = useMemo(() => appointments.filter((item) => role !== "DOCTOR" || item.doctorId === accountId), [appointments, role, accountId]);
   const rows = useMemo(() => visibleAppointments.filter((item) => item.date === selectedDate), [visibleAppointments, selectedDate]);
   const recordRows = useMemo(() => {
@@ -141,11 +145,17 @@ export function AppointmentManagementPage({ role, accountId, currentAccount, app
     });
   }
 
-  function save() {
+  async function save() {
     if (!editing) return;
     if (!editing.patientId || !editing.patientName) { setError("请先通过姓名或患者编号选择预约患者。"); return; }
     const prescription = signedPrescriptions.find((item) => item.id === editing.prescriptionTaskId);
     if (!prescription) { setError("正式训练预约必须绑定一份已签署并生效的运动处方。"); return; }
+    try {
+      await validateAppointmentRecord(editing.patientId, prescription.id);
+    } catch (validationError) {
+      setError(validationError instanceof Error ? validationError.message : "患者或处方状态已变化，请刷新后重试。");
+      return;
+    }
     const original = appointments.find((item) => item.id === editing.id);
     const scheduleChanged = Boolean(original && (original.date !== editing.date || original.time !== editing.time));
     const expectedPrefix = `APT-${editing.date.replace(/-/g, "")}-`;

@@ -40,14 +40,40 @@ export async function fetchClinicalBootstrap() {
   }
 }
 
-export async function persistClinicalState(key: ClinicalStateKey, value: unknown) {
+export async function persistClinicalState(key: ClinicalStateKey, value: unknown, expectedVersion?: number) {
   const response = await fetch(apiUrl(`/api/state/${encodeURIComponent(key)}`), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ value })
+    body: JSON.stringify({ value, expectedVersion })
   });
-  if (!response.ok) throw new Error(`Failed to persist ${key}`);
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({})) as { message?: string };
+    throw new Error(result.message || `Failed to persist ${key}`);
+  }
   return await response.json() as ClinicalStateDocument;
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(apiUrl(path), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const result = await response.json().catch(() => ({})) as { message?: string };
+  if (!response.ok) throw new Error(result.message || `请求失败（${response.status}）`);
+  return result as T;
+}
+
+export function archivePatientRecord(patientId: string, actor: string, role: string, reason: string) {
+  return postJson<{ ok: true }>(`/api/patients/${encodeURIComponent(patientId)}/archive`, { actor, role, reason, source: "web" });
+}
+
+export function restorePatientRecord(patientId: string, actor: string, role: string) {
+  return postJson<{ ok: true }>(`/api/patients/${encodeURIComponent(patientId)}/restore`, { actor, role, reason: "管理员恢复演示档案", source: "web" });
+}
+
+export function validateAppointmentRecord(patientId: string, prescriptionId: string) {
+  return postJson<{ valid: true }>("/api/appointments/validate", { patientId, prescriptionId });
 }
 
 export function subscribeClinicalState(onDocument: (document: ClinicalStateDocument) => void) {

@@ -9,7 +9,8 @@ const statusLabel: Record<PrescriptionStatus, string> = {
   pending_review: "待复核",
   pending_signature: "待签署",
   completed: "已完成",
-  withdrawn: "已撤回"
+  withdrawn: "已撤回",
+  archived: "已归档失效"
 };
 
 type StatusFilter = PrescriptionStatus | "all" | "unfinished";
@@ -27,7 +28,7 @@ export function PrescriptionManagementPage({ role, accountId, tasks, initialStat
   const [doctorId, setDoctorId] = useState(role === "DOCTOR" ? accountId : "all");
   const [status, setStatus] = useState<StatusFilter>(initialStatus);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const pendingCount = tasks.filter((item) => item.status !== "completed" && item.status !== "withdrawn" && (role !== "DOCTOR" || item.assignedDoctorId === accountId)).length;
+  const pendingCount = tasks.filter((item) => !["completed", "withdrawn", "archived"].includes(item.status) && (role !== "DOCTOR" || item.assignedDoctorId === accountId)).length;
   const completedCount = tasks.filter((item) => item.status === "completed" && (role !== "DOCTOR" || item.assignedDoctorId === accountId)).length;
 
   useEffect(() => setStatus(initialStatus), [initialStatus]);
@@ -38,7 +39,7 @@ export function PrescriptionManagementPage({ role, accountId, tasks, initialStat
     if (doctorId !== "all" && item.assignedDoctorId !== doctorId) return false;
     if (patientNo && !item.patientNo.toLowerCase().includes(patientNo.trim().toLowerCase())) return false;
     if (prescriptionNo && !item.prescriptionNo.toLowerCase().includes(prescriptionNo.trim().toLowerCase())) return false;
-    if (status === "unfinished") return item.status !== "completed" && item.status !== "withdrawn";
+    if (status === "unfinished") return !["completed", "withdrawn", "archived"].includes(item.status);
     return status === "all" || item.status === status;
   }), [accountId, doctorId, patientNo, prescriptionNo, role, status, tasks]);
 
