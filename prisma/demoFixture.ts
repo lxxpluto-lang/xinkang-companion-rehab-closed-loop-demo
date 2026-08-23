@@ -1,3 +1,5 @@
+import { localTrainingVideoDefinitions, localTrainingVideoUrl } from "../trainingVideoCatalog.js";
+
 const shanghaiParts = () => Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false
 }).formatToParts(new Date()).map((part) => [part.type, part.value]));
@@ -13,6 +15,20 @@ const exerciseItems = [
   { category: "抗阻训练", project: "哑铃力量", exerciseKey: "dumbbell", intensity: "每个动作2组，每组10次", duration: "15分钟", frequency: "2次/周", reason: "维持上肢与核心肌力" },
   { category: "柔韧性训练", project: "全身柔韧训练", exerciseKey: "flexibility", intensity: "无痛舒适范围", duration: "10分钟", frequency: "每次训练后", reason: "促进放松并维持关节活动度" }
 ];
+
+const legacyTrainingVideoFixtures = [
+  { id: "VIDEO-BIKE-LOCAL-001", title: "云逛魔都 4K HDR｜沉浸式滨江骑行", category: "有氧运动", subtype: "功率车", source: "local", url: "/training-videos/%E4%BA%91%E9%80%9B%E9%AD%94%E9%83%BD%204K%20HDR%20%EF%BD%9C%20%E6%B2%89%E6%B5%B8%E5%BC%8F%E4%BD%93%E9%AA%8C%E9%99%86%E5%AE%B6%E5%98%B4%E6%B1%80%E6%BB%A8%E6%B1%9F%E9%AA%91%E8%A1%8C%EF%BC%9A%E5%8D%97%E6%B5%A6%E5%A4%A7%E6%A1%A5%E5%88%B0%E6%9D%A8%E6%B5%A6%E5%A4%A7%E6%A1%A5%20%5BBV1HKgX6LEe1%5D.mp4", status: "PUBLISHED", fileSize: "870 MB", updatedBy: "本地视频目录" },
+  { id: "VIDEO-BIKE-LOCAL-002", title: "前滩夏日傍晚骑行", category: "有氧运动", subtype: "功率车", source: "local", url: "/training-videos/%E4%BA%91%E9%80%9B%E9%AD%94%E9%83%BD%204K%20HDR%20%EF%BD%9C%20%E5%89%8D%E6%BB%A9%E5%A4%8F%E6%97%A5%E7%9A%84%E5%82%8D%E6%99%9A%EF%BC%9A%E4%BB%8E%E7%B9%81%E5%8D%8E%E7%9A%84%E5%A4%AA%E5%8F%A4%E9%87%8C%E5%88%B0%E9%9D%99%E8%AC%90%E6%B1%9F%E6%BB%A8%E7%BB%BF%E9%81%93%20%5BBV1HKKt6eEdh%5D.mp4", status: "PUBLISHED", fileSize: "983 MB", updatedBy: "本地视频目录" },
+  { id: "VIDEO-BREATH-LOCAL-001", title: "腹式呼吸指导", category: "呼吸训练", subtype: "腹式呼吸", source: "local", url: "/training-videos/%E8%85%B9%E5%BC%8F%E5%91%BC%E5%90%B8_BV1Av4y1p7SL.mp4", status: "PUBLISHED", fileSize: "21 MB", updatedBy: "本地视频目录" },
+  { id: "VIDEO-BADUANJIN-LOCAL-001", title: "八段锦康复跟练", category: "中医运动", subtype: "八段锦", source: "local", url: "/training-videos/%E5%85%AB%E6%AE%B5%E9%94%A6_BV1gT4y1m7ec.mp4", status: "PUBLISHED", fileSize: "75 MB", updatedBy: "本地视频目录" }
+];
+
+const trainingVideoFixtures = localTrainingVideoDefinitions.map((video) => ({
+  ...video,
+  source: "local",
+  url: localTrainingVideoUrl(video.fileName),
+  status: "PUBLISHED"
+}));
 
 function patient(id: string, patientNo: string, name: string, age: number, risk: string, workflow: string) {
   const now = new Date().toISOString();
@@ -143,7 +159,7 @@ export function createDemoFixture() {
   ];
   const encounters = [
     encounter("ENC-SEED-004", appointments[1], rxArrived, "pre_assessment", ["pending", "pending", "pending", "pending"]),
-    encounter("ENC-SEED-005", appointments[2], rxTraining, "in_training", ["completed", "in_progress", "pending", "pending"]),
+    encounter("ENC-SEED-005", appointments[2], rxTraining, "in_training", ["pending", "in_progress", "pending", "pending"]),
     encounter("ENC-SEED-006", appointments[3], rxCompleted, "completed", ["completed", "completed", "completed", "completed"])
   ];
   appointments.slice(1).forEach((apt, index) => Object.assign(apt, { encounterId: encounters[index].encounterId }));
@@ -211,7 +227,7 @@ export function createDemoFixture() {
     "xinkang-followup-records": [],
     "xinkang-patient-clinical-profiles": profiles,
     "xinkang-clinical-narratives": [],
-    "xinkang-training-videos": []
+    "xinkang-training-videos": trainingVideoFixtures
   };
   return { date, time, patients, prescriptions, appointments, encounters, alert, followUp, documents };
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, Calculator, CheckCircle2, FileImage, Files, PenLine, Printer, Save, ScanLine, X } from "lucide-react";
-import { calculateSppb, createBlankSppb, hasSppbInput, type AssessmentRecord } from "../assessmentData";
+import { calculateSppb, createBlankSppb, hasSppbInput, normalizeAssessmentRecord, type AssessmentRecord } from "../assessmentData";
 import { canActAs } from "../accessControl";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { StaffRole } from "../types";
@@ -20,10 +20,10 @@ export function AssessmentWorkspacePage({ role, currentAccount, patients, record
   onBack: () => void;
 }) {
   const patient = patients.find((item) => item.patient_demo_id === initialPatientId) ?? patients[0];
-  const patientRecords = useMemo(() => records.filter((item) => item.patientId === patient.patient_demo_id).sort((a, b) => b.assessedAt.localeCompare(a.assessedAt)), [patient.patient_demo_id, records]);
+  const patientRecords = useMemo(() => records.filter((item) => item.patientId === patient.patient_demo_id).sort((a, b) => String(b.assessedAt ?? "").localeCompare(String(a.assessedAt ?? ""))), [patient.patient_demo_id, records]);
   const initialRecord = patientRecords.find((item) => item.assessmentId === initialRecordId);
   const [mode, setMode] = useState<Mode>(initialRecord?.source === "ocr_batch" ? "batch_ocr" : initialRecord?.source === "ocr_single" ? "single_ocr" : "manual");
-  const [draft, setDraft] = useState<AssessmentRecord>(() => cloneRecord(initialRecord ?? createBlankSppb(patient, patientRecords.length + 1, currentAccount)));
+  const [draft, setDraft] = useState<AssessmentRecord>(() => normalizeAssessmentRecord(initialRecord ?? {}, createBlankSppb(patient, patientRecords.length + 1, currentAccount)));
   const [ruleOpen, setRuleOpen] = useState(false);
   const [message, setMessage] = useState("");
   const canEnterAssessment = canActAs(role, "REHAB_EXECUTION");
@@ -76,7 +76,7 @@ export function AssessmentWorkspacePage({ role, currentAccount, patients, record
           {message && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-[10px] leading-5 text-amber-800">{message}</p>}
         </section>
         <section className="card p-4"><SectionHeader title="历史评估" />
-          <div className="space-y-2">{patientRecords.map((record) => <button key={record.assessmentId} type="button" onClick={() => setDraft(cloneRecord(record))} className="w-full rounded-xl border border-slate-200 p-3 text-left hover:border-blue-300"><div className="flex justify-between"><b className="text-xs">第{record.attemptNo}次 SPPB</b><StatusBadge tone={record.status === "completed" ? "green" : "gray"}>{record.status === "completed" ? "已完成" : "草稿"}</StatusBadge></div><p className="mt-1 text-[10px] text-slate-500">{record.assessedAt.slice(0, 10)} · {hasSppbInput(record.sppb) ? `${record.sppb.totalScore}/12分` : "未采集"}</p></button>)}</div>
+          <div className="space-y-2">{patientRecords.map((record) => <button key={record.assessmentId} type="button" onClick={() => setDraft(normalizeAssessmentRecord(record, createBlankSppb(patient, record.attemptNo || 1, currentAccount)))} className="w-full rounded-xl border border-slate-200 p-3 text-left hover:border-blue-300"><div className="flex justify-between"><b className="text-xs">第{record.attemptNo || 1}次 SPPB</b><StatusBadge tone={record.status === "completed" ? "green" : "gray"}>{record.status === "completed" ? "已完成" : "草稿"}</StatusBadge></div><p className="mt-1 text-[10px] text-slate-500">{String(record.assessedAt ?? "").slice(0, 10) || "未提供日期"} · {record.sppb && hasSppbInput(record.sppb) ? `${record.sppb.totalScore}/12分` : "未采集"}</p></button>)}</div>
         </section>
       </aside>
       <AssessmentForm draft={draft} disabled={disabled} onChange={setDraft} onSave={save} ruleOpen={ruleOpen} setRuleOpen={setRuleOpen} />
@@ -204,4 +204,3 @@ function MuscleStrengthSelect({ label, value, disabled, onChange }: { label: str
 function ModeButton({ active, icon: Icon, title, note, onClick }: { active: boolean; icon: typeof Files; title: string; note: string; onClick: () => void }) { return <button type="button" onClick={onClick} className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left ${active ? "border-blue-300 bg-blue-50 text-blue-800" : "border-slate-200 hover:border-blue-200"}`}><Icon className="h-5 w-5" /><span><b className="block text-xs">{title}</b><span className="text-[10px] opacity-70">{note}</span></span></button>; }
 function Score({ value, label = "得分" }: { value: number; label?: string }) { return <div className="rounded-lg bg-emerald-50 p-2 text-center font-bold text-emerald-700">{label} {value}</div>; }
 function RulePanel({ onClose }: { onClose: () => void }) { const groups = [{title:"平衡测试",rows:[["双脚合并站立","≥10秒","1分"],["半前后站立","≥10秒","1分"],["双脚前后站立","≥10秒 / 3–9.99秒 / <3秒","2分 / 1分 / 0分"]]},{title:"4米步行",rows:[["最快用时","<4.82秒","4分"],["最快用时","4.82–6.20秒","3分"],["最快用时","6.21–8.70秒","2分"],["最快用时",">8.70秒","1分"],["完成情况","无法步行","0分"]]},{title:"椅子坐立",rows:[["完成用时","<11.19秒","4分"],["完成用时","11.20–13.69秒","3分"],["完成用时","13.70–16.69秒","2分"],["完成用时",">16.70秒","1分"],["完成情况",">60秒或不能完成","0分"]]}]; return <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 p-6" onMouseDown={onClose}><section className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl" onMouseDown={(event)=>event.stopPropagation()}><header className="sticky top-0 flex items-center justify-between border-b bg-white px-6 py-4"><div><p className="text-[10px] font-bold text-amber-700">评分依据</p><h2 className="mt-1 text-xl font-bold">SPPB得分换算表</h2></div><button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2"><X className="h-5 w-5" /></button></header><div className="space-y-5 p-6">{groups.map((group)=><section key={group.title} className="overflow-hidden rounded-xl border border-slate-200"><h3 className="bg-slate-50 px-4 py-3 text-sm font-bold">{group.title}</h3><div className="grid grid-cols-[1fr_1.4fr_0.6fr] bg-white px-4 py-2 text-[10px] font-bold text-slate-400"><span>项目</span><span>判定条件</span><span>得分</span></div>{group.rows.map((row,index)=><div key={`${group.title}-${index}`} className="grid grid-cols-[1fr_1.4fr_0.6fr] border-t border-slate-100 px-4 py-3 text-xs"><span>{row[0]}</span><span>{row[1]}</span><b>{row[2]}</b></div>)}</section>)}<p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-900">演示换算规则，正式临床评分口径需由专业人员确认。缺失值保持为空，不按0参与换算。</p></div></section></div>; }
-function cloneRecord(record: AssessmentRecord): AssessmentRecord { return JSON.parse(JSON.stringify(record)) as AssessmentRecord; }

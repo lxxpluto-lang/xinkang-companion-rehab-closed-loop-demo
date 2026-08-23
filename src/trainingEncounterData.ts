@@ -121,6 +121,19 @@ export type TrainingEncounter = {
   updatedAt: string;
 };
 
+export function partitionTrainingEncounters(encounters: TrainingEncounter[]) {
+  const byLatestUpdate = (a: TrainingEncounter, b: TrainingEncounter) => b.updatedAt.localeCompare(a.updatedAt);
+
+  return {
+    active: encounters
+      .filter((item) => !["completed", "cancelled", "no_show"].includes(item.status))
+      .sort(byLatestUpdate),
+    completed: encounters
+      .filter((item) => item.status === "completed")
+      .sort(byLatestUpdate),
+  };
+}
+
 export const initialTrainingEncounters: TrainingEncounter[] = [
   {
     encounterId: "ENC-APT-001",

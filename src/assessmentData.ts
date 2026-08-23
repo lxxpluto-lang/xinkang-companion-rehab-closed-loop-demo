@@ -141,6 +141,26 @@ export function createBlankSppb(patient: ManagedPatient, attemptNo: number, acto
   };
 }
 
+export function normalizeAssessmentRecord(record: Partial<AssessmentRecord>, fallback: AssessmentRecord): AssessmentRecord {
+  return {
+    ...fallback,
+    ...record,
+    patientSnapshot: { ...fallback.patientSnapshot, ...(record.patientSnapshot ?? {}) },
+    preVitals: { ...fallback.preVitals, ...(record.preVitals ?? {}) },
+    postVitals: { ...fallback.postVitals, ...(record.postVitals ?? {}) },
+    sppb: {
+      ...fallback.sppb,
+      ...(record.sppb ?? {}),
+      balance: { ...fallback.sppb.balance, ...(record.sppb?.balance ?? {}) },
+      walk4m: { ...fallback.sppb.walk4m, ...(record.sppb?.walk4m ?? {}) },
+      chairStand: { ...fallback.sppb.chairStand, ...(record.sppb?.chairStand ?? {}) },
+      maxWalkingSpeedMs: { ...fallback.sppb.maxWalkingSpeedMs, ...(record.sppb?.maxWalkingSpeedMs ?? {}) },
+      grip: { ...fallback.sppb.grip, ...(record.sppb?.grip ?? {}) },
+      muscleStrength: { ...fallback.sppb.muscleStrength, ...(record.sppb?.muscleStrength ?? {}) },
+    },
+  };
+}
+
 export function createDemoAssessmentRecords(patients: ManagedPatient[]): AssessmentRecord[] {
   const patient = patients.find((item) => item.patient_demo_id === "P-DEMO-001");
   if (!patient) return [] as AssessmentRecord[];

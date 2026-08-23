@@ -286,7 +286,8 @@ async function syncTreatments(prisma: DbClient, value: unknown) {
     const encounterId = String(record.encounterId ?? "");
     if (!id || !encounterId || !await prisma.trainingEncounter.findUnique({ where: { id: encounterId }, select: { id: true } })) continue;
     const phase = record.status === "completed" ? "post" : "pre";
-    await prisma.treatmentAssessment.upsert({ where: { encounterId_phase: { encounterId, phase } }, update: { status: String(record.status ?? "draft"), operator: String(record.therapist ?? record.enteredBy ?? "") || null, signedAt: record.signature?.signedAt ? dateOrNow(record.signature.signedAt) : null, payload: asJson(record) }, create: { id, encounterId, phase, status: String(record.status ?? "draft"), operator: String(record.therapist ?? record.enteredBy ?? "") || null, signedAt: record.signature?.signedAt ? dateOrNow(record.signature.signedAt) : null, payload: asJson(record) } });
+    const assessmentId = phase === "post" ? `${id}-POST` : id;
+    await prisma.treatmentAssessment.upsert({ where: { encounterId_phase: { encounterId, phase } }, update: { status: String(record.status ?? "draft"), operator: String(record.therapist ?? record.enteredBy ?? "") || null, signedAt: record.signature?.signedAt ? dateOrNow(record.signature.signedAt) : null, payload: asJson(record) }, create: { id: assessmentId, encounterId, phase, status: String(record.status ?? "draft"), operator: String(record.therapist ?? record.enteredBy ?? "") || null, signedAt: record.signature?.signedAt ? dateOrNow(record.signature.signedAt) : null, payload: asJson(record) } });
   }
 }
 

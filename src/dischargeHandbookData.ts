@@ -57,6 +57,23 @@ export type RehabReport = {
   publishedAt?: string;
 };
 
+export function shanghaiDate(value = new Date().toISOString()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+export function reportDischargeDate(report: RehabReport, eventAt = report.publishedAt ?? report.generatedAt) {
+  return report.dischargeDate?.trim()
+    || report.patientNarrative?.dischargeDate?.trim()
+    || shanghaiDate(eventAt);
+}
+
 export const demoDischargeHandbook: DischargeHandbook = {
   handbookNo: "CRH-DH-20260802-0001",
   patientId: "P-DEMO-001",

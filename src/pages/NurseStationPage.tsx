@@ -5,7 +5,7 @@ import { PageHeader, SectionHeader, StatCard, StatusBadge } from "../components/
 import type { Appointment, AlertEvent, PrescriptionTask } from "../clinicalWorkflowData";
 import { createStoredTrainingSession, type StoredSingleReport, type StoredStageReport, type StoredTrainingSession } from "../reportData";
 import type { CardiopulmonaryTreatmentRecord } from "../treatmentData";
-import { encounterStatusLabel, type ExecutionAdjustment, type LiveTrainingAlert, type LiveTrainingMetrics, type TrainingEncounter } from "../trainingEncounterData";
+import { encounterStatusLabel, partitionTrainingEncounters, type ExecutionAdjustment, type LiveTrainingAlert, type LiveTrainingMetrics, type TrainingEncounter } from "../trainingEncounterData";
 import type { Role } from "../types";
 import type { ManagedPatient } from "./PatientArchivePage";
 import { listDeviceHandoffs, normalizeDeviceLoginCode, readDeviceHandoff, updateDeviceHandoff, type DeviceHandoff } from "../deviceHandoffData";
@@ -35,10 +35,15 @@ type Props = {
 const adjustmentReasons: ExecutionAdjustment["reason"][] = ["患者当日状态", "设备适配", "现场反应", "康复师评估", "其他"];
 
 export function NurseStationPage({ role, currentAccount = "周康复师", encounters, appointments, patients, prescriptions, treatmentRecords, trainingSessions = [], singleReports = [], stageReports = [], initialEncounterId, onUpdateEncounter, onImportHandoff, onPublishHandoff, onSaveTrainingSession, onCreateAlert, onOpenTreatment, onGenerateStageReport }: Props) {
-  const executableEncounters = useMemo(() => encounters.filter((item) => !["completed", "cancelled", "no_show"].includes(item.status)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [encounters]);
-  const firstReady = executableEncounters.find((item) => ["ready_for_device", "device_ready", "in_training", "paused", "awaiting_next_task", "post_assessment"].includes(item.status));
-  const [activeEncounterId, setActiveEncounterId] = useState(initialEncounterId ?? firstReady?.encounterId ?? executableEncounters[0]?.encounterId ?? "");
-  const activeEncounter = executableEncounters.find((item) => item.encounterId === activeEncounterId) ?? firstReady ?? executableEncounters[0];
+  const encounterGroups = useMemo(() => partitionTrainingEncounters(encounters), [encounters]);
+  const initialEncounterIsCompleted = Boolean(initialEncounterId && encounterGroups.completed.some((item) => item.encounterId === initialEncounterId));
+  const [taskView, setTaskView] = useState<"active" | "completed">(initialEncounterIsCompleted ? "completed" : "active");
+  const visibleEncounters = taskView === "active" ? encounterGroups.active : encounterGroups.completed;
+  const firstReady = encounterGroups.active.find((item) => ["ready_for_device", "device_ready", "in_training", "paused", "awaiting_next_task", "post_assessment"].includes(item.status));
+  const [activeEncounterId, setActiveEncounterId] = useState(initialEncounterId ?? firstReady?.encounterId ?? encounterGroups.active[0]?.encounterId ?? encounterGroups.completed[0]?.encounterId ?? "");
+  const activeEncounter = visibleEncounters.find((item) => item.encounterId === activeEncounterId)
+    ?? (taskView === "active" ? firstReady : undefined)
+    ?? visibleEncounters[0];
   const activePatient = patients.find((item) => item.patient_demo_id === activeEncounter?.patientId);
   const activeAppointment = appointments.find((item) => item.id === activeEncounter?.appointmentId);
   const activePrescription = prescriptions.find((item) => item.id === activeEncounter?.prescriptionTaskId);
@@ -84,20 +89,29 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
   }, []);
 
   useEffect(() => {
-    const newestActive = executableEncounters.find((item) => ["in_training", "paused"].includes(item.status));
+    if (taskView !== "active") return;
+    const newestActive = encounterGroups.active.find((item) => ["in_training", "paused"].includes(item.status));
     if (!newestActive || newestActive.encounterId === activeEncounterId) return;
-    const selected = executableEncounters.find((item) => item.encounterId === activeEncounterId);
+    const selected = encounterGroups.active.find((item) => item.encounterId === activeEncounterId);
     const selectedIsCurrentWorkflow = selected && ["ready_for_device", "device_ready", "in_training", "paused", "awaiting_next_task", "post_assessment"].includes(selected.status);
     if (!selectedIsCurrentWorkflow) {
       chooseEncounter(newestActive);
     }
-  }, [executableEncounters]);
+  }, [encounterGroups.active, taskView]);
 
   useEffect(() => {
     if (!initialEncounterId || initialEncounterId === activeEncounterId) return;
-    const requested = executableEncounters.find((item) => item.encounterId === initialEncounterId);
-    if (requested) chooseEncounter(requested);
-  }, [initialEncounterId, executableEncounters]);
+    const requested = encounters.find((item) => item.encounterId === initialEncounterId);
+    if (requested) {
+      setTaskView(requested.status === "completed" ? "completed" : "active");
+      chooseEncounter(requested);
+    }
+  }, [initialEncounterId, encounters]);
+
+  useEffect(() => {
+    const selected = encounters.find((item) => item.encounterId === activeEncounterId);
+    if (selected?.status === "completed" && taskView !== "completed") setTaskView("completed");
+  }, [encounters, activeEncounterId, taskView]);
 
   useEffect(() => {
     if (!activeEncounter) return;
@@ -335,6 +349,13 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
     setEndDayOpen(true);
   }
 
+  function changeTaskView(nextView: "active" | "completed") {
+    setTaskView(nextView);
+    const nextEncounter = (nextView === "active" ? encounterGroups.active : encounterGroups.completed)[0];
+    if (nextEncounter) chooseEncounter(nextEncounter);
+    else setActiveEncounterId("");
+  }
+
   const overviewMetrics = <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
     <StatCard label="待设备登录" value={String(encounters.filter((item) => item.status === "ready_for_device").length)} icon={<IdCard className="h-4 w-4" />} />
     <StatCard label="训练中" value={String(inTrainingCount)} tone="green" icon={<Activity className="h-4 w-4" />} />
@@ -343,7 +364,17 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
     <StatCard label="完成训练" value={String(completedTrainingCount)} tone="green" icon={<CheckCircle2 className="h-4 w-4" />} />
   </div>;
 
-  if (!activeEncounter) return <section data-testid="page-VIEW-NURSE-STATION"><PageHeader eyebrow={role === "ADMIN" ? "管理员操作 · 全权限监护屏" : role === "REHAB_EXECUTION" ? "康复师操作 · 训练监护屏" : "医生监护 · 可暂停或结束当前项目"} title="训练设备端" description="已完成训练不在任务区保留，完成场次统一累计到顶部指标。" action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />{overviewMetrics}<section className="card p-12 text-center text-sm text-slate-500">当前没有待执行的院内训练任务</section></section>;
+  const taskListPanel = <section className="card overflow-hidden" data-testid="inpatient-training-task-list">
+    <div className="border-b px-5 py-4"><SectionHeader title="院内训练任务" description="训练后评估完成前归入进行中；评估完成并锁定后自动移入已完成。" /></div>
+    <div className="grid grid-cols-2 border-b border-slate-100 bg-slate-50 p-1.5" role="tablist" aria-label="院内训练任务筛选">
+      <button type="button" role="tab" aria-selected={taskView === "active"} onClick={() => changeTaskView("active")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-bold ${taskView === "active" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>进行中<span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">{encounterGroups.active.length}</span></button>
+      <button type="button" role="tab" aria-selected={taskView === "completed"} onClick={() => changeTaskView("completed")} className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-bold ${taskView === "completed" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>已完成<span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700">{encounterGroups.completed.length}</span></button>
+    </div>
+    <div className="divide-y divide-slate-100">{visibleEncounters.map((item) => <button type="button" key={item.encounterId} onClick={() => chooseEncounter(item)} className={`grid w-full grid-cols-[1fr_auto] items-center gap-3 px-5 py-4 text-left ${item.encounterId === activeEncounter?.encounterId ? "bg-blue-50" : "hover:bg-slate-50"}`}><div><div className="flex items-center gap-2"><b className="text-sm text-slate-900">{item.patientName}</b><span className="font-mono text-[10px] text-slate-400">{item.patientNo}</span></div><p className="mt-1 text-xs text-slate-500">{item.project} · {item.station} · 处方{item.prescriptionVersion}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{item.encounterId}</p></div><StatusBadge tone={item.status === "completed" ? "green" : item.status === "paused" || item.status === "terminated" ? "red" : "orange"}>{encounterStatusLabel[item.status]}</StatusBadge></button>)}</div>
+    {!visibleEncounters.length && <div className="px-5 py-12 text-center text-sm text-slate-400">{taskView === "active" ? "当前没有进行中的院内训练" : "当前还没有已完成的训练记录"}</div>}
+  </section>;
+
+  if (!activeEncounter) return <section data-testid="page-VIEW-NURSE-STATION"><PageHeader eyebrow={role === "ADMIN" ? "管理员操作 · 全权限监护屏" : role === "REHAB_EXECUTION" ? "康复师操作 · 训练监护屏" : "医生监护 · 可暂停或结束当前项目"} title="训练设备端" description="训练任务按进行中与已完成分组，完成训练后评估后自动归档到已完成。" action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />{overviewMetrics}<div className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">{taskListPanel}<section className="card flex min-h-56 items-center justify-center p-12 text-center text-sm text-slate-500">请从左侧切换任务状态并选择患者</section></div></section>;
 
   const sessionSummary = lastSession ? { outcome: lastSession.terminatedEarly ? "terminated" as const : "completed" as const, activeMinutes: lastSession.activeMinutes, averageHeartRate: lastSession.avgHr, peakHeartRate: lastSession.peakHr, minimumSpo2: lastSession.minSpo2, averagePower: lastSession.avgPower, pauses: lastSession.pauses, safetySummary: lastSession.safetyEvents.join("；") || "无异常", generatedAt: lastSession.recordedAt ?? "" } : undefined;
   const displaySummary = activeEncounter.status === "completed" ? sessionSummary ?? activeEncounter.immediateSummary : activeEncounter.immediateSummary ?? sessionSummary;
@@ -354,7 +385,7 @@ export function NurseStationPage({ role, currentAccount = "周康复师", encoun
     <PageHeader eyebrow={role === "ADMIN" ? "管理员操作 · 全权限监护屏" : role === "REHAB_EXECUTION" ? "康复师操作 · 训练监护屏" : "医生监护 · 可暂停或结束当前项目"} title="训练设备端" description="固定患者号只负责识别患者，系统自动匹配其当天已完成训练前评估的唯一任务。" action={<StatusBadge tone="green"><Radio className="h-3.5 w-3.5" />设备数据连接正常</StatusBadge>} />
     {overviewMetrics}
     <div className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
-      <section className="card overflow-hidden"><div className="border-b px-5 py-4"><SectionHeader title="院内训练任务" description="来源于预约到诊和训练前评估，不在设备端临时新建患者。" /></div><div className="divide-y divide-slate-100">{executableEncounters.map((item) => <button type="button" key={item.encounterId} onClick={() => chooseEncounter(item)} className={`grid w-full grid-cols-[1fr_auto] items-center gap-3 px-5 py-4 text-left ${item.encounterId === activeEncounter.encounterId ? "bg-blue-50" : "hover:bg-slate-50"}`}><div><div className="flex items-center gap-2"><b className="text-sm text-slate-900">{item.patientName}</b><span className="font-mono text-[10px] text-slate-400">{item.patientNo}</span></div><p className="mt-1 text-xs text-slate-500">{item.project} · {item.station} · 处方{item.prescriptionVersion}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{item.encounterId}</p></div><StatusBadge tone={item.status === "completed" ? "green" : item.status === "paused" || item.status === "terminated" ? "red" : "orange"}>{encounterStatusLabel[item.status]}</StatusBadge></button>)}</div></section>
+      {taskListPanel}
       <div className="space-y-4">
         {Boolean(activeEncounter.dailyTrainingTasks?.length) && <DailyTaskProgress encounter={activeEncounter} canEnd={canExecute && !["post_assessment", "pending_signature", "completed", "terminated"].includes(activeEncounter.status)} canControl={canControl} onTogglePause={toggleRemotePause} onQuickComplete={quickCompleteActiveTask} onEnd={() => { setEndDayDestination("summary"); setEndDayOpen(true); }} onGenerateReport={() => onGenerateStageReport(activeEncounter.patientId, activeEncounter.prescriptionTaskId)} onOpenAssessment={openPostAssessment} />}
         {step === "login" && <section className="card overflow-hidden" data-testid="device-login-panel"><div className="flex items-start justify-between border-b px-6 py-5"><div><p className="eyebrow">{activeEncounter.patientName} · 本次设备准备</p><h2 className="mt-1 text-xl font-bold">患者正在完成训练设备准备</h2><p className="mt-2 text-sm text-slate-500">患者端操作进度会自动同步到此处，无需在训练大屏重复输入患者号。</p></div><button type="button" onClick={() => setHandoffOpen(true)} aria-label="查看患者登录信息" title="查看患者登录信息" className="flex h-10 w-10 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700"><IdCard className="h-5 w-5" /></button></div><div className="grid gap-0 p-6 md:grid-cols-3"><HandoffStage icon={Smartphone} index="1" title="登录训练设备" detail={activeEncounter.deviceLoggedInAt ? `已核验 ${activeEncounter.patientNo}` : `等待输入 ${deviceLoginCode}`} completed={Boolean(activeEncounter.deviceLoggedInAt)} active={!activeEncounter.deviceLoggedInAt} /><HandoffStage icon={UserRound} index="2" title="穿戴监测设备" detail={activeEncounter.wearableConnectedAt ? "监测背包已连接" : "等待穿戴并连接背包"} completed={Boolean(activeEncounter.wearableConnectedAt)} active={Boolean(activeEncounter.deviceLoggedInAt && !activeEncounter.wearableConnectedAt)} /><HandoffStage icon={Bike} index="3" title="连接训练器械" detail={activeEncounter.trainingDeviceConnectedAt ? `${activeEncounter.station} 已连接` : `等待连接 ${activeEncounter.station}`} completed={Boolean(activeEncounter.trainingDeviceConnectedAt)} active={Boolean(activeEncounter.wearableConnectedAt && !activeEncounter.trainingDeviceConnectedAt)} /></div><div className="border-t bg-slate-50 px-6 py-4 text-xs text-slate-500"><b className="text-slate-800">本次任务：</b>{activeEncounter.project} · {activeEncounter.station} · 处方{activeEncounter.prescriptionVersion} · {activeEncounter.encounterId}</div></section>}

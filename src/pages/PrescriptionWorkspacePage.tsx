@@ -24,11 +24,11 @@ import type { RehabReport } from "../dischargeHandbookData";
 import type { AssessmentRecord } from "../assessmentData";
 import type { CardiopulmonaryTreatmentRecord } from "../treatmentData";
 import type { FollowUpRecord } from "../followUpData";
-import type { PatientClinicalProfile, PrescriptionContent } from "../prescriptionWorkspaceData";
-import { type PrescriptionDraft, type PrescriptionStatus, type PrescriptionTask } from "../clinicalWorkflowData";
+import { defaultPrescriptionContent, type PatientClinicalProfile, type PrescriptionContent } from "../prescriptionWorkspaceData";
+import { type PrescriptionDraft, type PrescriptionItem, type PrescriptionStatus, type PrescriptionTask } from "../clinicalWorkflowData";
 import type { StaffRole } from "../types";
 import { PatientRehabReport } from "../patient/PatientApp";
-import type { StoredSingleReport, StoredStageReport } from "../reportData";
+import { displayClinicalMetric, type StoredSingleReport, type StoredStageReport } from "../reportData";
 
 export type PrescriptionWorkspaceTab = "profile" | "current" | "history" | "reports" | "rehab";
 
@@ -62,6 +62,51 @@ function cloneContent(content: PrescriptionContent): PrescriptionContent {
   };
 }
 
+const contentArrayKeys: (keyof PrescriptionContent)[] = [
+  "rehabGoals",
+  "breathingModes",
+  "warmupModes",
+  "aerobicModes",
+  "resistanceModes",
+  "flexibilityModes",
+  "inheritedFields",
+];
+
+function normalizeContent(value: Partial<PrescriptionContent> | undefined): PrescriptionContent {
+  const next = { ...defaultPrescriptionContent, ...(value ?? {}) } as PrescriptionContent;
+  contentArrayKeys.forEach((key) => {
+    if (!Array.isArray(next[key])) (next as unknown as Record<string, unknown>)[key] = [...(defaultPrescriptionContent[key] as string[])];
+  });
+  return next;
+}
+
+const prescriptionCategories: PrescriptionItem["category"][] = ["呼吸训练", "热身运动", "有氧运动", "抗阻训练", "柔韧性训练"];
+function normalizeCategory(value: unknown): PrescriptionItem["category"] {
+  return prescriptionCategories.includes(value as PrescriptionItem["category"]) ? value as PrescriptionItem["category"] : "有氧运动";
+}
+
+function normalizeDraft(value?: PrescriptionDraft): PrescriptionDraft | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  return {
+    ...value,
+    summary: String(value.summary ?? ""),
+    items: Array.isArray(value.items)
+      ? value.items.map((item) => ({
+        ...item,
+        category: normalizeCategory(item.category),
+        project: String(item.project ?? "未提供"),
+        intensity: String(item.intensity ?? "未提供"),
+        duration: String(item.duration ?? "未提供"),
+        frequency: String(item.frequency ?? "未提供"),
+        reason: String(item.reason ?? ""),
+      }))
+      : [],
+    dietAdvice: String(value.dietAdvice ?? ""),
+    exerciseAdvice: String(value.exerciseAdvice ?? ""),
+    stopConditions: String(value.stopConditions ?? ""),
+  };
+}
+
 type PrescriptionHistoryRecord = {
   id: string;
   prescriptionNo: string;
@@ -88,7 +133,7 @@ function buildPrescriptionHistory(task: PrescriptionTask, allTasks: Prescription
       sourceLabel: item.sourceLabel ?? "基线评估",
       status: item.status,
       signed: item.status === "completed" && Boolean(item.doctorFinal),
-      draft: item.doctorFinal ?? item.aiSuggestion ?? item.previous
+      draft: normalizeDraft(item.doctorFinal ?? item.aiSuggestion ?? item.previous)
     }));
   if (task.kind !== "initial" && !records.length && task.previous) {
     records.push({
@@ -101,7 +146,7 @@ function buildPrescriptionHistory(task: PrescriptionTask, allTasks: Prescription
       sourceLabel: "历史处方快照",
       status: "completed",
       signed: true,
-      draft: task.previous
+      draft: normalizeDraft(task.previous)
     });
   }
   return records.sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
@@ -151,8 +196,8 @@ export function PrescriptionWorkspacePage({
   onSaveRehabReport: (report: RehabReport) => void;
 }) {
   const [activeTab, setActiveTab] = useState<PrescriptionWorkspaceTab>(initialTab);
-  const [draft, setDraft] = useState<PrescriptionContent>(() => cloneContent(content));
-  const [finalDraft, setFinalDraft] = useState<PrescriptionDraft | undefined>(task.doctorFinal ?? task.aiSuggestion);
+  const [draft, setDraft] = useState<PrescriptionContent>(() => cloneContent(normalizeContent(content)));
+  const [finalDraft, setFinalDraft] = useState<PrescriptionDraft | undefined>(() => normalizeDraft(task.doctorFinal ?? task.aiSuggestion));
   const [dirty, setDirty] = useState(false);
   const [responsibilityConfirmed, setResponsibilityConfirmed] = useState(false);
   const [signatureName, setSignatureName] = useState(task.signedBy ?? currentAccount);
@@ -244,7 +289,7 @@ export function PrescriptionWorkspacePage({
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
           <div className="flex items-start gap-3">
             <button type="button" onClick={onBack} className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="返回处方列表"><ArrowLeft className="h-5 w-5" /></button>
-            <div><p className="text-xs font-bold tracking-wide text-blue-600">处方管理 · 患者开方工作区</p><h1 className="mt-1 text-2xl font-bold text-slate-950">患者处方详情</h1><p className="mt-1 text-sm text-slate-500">{task.kind === "initial" ? "初始处方" : "调整处方"} · {task.prescriptionNo} · {task.version}</p></div>
+            <div><p className="text-xs font-bold tracking-wide text-blue-600">处方管理 · 患者开方工作区</p><h1 className="mt-1 text-2xl font-bold text-slate-950">患者处方详情</h1><p className="mt-1 text-sm text-slate-500">{task.kind === "initial" ? "初始处方" : "调整处方"} · {task.prescriptionNo} · {task.version}</p>{task.sourceLabel && <p className="mt-1 text-xs font-semibold text-blue-700">生成来源：{task.sourceLabel}</p>}</div>
           </div>
           <div className="flex items-center gap-2"><StatusBadge tone={task.status === "completed" ? "green" : "orange"}>{statusLabel[task.status]}</StatusBadge><button type="button" className="btn-secondary" onClick={() => onOpenPatient(task.patientId, "profile")}><UserRound className="h-4 w-4" />查看完整患者档案</button></div>
         </div>
@@ -578,7 +623,7 @@ function ReportsTab({ task, assessments, reports, stageReports, onOpenPatient, o
 
     {sheet === "single" && <div data-testid="report-sheet-content-single">
       <div className="grid grid-cols-[1.3fr_0.7fr_0.8fr_0.8fr] gap-3 border-b bg-slate-50 px-5 py-3 text-xs font-bold text-slate-500"><span>训练项目与时间</span><span>训练时长</span><span>心率</span><span>安全结论</span></div>
-      {sortedReports.map((report) => <article key={report.id} className="grid gap-3 border-b border-slate-100 px-5 py-4 text-sm last:border-b-0 md:grid-cols-[1.3fr_0.7fr_0.8fr_0.8fr] md:items-center"><span><b className="block text-slate-800">{report.exercise}</b><small className="mt-1 block text-slate-400">{report.actualStartAt.slice(0, 16).replace("T", " ")}</small></span><span>{report.totalMinutes}分钟</span><span>平均 {report.hrStats.average}<small className="mt-1 block text-slate-400">峰值 {report.hrStats.peak}</small></span><span className={report.safetySummary === "无异常" ? "font-bold text-emerald-600" : "font-bold text-amber-700"}>{report.safetySummary}</span></article>)}
+      {sortedReports.map((report) => <article key={report.id} className="grid gap-3 border-b border-slate-100 px-5 py-4 text-sm last:border-b-0 md:grid-cols-[1.3fr_0.7fr_0.8fr_0.8fr] md:items-center"><span><b className="block text-slate-800">{report.exercise}</b><small className="mt-1 block text-slate-400">{report.actualStartAt.slice(0, 16).replace("T", " ")}</small></span><span>{report.totalMinutes}分钟</span><span>平均 {displayClinicalMetric("心率", report.hrStats.average)}<small className="mt-1 block text-slate-400">峰值 {displayClinicalMetric("心率", report.hrStats.peak)}</small></span><span className={report.safetySummary === "无异常" ? "font-bold text-emerald-600" : "font-bold text-amber-700"}>{report.safetySummary}</span></article>)}
       {!sortedReports.length && <RelatedReportEmpty icon={ClipboardList} title="暂无单次报告" description="首次入组尚未开始训练，完成一次院内训练后会自动生成单次报告。" />}
     </div>}
 

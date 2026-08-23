@@ -12,6 +12,16 @@ import { archivePatient, restorePatient, validateAppointment } from "./clinicalO
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
 const asObject = (value: unknown) => value && typeof value === "object" ? value as Record<string, any> : {};
 const normalizeLoginCode = (value: unknown) => String(value ?? "").replace(/\D/g, "").slice(-6).padStart(6, "0");
+const resolveTrainingVideoDirectory = () => {
+  const configuredDirectory = process.env.TRAINING_VIDEO_DIR?.trim();
+  const candidates = [
+    configuredDirectory,
+    resolve(process.cwd(), "public", "training-videos"),
+    resolve(process.cwd(), "dist", "training-videos"),
+    resolve(process.cwd(), "training-videos")
+  ].filter((value): value is string => Boolean(value));
+  return candidates.find((directory) => existsSync(directory));
+};
 const safeDate = (value: unknown) => {
   const date = typeof value === "string" && value ? new Date(value.includes("T") ? value : value.replace(" ", "T") + "+08:00") : new Date();
   return Number.isNaN(date.getTime()) ? new Date() : date;
@@ -155,8 +165,8 @@ export function createApp(prisma = new PrismaClient()) {
   });
 
   app.get("/api/training-videos", async () => {
-    const directory = process.env.TRAINING_VIDEO_DIR || resolve(process.cwd(), "training-videos");
-    if (!existsSync(directory)) return [];
+    const directory = resolveTrainingVideoDirectory();
+    if (!directory) return [];
     const supported = new Set([".mp4", ".mov", ".webm", ".m4v"]);
     return readdirSync(directory, { withFileTypes: true })
       .filter((entry) => entry.isFile() && supported.has(extname(entry.name).toLowerCase()))
@@ -167,13 +177,15 @@ export function createApp(prisma = new PrismaClient()) {
   if (existsSync(distDirectory)) {
     app.register(fastifyStatic, { root: distDirectory, prefix: "/" });
   }
-  const videoDirectory = process.env.TRAINING_VIDEO_DIR || resolve(process.cwd(), "training-videos");
-  if (existsSync(videoDirectory)) {
+  const videoDirectory = resolveTrainingVideoDirectory();
+  const bundledVideoDirectory = resolve(distDirectory, "training-videos");
+  if (videoDirectory && videoDirectory !== bundledVideoDirectory) {
     app.register(fastifyStatic, { root: videoDirectory, prefix: "/training-videos/", decorateReply: false });
   }
 
   app.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith("/api/") || request.url.startsWith("/socket.io/")) return reply.code(404).send({ message: "Not found" });
+    if (request.url.startsWith("/training-videos/")) return reply.code(404).send({ message: "Training video not found" });
     if (existsSync(join(distDirectory, "index.html"))) return reply.type("text/html").sendFile("index.html");
     return reply.code(404).send({ message: "Frontend build not found" });
   });

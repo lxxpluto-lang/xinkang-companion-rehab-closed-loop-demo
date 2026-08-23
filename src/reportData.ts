@@ -108,6 +108,7 @@ export type PatientStageConclusion = {
 
 export type StageClinicalConclusion = {
   summary: string;
+  decision?: "continue" | "adjust_prescription" | "end_course";
   achievedGoals: string[];
   pendingGoals: string[];
   nextPrescription: string;
@@ -132,6 +133,8 @@ export type StoredStageReport = StageReport & {
   safetyEvents: { sessionId: string; text: string }[];
   updatedAt: string;
   missingFields: string[];
+  dataQualityAcknowledgedBy?: string;
+  dataQualityAcknowledgedAt?: string;
 };
 
 const toDateTime = (value: string) => {
@@ -147,6 +150,109 @@ const average = (values: (number | null | undefined)[]) => {
 };
 
 export const displayReportValue = (value: string | number | null | undefined) => value === null || value === undefined || String(value).trim() === "" ? "未提供" : String(value);
+type NumericClinicalMetric = "心率" | "血氧饱和度" | "呼吸率";
+type ClinicalMetric = NumericClinicalMetric | "血压";
+
+const clinicalRanges: Record<NumericClinicalMetric, [number, number]> = {
+  心率: [30, 220],
+  血氧饱和度: [50, 100],
+  呼吸率: [5, 60]
+};
+
+function finiteNumber(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const text = String(value ?? "").trim();
+  if (!text || ["null", "undefined", "—", "-"] .includes(text.toLowerCase())) return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function normalizeClinicalNumber(value: unknown, metric: NumericClinicalMetric): number | null {
+  const parsed = finiteNumber(value);
+  if (parsed === null) return null;
+  const [minimum, maximum] = clinicalRanges[metric];
+  return parsed >= minimum && parsed <= maximum ? parsed : null;
+}
+
+export function normalizeRpe(value: unknown): number | null {
+  const parsed = finiteNumber(value);
+  return parsed !== null && parsed >= 0 && parsed <= 20 ? parsed : null;
+}
+
+export function normalizeBloodPressure(value: unknown): string | null {
+  const match = String(value ?? "").trim().match(/^(\d{2,3})\s*\/\s*(\d{2,3})(?:\s*mmhg)?$/i);
+  if (!match) return null;
+  const systolic = Number(match[1]);
+  const diastolic = Number(match[2]);
+  if (systolic < 70 || systolic > 250 || diastolic < 30 || diastolic > 150 || systolic <= diastolic) return null;
+  return `${systolic}/${diastolic}`;
+}
+
+export function displayClinicalMetric(metric: ClinicalMetric, value: unknown) {
+  if (metric === "血压") return normalizeBloodPressure(value) ?? "未采集";
+  return displayReportValue(normalizeClinicalNumber(value, metric));
+}
+
+export function sanitizeStoredTrainingSession(session: StoredTrainingSession): StoredTrainingSession {
+  return {
+    ...session,
+    avgHr: normalizeClinicalNumber(session.avgHr, "心率"),
+    peakHr: normalizeClinicalNumber(session.peakHr, "心率"),
+    preBp: normalizeBloodPressure(session.preBp),
+    postBp: normalizeBloodPressure(session.postBp),
+    preHr: normalizeClinicalNumber(session.preHr, "心率"),
+    postHr: normalizeClinicalNumber(session.postHr, "心率"),
+    preSpo2: normalizeClinicalNumber(session.preSpo2, "血氧饱和度"),
+    postSpo2: normalizeClinicalNumber(session.postSpo2, "血氧饱和度"),
+    avgSpo2: normalizeClinicalNumber(session.avgSpo2, "血氧饱和度"),
+    minSpo2: normalizeClinicalNumber(session.minSpo2, "血氧饱和度"),
+    preRespRate: normalizeClinicalNumber(session.preRespRate, "呼吸率"),
+    postRespRate: normalizeClinicalNumber(session.postRespRate, "呼吸率"),
+    avgRespRate: normalizeClinicalNumber(session.avgRespRate, "呼吸率"),
+    rpe: normalizeRpe(session.rpe)
+  };
+}
+
+export function sanitizeStoredSingleReport(report: StoredSingleReport): StoredSingleReport {
+  const normalizeText = (text: string, metric: NumericClinicalMetric) => text.replace(/(平均心率|最低心率|峰值心率)(\d+(?:\.\d+)?)\s*bpm/g, (_match, label: string, value: string) => `${label}${displayClinicalMetric(metric, value)} bpm`);
+  const normalizeSpo2Text = (text: string) => text.replace(/(平均血氧|最低)(\d+(?:\.\d+)?)%/g, (_match, label: string, value: string) => `${label}${displayClinicalMetric("血氧饱和度", value)}%`);
+  return {
+    ...report,
+    hrStats: {
+      ...report.hrStats,
+      resting: normalizeClinicalNumber(report.hrStats.resting, "心率") ?? 0,
+      average: normalizeClinicalNumber(report.hrStats.average, "心率") ?? 0,
+      peak: normalizeClinicalNumber(report.hrStats.peak, "心率") ?? 0
+    },
+    bpMeasurements: report.bpMeasurements.filter((measurement) => normalizeBloodPressure(measurement.value.replace(/\s*mmhg$/i, "")) !== null).map((measurement) => ({
+      ...measurement,
+      value: `${normalizeBloodPressure(measurement.value.replace(/\s*mmhg$/i, ""))} mmHg`
+    })),
+    phaseVitals: report.phaseVitals.map((row) => row.metric === "血压"
+      ? { ...row, warmup: displayClinicalMetric("血压", row.warmup), training: displayClinicalMetric("血压", row.training), cooldown: displayClinicalMetric("血压", row.cooldown) }
+      : row.metric === "心率" || row.metric === "血氧饱和度" || row.metric === "呼吸率"
+        ? { ...row, warmup: displayClinicalMetric(row.metric, row.warmup), training: displayClinicalMetric(row.metric, row.training), cooldown: displayClinicalMetric(row.metric, row.cooldown) }
+        : row),
+    executionSummary: normalizeText(report.executionSummary, "心率"),
+    spo2Summary: normalizeSpo2Text(report.spo2Summary)
+  };
+}
+
+export function sanitizeStoredStageReport(report: StoredStageReport): StoredStageReport {
+  const sanitizeRpeText = (value: string) => {
+    const match = value.match(/-?\d+(?:\.\d+)?/);
+    return displayReportValue(normalizeRpe(match?.[0]));
+  };
+  return {
+    ...report,
+    patientStageConclusion: {
+      ...report.patientStageConclusion,
+      beforeAfterComparison: report.patientStageConclusion.beforeAfterComparison.map((item) => item.metric === "RPE"
+        ? { ...item, before: sanitizeRpeText(item.before), after: sanitizeRpeText(item.after) }
+        : item)
+    }
+  };
+}
 export const displayReportList = (items: string[] | undefined) => {
   const values = (items ?? []).map((item) => item.trim()).filter(Boolean);
   return values.length ? values : ["未提供"];
@@ -207,6 +313,7 @@ function toClinicalSnapshot(snapshot: ReportPatientSnapshot): ClinicalSnapshot {
 }
 
 export function createSingleReportFromSession(session: StoredTrainingSession, patient: ReportPatientSnapshot): StoredSingleReport {
+  session = sanitizeStoredTrainingSession(session);
   const start = toDateTime(session.actualStartAt);
   const end = session.actualEndAt ? toDateTime(session.actualEndAt) : new Date(new Date(start).getTime() + session.totalMinutes * 60_000).toISOString();
   const averageHr = session.avgHr ?? session.postHr ?? session.preHr ?? 0;
@@ -257,15 +364,15 @@ export function createSingleReportFromSession(session: StoredTrainingSession, pa
     },
     bpMeasurements,
     phaseVitals: [
-      { metric: "心率", warmup: displayReportValue(session.preHr), training: displayReportValue(session.avgHr), cooldown: displayReportValue(session.postHr) },
-      { metric: "呼吸率", warmup: displayReportValue(session.preRespRate), training: displayReportValue(session.avgRespRate), cooldown: displayReportValue(session.postRespRate) },
-      { metric: "血氧饱和度", warmup: displayReportValue(session.preSpo2), training: displayReportValue(session.avgSpo2), cooldown: displayReportValue(session.postSpo2) },
-      { metric: "血压", warmup: displayReportValue(session.preBp), training: "未采集", cooldown: displayReportValue(session.postBp) }
+      { metric: "心率", warmup: displayClinicalMetric("心率", session.preHr), training: displayClinicalMetric("心率", session.avgHr), cooldown: displayClinicalMetric("心率", session.postHr) },
+      { metric: "呼吸率", warmup: displayClinicalMetric("呼吸率", session.preRespRate), training: displayClinicalMetric("呼吸率", session.avgRespRate), cooldown: displayClinicalMetric("呼吸率", session.postRespRate) },
+      { metric: "血氧饱和度", warmup: displayClinicalMetric("血氧饱和度", session.preSpo2), training: displayClinicalMetric("血氧饱和度", session.avgSpo2), cooldown: displayClinicalMetric("血氧饱和度", session.postSpo2) },
+      { metric: "血压", warmup: displayClinicalMetric("血压", session.preBp), training: "未采集", cooldown: displayClinicalMetric("血压", session.postBp) }
     ],
     ecgEvents: session.safetyEvents.map((event, index) => ({ time: `事件${index + 1}`, event, action: session.fieldNote ?? "已记录现场处置", reviewed: false })),
     ecgSummary: session.safetyEvents.length ? session.safetyEvents.join("；") : "未记录异常事件。",
-    spo2Summary: session.avgSpo2 === null && session.minSpo2 === null ? "未采集" : `平均血氧${displayReportValue(session.avgSpo2)}%，最低${displayReportValue(session.minSpo2)}%。`,
-    executionSummary: `${session.exerciseType}实际训练${session.activeMinutes}分钟，平均心率${displayReportValue(session.avgHr)} bpm，数据完整率${session.dataCompleteness}%。`,
+    spo2Summary: session.avgSpo2 === null && session.minSpo2 === null ? "未采集" : `平均血氧${displayClinicalMetric("血氧饱和度", session.avgSpo2)}%，最低${displayClinicalMetric("血氧饱和度", session.minSpo2)}%。`,
+    executionSummary: `${session.exerciseType}实际训练${session.activeMinutes}分钟，平均心率${displayClinicalMetric("心率", session.avgHr)} bpm，数据完整率${session.dataCompleteness}%。`,
     sourceSessionId: session.id,
     rpe: session.rpe,
     dataCompleteness: session.dataCompleteness,
@@ -294,12 +401,13 @@ export function createStoredTrainingSession(input: {
 }): StoredTrainingSession {
   const now = new Date();
   const actualStartAt = new Date(now.getTime() - input.device.durationMinutes * 60_000).toISOString();
-  const preHr = Number(input.preVitals.hr) || null;
-  const preSpo2 = Number(input.preVitals.spo2) || null;
-  const preRespRate = Number(input.preVitals.rr) || null;
-  const postHr = Number(input.postVitals.hr) || null;
-  const postSpo2 = Number(input.postVitals.spo2) || null;
-  const postRespRate = Number(input.postVitals.rr) || null;
+  const preHr = normalizeClinicalNumber(input.preVitals.hr, "心率");
+  const preSpo2 = normalizeClinicalNumber(input.preVitals.spo2, "血氧饱和度");
+  const preRespRate = normalizeClinicalNumber(input.preVitals.rr, "呼吸率");
+  const postHr = normalizeClinicalNumber(input.postVitals.hr, "心率");
+  const postSpo2 = normalizeClinicalNumber(input.postVitals.spo2, "血氧饱和度");
+  const postRespRate = normalizeClinicalNumber(input.postVitals.rr, "呼吸率");
+  const deviceHr = normalizeClinicalNumber(input.device.hr, "心率");
   const safetyEvents = input.postVitals.symptoms.trim() ? [input.postVitals.symptoms.trim()] : [];
   const pauses = Math.max(0, Math.round(input.pauses ?? (safetyEvents.length ? 1 : 0)));
   const terminatedEarly = Boolean(input.terminatedEarly);
@@ -326,8 +434,8 @@ export function createStoredTrainingSession(input: {
     sensorValidMinutes: Math.round(input.device.durationMinutes * input.device.completeness / 100),
     activeMinutes: input.device.activeMinutes,
     targetZoneMinutes: 0,
-    avgHr: input.device.hr,
-    peakHr: Math.max(input.device.hr, postHr ?? input.device.hr),
+    avgHr: deviceHr,
+    peakHr: deviceHr === null && postHr === null ? null : Math.max(deviceHr ?? 0, postHr ?? deviceHr ?? 0),
     avgPower: input.device.power,
     peakPower: input.device.power,
     distanceKm: null,
@@ -337,8 +445,8 @@ export function createStoredTrainingSession(input: {
     pauses,
     terminatedEarly,
     dataCompleteness: input.device.completeness,
-    preBp: input.preVitals.bp || null,
-    postBp: input.postVitals.bp || null,
+    preBp: normalizeBloodPressure(input.preVitals.bp),
+    postBp: normalizeBloodPressure(input.postVitals.bp),
     preHr,
     postHr,
     preSpo2,
@@ -369,7 +477,7 @@ function blankConclusion(): PatientStageConclusion {
 }
 
 function blankClinicalConclusion(): StageClinicalConclusion {
-  return { summary: "", achievedGoals: [], pendingGoals: [], nextPrescription: "", reassessment: "", nextFollowUp: "" };
+  return { summary: "", decision: "continue", achievedGoals: [], pendingGoals: [], nextPrescription: "", reassessment: "", nextFollowUp: "" };
 }
 
 export function createStoredStageReport(patient: ReportPatientSnapshot, sessions: StoredTrainingSession[], selectedSessionIds: string[], previousVersion = 0): StoredStageReport {
@@ -413,6 +521,7 @@ export function createStoredStageReport(patient: ReportPatientSnapshot, sessions
   };
   const clinicalConclusion: StageClinicalConclusion = {
     summary: `系统已完成${selected.length}次训练事实汇总，异常与缺失项可追溯；是否调整处方由医生另行判断。`,
+    decision: "continue",
     achievedGoals: [`累计记录${selected.length}次训练`, `累计实际运动${selected.reduce((sum, session) => sum + session.activeMinutes, 0)}分钟`],
     pendingGoals: [missingPostBp ? `补齐${missingPostBp}次训练后血压` : "保持训练后血压记录", missingSpo2 ? `补齐${missingSpo2}次血氧记录` : "保持血氧记录"],
     nextPrescription: "本报告不自动改变正式处方。",

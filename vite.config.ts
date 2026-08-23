@@ -5,8 +5,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { basename, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const trainingVideoDirectory = fileURLToPath(new URL("../../Bilibili下载", import.meta.url));
+const trainingVideoDirectory = fileURLToPath(new URL("./public/training-videos", import.meta.url));
 const supportedVideoExtensions = new Set([".mp4", ".mov", ".webm", ".m4v"]);
+const videoRoutePrefixes = ["/training-videos/", "/local-training-videos/"];
 
 function localTrainingVideoMiddleware() {
   const middleware = (request: IncomingMessage, response: ServerResponse, next: () => void) => {
@@ -19,7 +20,7 @@ function localTrainingVideoMiddleware() {
             .map((entry) => ({
               id: entry.name,
               title: entry.name.replace(/\.[^.]+$/, ""),
-              url: `/local-training-videos/${encodeURIComponent(entry.name)}`
+              url: `/training-videos/${encodeURIComponent(entry.name)}`
             }))
             .sort((left, right) => left.title.localeCompare(right.title, "zh-CN"))
         : [];
@@ -30,8 +31,8 @@ function localTrainingVideoMiddleware() {
       return;
     }
 
-    const routePrefix = "/local-training-videos/";
-    if (!requestUrl.pathname.startsWith(routePrefix)) {
+    const routePrefix = videoRoutePrefixes.find((prefix) => requestUrl.pathname.startsWith(prefix));
+    if (!routePrefix) {
       next();
       return;
     }

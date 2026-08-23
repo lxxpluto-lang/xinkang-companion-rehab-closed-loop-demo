@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, FileHeart, Plus, Save, Send, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, FileHeart, Plus, Save, Send, Sparkles } from "lucide-react";
 import { canActAs } from "../accessControl";
 import { SectionHeader, StatusBadge } from "../components/UI";
 import {
   createStoredStageReport,
+  displayClinicalMetric,
   displayReportList,
   displayReportValue,
   type PatientStageConclusion,
@@ -13,6 +14,7 @@ import {
   type StoredTrainingSession
 } from "../reportData";
 import type { StaffRole } from "../types";
+import type { PrescriptionTask } from "../clinicalWorkflowData";
 
 type Props = {
   patient: ReportPatientSnapshot;
@@ -22,8 +24,10 @@ type Props = {
   currentAccount: string;
   canEdit: boolean;
   onSave: (report: StoredStageReport) => void;
-  onConfirm?: (reportId: string, account: string) => void;
+  onConfirm?: (reportId: string, account: string, report?: StoredStageReport) => void;
   onPublish?: (reportId: string, account: string) => void;
+  prescriptionTasks?: PrescriptionTask[];
+  onOpenPrescriptionTask?: (taskId: string) => void;
 };
 
 const statusLabel: Record<StoredStageReport["status"], string> = {
@@ -34,15 +38,34 @@ const statusLabel: Record<StoredStageReport["status"], string> = {
 };
 
 const emptyComparison = () => ({ metric: "", before: "", after: "", meaning: "" });
+const stageDecisionLabel: Record<NonNullable<StageClinicalConclusion["decision"]>, string> = {
+  continue: "继续原方案",
+  adjust_prescription: "调整处方",
+  end_course: "结束疗程",
+};
 
-export function StageReportWorkspace({ patient, sessions, reports, role, currentAccount, canEdit, onSave, onConfirm, onPublish }: Props) {
+export function StageReportWorkspace({ patient, sessions, reports, role, currentAccount, canEdit, onSave, onConfirm, onPublish, prescriptionTasks = [], onOpenPrescriptionTask }: Props) {
   const canPrepare = canActAs(role, "REHAB_EXECUTION");
   const canDoctorReview = canActAs(role, "DOCTOR");
   const patientReports = useMemo(() => reports.filter((report) => report.patientId === patient.patientId).sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? "")), [patient.patientId, reports]);
   const [selectedId, setSelectedId] = useState<string | null>(patientReports[0]?.reportId ?? null);
   const [draft, setDraft] = useState<StoredStageReport | null>(patientReports[0] ?? null);
+  const [dataQualityConfirmed, setDataQualityConfirmed] = useState(false);
   const selectedSessions = useMemo(() => sessions.filter((session) => draft?.selectedSessionIds.includes(session.id)), [draft?.selectedSessionIds, sessions]);
+  const dataQualityWarnings = useMemo(() => selectedSessions.flatMap((session) => {
+    const warnings: string[] = [];
+    const rawBp = String(session.postBp ?? "").trim();
+    const normalizedBp = rawBp && !["null", "undefined"].includes(rawBp.toLowerCase()) ? rawBp : "未采集";
+    const systolic = Number(normalizedBp.match(/\d+(?:\.\d+)?/)?.[0] ?? "");
+    if (Number.isFinite(systolic) && (systolic < 70 || systolic > 250)) warnings.push(`${session.exerciseType}训练后收缩压${normalizedBp}`);
+    if (typeof session.rpe === "number" && (session.rpe < 0 || session.rpe > 20)) warnings.push(`${session.exerciseType}训练RPE ${session.rpe}`);
+    return warnings;
+  }), [selectedSessions]);
   const locked = !draft || draft.status === "sent";
+  const linkedPrescriptionTask = draft && draft.clinicalConclusion.decision === "adjust_prescription" && ["confirmed", "sent"].includes(draft.status)
+    ? prescriptionTasks.find((task) => task.patientId === patient.patientId && task.sourceLabel?.includes(draft.reportNo))
+    : undefined;
+  const nextPrescriptionTask = linkedPrescriptionTask && !["completed", "withdrawn", "archived"].includes(linkedPrescriptionTask.status) ? linkedPrescriptionTask : undefined;
 
   useEffect(() => {
     const current = patientReports.find((report) => report.reportId === selectedId) ?? patientReports[0] ?? null;
@@ -60,6 +83,7 @@ export function StageReportWorkspace({ patient, sessions, reports, role, current
 
   function updateDraft(patch: Partial<StoredStageReport>) {
     if (!draft || locked || !canEdit) return;
+    setDataQualityConfirmed(false);
     setDraft({ ...draft, ...patch, patientSnapshot: patient });
   }
 
@@ -109,11 +133,12 @@ export function StageReportWorkspace({ patient, sessions, reports, role, current
   }
 
   function confirm() {
-    if (!draft || !canDoctorReview || draft.selectedSessionIds.length < 2 || !draft.clinicalConclusion.summary.trim()) return;
-    const next = { ...draft, status: "confirmed" as const, confirmedBy: currentAccount, confirmedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    if (!draft || !canDoctorReview || draft.selectedSessionIds.length < 2 || !draft.clinicalConclusion.summary.trim() || (dataQualityWarnings.length > 0 && !dataQualityConfirmed)) return;
+    const now = new Date().toISOString();
+    const next = { ...draft, clinicalConclusion: { ...draft.clinicalConclusion, decision: draft.clinicalConclusion.decision ?? "continue" }, status: "confirmed" as const, confirmedBy: currentAccount, confirmedAt: now, updatedAt: now, ...(dataQualityWarnings.length ? { dataQualityAcknowledgedBy: currentAccount, dataQualityAcknowledgedAt: now } : {}) };
     setDraft(next);
     onSave(next);
-    onConfirm?.(next.reportId, currentAccount);
+        onConfirm?.(next.reportId, currentAccount, next);
   }
 
   function publish() {
@@ -132,10 +157,11 @@ export function StageReportWorkspace({ patient, sessions, reports, role, current
     </section>
 
     {!draft ? null : <>
+      {dataQualityWarnings.length > 0 && <section className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900"><b>数据质量提示</b><p className="mt-2 leading-5">以下原始训练记录存在超范围或格式异常值：{dataQualityWarnings.join("、")}。请回看单次报告和现场记录，确认是否为录入/设备问题；AI不会替医生判断。</p>{!locked && canDoctorReview && <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={dataQualityConfirmed} onChange={(event) => setDataQualityConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 accent-blue-600" /><span>我已核对上述异常原始值，并在医生结论中说明处理意见。</span></label>}{draft.dataQualityAcknowledgedBy && <p className="mt-2 text-[10px]">已由{draft.dataQualityAcknowledgedBy}于{draft.dataQualityAcknowledgedAt}核对</p>}</section>}
       <section className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold text-medical-600">{draft.reportNo}</p><h2 className="mt-1 text-xl font-bold text-slate-950">阶段事实与结论</h2><p className="mt-1 text-xs text-slate-500">患者：{patient.name} · 患者号：{patient.patientNo} · {displayReportValue(patient.diagnosis)}</p></div><StatusBadge tone={statusTone}>{statusLabel[draft.status]}</StatusBadge></div>
         <div className="mt-4 grid gap-3 sm:grid-cols-4">{[[draft.aggregate.sessionCount, "纳入次数"], [`${draft.aggregate.totalActiveMinutes}分`, "实际运动时间"], [draft.aggregate.abnormalCount, "异常/暂停"], [`${displayReportValue(draft.aggregate.dataCompleteness)}%`, "数据完整率"]].map(([value, label]) => <div key={String(label)} className="rounded-xl bg-slate-50 p-3"><p className="text-lg font-bold text-slate-900">{value}</p><p className="mt-1 text-[10px] text-slate-500">{label}</p></div>)}</div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">{sessions.map((session) => <label key={session.id} className={`flex items-start gap-3 rounded-xl border p-3 text-xs ${draft.selectedSessionIds.includes(session.id) ? "border-blue-300 bg-blue-50" : "border-slate-200"}`}><input type="checkbox" disabled={locked || !canEdit} checked={draft.selectedSessionIds.includes(session.id)} onChange={() => toggleSession(session.id)} /><span><b>{session.exerciseType}</b> · {session.date}<br /><span className="text-[10px] text-slate-500">平均/峰值心率 {displayReportValue(session.avgHr)}/{displayReportValue(session.peakHr)} bpm · 训练后血压 {displayReportValue(session.postBp)} · RPE {displayReportValue(session.rpe)}</span></span></label>)}</div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">{sessions.map((session) => <label key={session.id} className={`flex items-start gap-3 rounded-xl border p-3 text-xs ${draft.selectedSessionIds.includes(session.id) ? "border-blue-300 bg-blue-50" : "border-slate-200"}`}><input type="checkbox" disabled={locked || !canEdit} checked={draft.selectedSessionIds.includes(session.id)} onChange={() => toggleSession(session.id)} /><span><b>{session.exerciseType}</b> · {session.date}<br /><span className="text-[10px] text-slate-500">平均/峰值心率 {displayClinicalMetric("心率", session.avgHr)}/{displayClinicalMetric("心率", session.peakHr)} bpm · 训练后血压 {displayClinicalMetric("血压", session.postBp)} · RPE {safeReportValue(session.rpe)}</span></span></label>)}</div>
         <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-6 text-blue-900"><b>系统事实汇总</b><p className="mt-1">{draft.generatedSummary || "尚未生成，请至少选择2次训练记录。"}</p></div>
       </section>
 
@@ -149,13 +175,24 @@ export function StageReportWorkspace({ patient, sessions, reports, role, current
 
       <section className="card p-5">
         <SectionHeader title="医生审核结论" description="医学结论必须由医生确认后才能发送患者端。" />
-        <div className="mt-4 grid gap-3 md:grid-cols-2"><Field label="医生总结" value={draft.clinicalConclusion.summary} disabled={locked || !canEdit} onChange={(value) => updateClinical({ summary: value })} /><Field label="下一步处方说明" value={draft.clinicalConclusion.nextPrescription} disabled={locked || !canEdit} onChange={(value) => updateClinical({ nextPrescription: value })} /><Field label="复评要求" value={draft.clinicalConclusion.reassessment} disabled={locked || !canEdit} onChange={(value) => updateClinical({ reassessment: value })} /><Field label="下次随访" value={draft.clinicalConclusion.nextFollowUp} disabled={locked || !canEdit} onChange={(value) => updateClinical({ nextFollowUp: value })} /></div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2"><Field label="医生总结" value={draft.clinicalConclusion.summary} disabled={locked || !canEdit} onChange={(value) => updateClinical({ summary: value })} /><label className="block"><span className="field-label">阶段决策</span><select className="text-field disabled:bg-slate-50" disabled={locked || !canEdit} value={draft.clinicalConclusion.decision ?? "continue"} onChange={(event) => updateClinical({ decision: event.target.value as NonNullable<StageClinicalConclusion["decision"]> })}>{Object.entries(stageDecisionLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><span className="mt-1 block text-[10px] text-slate-500">确认后用于生成下一步处方或疗程结束任务。</span></label><Field label="下一步处方说明" value={draft.clinicalConclusion.nextPrescription} disabled={locked || !canEdit} onChange={(value) => updateClinical({ nextPrescription: value })} /><Field label="复评要求" value={draft.clinicalConclusion.reassessment} disabled={locked || !canEdit} onChange={(value) => updateClinical({ reassessment: value })} /><Field label="下次随访" value={draft.clinicalConclusion.nextFollowUp} disabled={locked || !canEdit} onChange={(value) => updateClinical({ nextFollowUp: value })} /></div>
         <div className="mt-3 grid gap-3 md:grid-cols-2"><ListEditor label="已完成目标" items={draft.clinicalConclusion.achievedGoals} disabled={locked || !canEdit} onChange={(achievedGoals) => updateClinical({ achievedGoals })} /><ListEditor label="待完成目标" items={draft.clinicalConclusion.pendingGoals} disabled={locked || !canEdit} onChange={(pendingGoals) => updateClinical({ pendingGoals })} /></div>
-        <div className="mt-4 flex flex-wrap justify-end gap-2">{canEdit && !locked && <><button type="button" className="btn-secondary" onClick={() => save("draft")}><Save className="h-4 w-4" />保存草稿</button>{canPrepare && <button type="button" className="btn-primary" onClick={() => save("pending_doctor_review")}><Send className="h-4 w-4" />提交医生审核</button>}{canDoctorReview && <button type="button" disabled={draft.selectedSessionIds.length < 2 || !draft.clinicalConclusion.summary.trim()} className="btn-primary disabled:bg-slate-300" onClick={confirm}><CheckCircle2 className="h-4 w-4" />医生确认</button>}</>}{canDoctorReview && draft.status === "confirmed" && <button type="button" className="btn-primary" onClick={publish}><Send className="h-4 w-4" />发送患者端</button>}</div>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">{canEdit && !locked && <><button type="button" className="btn-secondary" onClick={() => save("draft")}><Save className="h-4 w-4" />保存草稿</button>{canPrepare && <button type="button" className="btn-primary" onClick={() => save("pending_doctor_review")}><Send className="h-4 w-4" />提交医生审核</button>}{canDoctorReview && <button type="button" disabled={draft.selectedSessionIds.length < 2 || !draft.clinicalConclusion.summary.trim() || (dataQualityWarnings.length > 0 && !dataQualityConfirmed)} className="btn-primary disabled:bg-slate-300" onClick={confirm}><CheckCircle2 className="h-4 w-4" />医生确认</button>}</>}{canDoctorReview && draft.status === "confirmed" && <button type="button" className="btn-primary" onClick={publish}><Send className="h-4 w-4" />发送患者端</button>}</div>
         {canPrepare && canEdit && !locked && <button type="button" className="btn-secondary mt-3" onClick={generateFacts}><Sparkles className="h-4 w-4" />重新生成事实汇总</button>}
       </section>
+
+      {linkedPrescriptionTask && <section className="rounded-xl border border-blue-200 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold text-blue-700">{linkedPrescriptionTask.status === "completed" ? "处方链路已完成" : "下一步处方任务已生成"}</p><p className="mt-1 text-sm font-bold text-blue-950">{linkedPrescriptionTask.prescriptionNo} · {linkedPrescriptionTask.version} · {prescriptionStatusLabel(linkedPrescriptionTask.status)}</p><p className="mt-1 text-xs text-blue-800">来源：{linkedPrescriptionTask.sourceLabel}。{linkedPrescriptionTask.status === "completed" ? "医生已完成签署发布，可查看处方留痕。" : "请进入处方工作区完成 AI 草稿、医生编辑、签署和发布。"}</p></div>{onOpenPrescriptionTask && <button type="button" className="btn-primary" onClick={() => onOpenPrescriptionTask(linkedPrescriptionTask.id)}><ArrowRight className="h-4 w-4" />{linkedPrescriptionTask.status === "completed" ? "查看处方工作区" : "进入处方工作区"}</button>}</div></section>}
     </>}
   </div>;
+}
+
+function prescriptionStatusLabel(status: PrescriptionTask["status"]) {
+  return ({ pending_generation: "待生成", pending_review: "待复核", pending_signature: "待签署", completed: "已完成", withdrawn: "已撤回", archived: "已归档失效" } as Record<PrescriptionTask["status"], string>)[status];
+}
+
+function safeReportValue(value: string | number | null | undefined) {
+  if (typeof value === "string" && ["null", "undefined"].includes(value.trim().toLowerCase())) return "未提供";
+  return displayReportValue(value);
 }
 
 function Field({ label, value, disabled, onChange }: { label: string; value: string; disabled: boolean; onChange: (value: string) => void }) {

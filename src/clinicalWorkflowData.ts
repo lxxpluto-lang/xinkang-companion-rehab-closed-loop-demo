@@ -5,6 +5,7 @@ export type PrescriptionStatus = "pending_generation" | "pending_review" | "pend
 export type PrescriptionItem = {
   category: "呼吸训练" | "热身运动" | "有氧运动" | "抗阻训练" | "柔韧性训练";
   project: string;
+  exerciseKey?: string;
   intensity: string;
   duration: string;
   frequency: string;
@@ -50,6 +51,7 @@ export type PrescriptionTask = {
 
 export type AlertSeverity = "notice" | "warning" | "critical";
 export type AlertStatus = "pending" | "processing" | "pending_doctor_review" | "closed";
+export type AlertDoctorDecision = "no_change" | "adjust_prescription" | "pause_training" | "reassess";
 export type AlertEvent = {
   id: string;
   patientId: string;
@@ -63,7 +65,10 @@ export type AlertEvent = {
   occurredAt: string;
   snapshot: string;
   onSiteRecord?: string;
+  doctorDecision?: AlertDoctorDecision;
   doctorConclusion?: string;
+  doctorReviewedBy?: string;
+  doctorReviewedAt?: string;
   encounterId?: string;
 };
 

@@ -8,3 +8,4 @@ server-dist/
 !.env.example
 postgres-data/
 backups/
+/training-videos/

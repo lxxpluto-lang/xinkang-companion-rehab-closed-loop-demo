@@ -70,7 +70,7 @@ export function DashboardPage({ role, patients, followUpTasks, prescriptionTasks
     return <section data-testid="page-VIEW-DASHBOARD">
       <PageHeader eyebrow="康复医生 · 本人任务" title="医生工作台" description="集中处理本人处方、异常复核、今日安排和到期随访；低频管理页面统一从工作台进入。" action={<StatusBadge tone="blue"><FileSignature className="h-3.5 w-3.5" />{pendingPrescriptions.length} 份处方待办</StatusBadge>} />
       <div className="mb-5 grid grid-cols-5 gap-3">
-        <DoctorMetric label="总患者数" value={String(myPatientIds.size)} note="进入患者档案" icon={UsersRound} onClick={() => onNavigate("patients")} />
+        <DoctorMetric label="团队患者数" value={String(activePatients.length)} note="进入患者档案" icon={UsersRound} onClick={() => onNavigate("patients")} />
         <DoctorMetric label="总运动处方量" value={String(myTasks.length)} note="查看本人全部处方" icon={ClipboardList} onClick={() => onOpenPrescriptions("all")} />
         <DoctorMetric label="待开具处方数" value={String(pendingPrescriptions.length)} note="点击进入处方管理" icon={Sparkles} highlight onClick={() => onOpenPrescriptions("unfinished")} />
         <DoctorMetric label="平均训练完成率" value="83%" note="进入训练执行概览" icon={TrendingUp} tone="green" onClick={onOpenTraining} />

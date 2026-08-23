@@ -38,7 +38,7 @@ export const navItems: NavItem[] = [
   { key: "followups", label: "随访管理", icon: CalendarCheck2, group: "business", roles: clinicalRoles, sidebarRoles: ["ADMIN"] },
   { key: "training", label: "训练大屏", icon: MonitorUp, group: "business", roles: clinicalRoles },
   { key: "report", label: "康复报告", icon: FileHeart, group: "business", roles: clinicalRoles },
-  { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: clinicalRoles },
+  { key: "videoConfig", label: "视频资源", icon: Video, group: "admin", roles: ["ADMIN"] },
   { key: "orgPermissions", label: "组织权限", icon: Building2, group: "admin", roles: ["ADMIN"] },
   { key: "documentConfig", label: "签字管理", icon: FileSignature, group: "admin", roles: clinicalRoles }
 ];

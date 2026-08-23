@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { AlertCircle, Ban, CalendarDays, CheckCircle2, ClipboardList, ClipboardPenLine, Eye, MonitorUp, Plus, RefreshCcw, Search, UserCheck, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Ban, CalendarDays, CheckCircle2, ClipboardList, ClipboardPenLine, Eye, MonitorUp, Plus, RefreshCcw, Search, UserCheck, UserRound, X } from "lucide-react";
 import { can as canAccessAction, canActAs } from "../accessControl";
 import { PageHeader, StatCard, StatusBadge } from "../components/UI";
 import type { Appointment, AppointmentStatus, PrescriptionTask } from "../clinicalWorkflowData";
 import type { PrescriptionContent } from "../prescriptionWorkspaceData";
 import { encounterStatusLabel, type TrainingEncounter } from "../trainingEncounterData";
+import type { CardiopulmonaryTreatmentRecord } from "../treatmentData";
 import type { StaffRole } from "../types";
 import type { ManagedPatient } from "./PatientArchivePage";
 import { validateAppointmentRecord } from "../clinicalStateApi";
@@ -39,12 +40,14 @@ type Props = {
   prescriptionTasks: PrescriptionTask[];
   prescriptionContents: Record<string, PrescriptionContent>;
   encounters: TrainingEncounter[];
+  treatmentRecords: CardiopulmonaryTreatmentRecord[];
   onCheckIn: (appointmentId: string) => void;
   onOpenTreatment: (patientId: string, treatmentId: string) => void;
   onOpenTraining: (encounterId: string) => void;
+  onOpenPatient: (patientId: string) => void;
 };
 
-export function AppointmentManagementPage({ role, accountId, currentAccount, patients, appointments, setAppointments, prescriptionTasks, prescriptionContents, encounters, onCheckIn, onOpenTreatment, onOpenTraining }: Props) {
+export function AppointmentManagementPage({ role, accountId, currentAccount, patients, appointments, setAppointments, prescriptionTasks, prescriptionContents, encounters, treatmentRecords, onCheckIn, onOpenTreatment, onOpenTraining, onOpenPatient }: Props) {
   const [activeView, setActiveView] = useState<AppointmentView>("schedule");
   const [selectedDate, setSelectedDate] = useState(() => currentShanghaiDate());
   const [editing, setEditing] = useState<Appointment | null>(null);
@@ -62,14 +65,14 @@ export function AppointmentManagementPage({ role, accountId, currentAccount, pat
     const keyword = recordKeyword.trim().toLowerCase();
     return visibleAppointments
       .filter((item) => !keyword || `${item.id} ${item.patientName} ${item.patientNo ?? ""} ${item.patientId} ${item.prescriptionTaskId ?? ""}`.toLowerCase().includes(keyword))
-      .filter((item) => recordStatus === "all" || item.status === recordStatus)
+      .filter((item) => recordStatus === "all" || resolveAppointmentStatus(item, encounters, treatmentRecords) === recordStatus)
       .filter((item) => !recordDateFrom || item.date >= recordDateFrom)
       .filter((item) => !recordDateTo || item.date <= recordDateTo)
       .sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`));
-  }, [visibleAppointments, recordKeyword, recordStatus, recordDateFrom, recordDateTo]);
+  }, [visibleAppointments, encounters, treatmentRecords, recordKeyword, recordStatus, recordDateFrom, recordDateTo]);
   const prescriptionMap = useMemo(() => new Map(prescriptionTasks.map((item) => [item.id, item])), [prescriptionTasks]);
   const calendarMonth = useMemo(() => buildCalendarMonth(selectedDate), [selectedDate]);
-  const counts = (status: AppointmentStatus) => rows.filter((item) => item.status === status).length;
+  const counts = (status: AppointmentStatus) => rows.filter((item) => resolveAppointmentStatus(item, encounters, treatmentRecords) === status).length;
   const canEdit = canAccessAction(role, "CREATE");
   const canExecuteWorkflow = canActAs(role, "REHAB_EXECUTION");
 
@@ -233,9 +236,9 @@ export function AppointmentManagementPage({ role, accountId, currentAccount, pat
         </section>
         <section className="card overflow-hidden">
           <div className="border-b px-5 py-4"><h2 className="text-sm font-bold">{selectedDate} 训练安排（{rows.length}）</h2></div>
-          <div className="divide-y divide-slate-100">{rows.map((item) => { const encounter = encounters.find((entry) => entry.encounterId === item.encounterId || entry.appointmentId === item.id); const canReschedule = signedPrescriptions.some((task) => task.id === item.prescriptionTaskId || task.patientId === item.patientId); return <div key={item.id} onClick={() => setDetail(item)} className="grid cursor-pointer gap-3 px-5 py-4 text-xs transition hover:bg-slate-50 xl:grid-cols-[70px_1.4fr_0.8fr_1fr] xl:items-center">
+          <div className="divide-y divide-slate-100">{rows.map((item) => { const encounter = resolveEncounter(item, encounters, treatmentRecords); const displayStatus = resolveAppointmentStatus(item, encounters, treatmentRecords); const canReschedule = signedPrescriptions.some((task) => task.id === item.prescriptionTaskId || task.patientId === item.patientId); return <div key={item.id} onClick={() => setDetail(item)} className="grid cursor-pointer gap-3 px-5 py-4 text-xs transition hover:bg-slate-50 xl:grid-cols-[70px_1.4fr_0.8fr_1fr] xl:items-center">
             <span className="rounded-lg bg-blue-50 py-2 text-center text-sm font-bold text-blue-700">{item.time}</span>
-            <div><div className="flex flex-wrap items-center gap-2"><b className="text-sm text-slate-900">{item.patientName}</b><StatusBadge tone={statusTone[item.status]}>{statusLabel[item.status]}</StatusBadge>{encounter && <StatusBadge tone={encounter.status === "completed" ? "green" : "orange"}>{encounterStatusLabel[encounter.status]}</StatusBadge>}</div><p className="mt-1 text-[10px] text-slate-500">{item.risk} · {item.project} · {item.station} · 处方{item.prescriptionVersion ?? "未绑定"} · {item.doctorName}</p><p className="mt-1 text-[10px] text-slate-400">{item.checkedInAt ? `到诊：${item.checkedInBy ?? currentAccount} ${item.checkedInAt}` : item.cancelledReason || item.note}</p></div>
+            <div><div className="flex flex-wrap items-center gap-2"><b className="text-sm text-slate-900">{item.patientName}</b><StatusBadge tone={statusTone[displayStatus]}>{statusLabel[displayStatus]}</StatusBadge>{encounter && <StatusBadge tone={encounter.status === "completed" ? "green" : "orange"}>{encounterStatusLabel[encounter.status]}</StatusBadge>}</div><p className="mt-1 text-[10px] text-slate-500">{item.risk} · {item.project} · {item.station} · 处方{item.prescriptionVersion ?? "未绑定"} · {item.doctorName}</p><p className="mt-1 text-[10px] text-slate-400">{item.checkedInAt ? `到诊：${item.checkedInBy ?? currentAccount} ${item.checkedInAt}` : item.cancelledReason || item.note}</p></div>
             <div><p className="text-[10px] text-slate-400">预约号 / 训练就诊号</p><p className="mt-1 font-mono text-[10px] font-bold text-slate-600">{item.id}</p><p className="mt-1 font-mono text-[10px] text-slate-400">{encounter?.encounterId ?? "到诊后生成"}</p></div>
             <div className="flex flex-wrap justify-end gap-3" onClick={(event) => event.stopPropagation()}>{canEdit && item.status === "pending" && <button className="text-xs font-bold text-slate-500" onClick={() => setEditing(item)}>编辑</button>}{workflowAction(item, encounter)}{canEdit && item.status === "pending" && canReschedule && <button className="text-xs font-bold text-blue-600" onClick={() => startReschedule(item)}>改约</button>}{canEdit && ["cancelled", "no_show"].includes(item.status) && canReschedule && <button className="text-xs font-bold text-blue-600" onClick={() => startReschedule(item)}>重新预约</button>}{canEdit && ["pending", "arrived"].includes(item.status) && <button className="text-xs font-bold text-red-500" onClick={() => updateTerminalStatus(item.id, "cancelled")}>取消</button>}{canEdit && item.status === "pending" && <button className="text-xs font-bold text-red-600" onClick={() => updateTerminalStatus(item.id, "no_show")}>未到诊</button>}</div>
           </div>; })}{!rows.length && <p className="py-12 text-center text-sm text-slate-400">当天暂无预约安排</p>}</div>
@@ -260,11 +263,11 @@ export function AppointmentManagementPage({ role, accountId, currentAccount, pat
         <button type="button" className="btn-secondary" onClick={resetRecordFilters}><RefreshCcw className="h-4 w-4" />重置</button>
       </div>
       <div className="flex items-center justify-between border-b px-5 py-3 text-sm text-slate-500"><span>查询结果 {recordRows.length} 条</span><span>记录按预约时间倒序排列</span></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[1380px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs text-slate-500"><th className="p-4">预约号</th><th>预约时间</th><th>患者姓名</th><th>患者编号</th><th>关联处方</th><th>训练项目 / 工位</th><th>责任康复师</th><th>预约状态</th><th>训练就诊号</th></tr></thead><tbody>{recordRows.map((item) => { const prescription = item.prescriptionTaskId ? prescriptionMap.get(item.prescriptionTaskId) : undefined; const encounter = encounters.find((entry) => entry.encounterId === item.encounterId || entry.appointmentId === item.id); return <tr key={item.id} onClick={() => setDetail(item)} className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"><td className="p-4 font-mono font-bold text-blue-700">{item.id}</td><td>{item.date} {item.time}</td><td className="font-bold text-slate-900">{item.patientName}</td><td className="font-mono text-xs text-slate-500">{item.patientNo ?? item.patientId}</td><td>{prescription ? `${prescription.prescriptionNo} · ${item.prescriptionVersion ?? prescription.version}` : item.prescriptionTaskId ? `${item.prescriptionTaskId} · ${item.prescriptionVersion ?? "待核对"}` : "未绑定"}</td><td>{item.project}<br /><span className="text-xs text-slate-400">{item.station}</span></td><td>{item.therapistName ?? item.checkedInBy ?? "待分配"}</td><td><StatusBadge tone={statusTone[item.status]}>{statusLabel[item.status]}</StatusBadge></td><td className="font-mono text-xs text-slate-500">{encounter?.encounterId ?? "未生成"}</td></tr>; })}</tbody></table>{!recordRows.length && <p className="py-12 text-center text-sm text-slate-400">当前筛选条件下暂无预约记录</p>}</div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[1380px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs text-slate-500"><th className="p-4">预约号</th><th>预约时间</th><th>患者姓名</th><th>患者编号</th><th>关联处方</th><th>训练项目 / 工位</th><th>责任康复师</th><th>预约状态</th><th>训练就诊号</th></tr></thead><tbody>{recordRows.map((item) => { const prescription = item.prescriptionTaskId ? prescriptionMap.get(item.prescriptionTaskId) : undefined; const encounter = resolveEncounter(item, encounters, treatmentRecords); const displayStatus = resolveAppointmentStatus(item, encounters, treatmentRecords); return <tr key={item.id} onClick={() => setDetail(item)} className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"><td className="p-4 font-mono font-bold text-blue-700">{item.id}</td><td>{item.date} {item.time}</td><td className="font-bold text-slate-900">{item.patientName}</td><td className="font-mono text-xs text-slate-500">{item.patientNo ?? item.patientId}</td><td>{prescription ? `${prescription.prescriptionNo} · ${item.prescriptionVersion ?? prescription.version}` : item.prescriptionTaskId ? `${item.prescriptionTaskId} · ${item.prescriptionVersion ?? "待核对"}` : "未绑定"}</td><td>{item.project}<br /><span className="text-xs text-slate-400">{item.station}</span></td><td>{item.therapistName ?? item.checkedInBy ?? "待分配"}</td><td><StatusBadge tone={statusTone[displayStatus]}>{statusLabel[displayStatus]}</StatusBadge></td><td className="font-mono text-xs text-slate-500">{encounter?.encounterId ?? "未生成"}</td></tr>; })}</tbody></table>{!recordRows.length && <p className="py-12 text-center text-sm text-slate-400">当前筛选条件下暂无预约记录</p>}</div>
     </section>}
 
     {editing && <AppointmentEditor editing={editing} appointments={appointments} signedPrescriptions={signedPrescriptions} prescriptionContents={prescriptionContents} error={error} setEditing={setEditing} selectPrescription={selectPrescription} onSave={save} />}
-    {detail && <AppointmentDetail appointment={detail} appointments={appointments} prescription={detail.prescriptionTaskId ? prescriptionMap.get(detail.prescriptionTaskId) : undefined} encounter={encounters.find((entry) => entry.encounterId === detail.encounterId || entry.appointmentId === detail.id)} onSelect={setDetail} onClose={() => setDetail(null)} />}
+    {detail && <AppointmentDetail appointment={detail} displayStatus={resolveAppointmentStatus(detail, encounters, treatmentRecords)} appointments={appointments} prescription={detail.prescriptionTaskId ? prescriptionMap.get(detail.prescriptionTaskId) : undefined} encounter={resolveEncounter(detail, encounters, treatmentRecords)} onSelect={setDetail} onClose={() => setDetail(null)} onOpenPatient={onOpenPatient} onOpenTreatment={onOpenTreatment} />}
   </section>;
 }
 
@@ -299,6 +302,7 @@ function AppointmentEditor({ editing, appointments, signedPrescriptions, prescri
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [editing.patientId, signedPrescriptions]);
   const selectedPrescription = signedPrescriptions.find((item) => item.id === editing.prescriptionTaskId);
   const selectedContent = selectedPrescription ? prescriptionContents[selectedPrescription.id] : undefined;
+  const canSave = Boolean(editing.patientId && editing.patientName && selectedPrescription);
 
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 sm:p-6">
     <article className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
@@ -349,7 +353,7 @@ function AppointmentEditor({ editing, appointments, signedPrescriptions, prescri
         <label className="sm:col-span-2"><span className="field-label">备注</span><textarea className="text-field min-h-20 resize-y" value={editing.note} onChange={(event) => setEditing({ ...editing, note: event.target.value })} placeholder="填写临时预约说明" /></label>
       </div>
       {error && <p className="mt-3 text-xs font-bold text-red-600">{error}</p>}
-      <div className="mt-5 flex justify-end"><button className="btn-primary" onClick={onSave}>保存预约</button></div>
+      <div className="mt-5 flex items-center justify-between gap-3"><p className="text-xs text-slate-500">{canSave ? "已绑定患者和生效处方，可保存预约。" : "请选择患者并绑定生效处方后再保存。"}</p><button type="button" disabled={!canSave} className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300" onClick={onSave}>保存预约</button></div>
     </article>
   </div>;
 }
@@ -428,9 +432,16 @@ function PatientSearchField({ label, placeholder, displayValue, disabled, option
   </div>;
 }
 
-function AppointmentDetail({ appointment, appointments, prescription, encounter, onSelect, onClose }: { appointment: Appointment; appointments: Appointment[]; prescription?: PrescriptionTask; encounter?: TrainingEncounter; onSelect: (value: Appointment) => void; onClose: () => void }) {
+function AppointmentDetail({ appointment, displayStatus, appointments, prescription, encounter, onSelect, onClose, onOpenPatient, onOpenTreatment }: { appointment: Appointment; displayStatus: AppointmentStatus; appointments: Appointment[]; prescription?: PrescriptionTask; encounter?: TrainingEncounter; onSelect: (value: Appointment) => void; onClose: () => void; onOpenPatient: (patientId: string) => void; onOpenTreatment: (patientId: string, treatmentId: string) => void }) {
   const previous = appointment.rescheduledFromId ? appointments.find((item) => item.id === appointment.rescheduledFromId) : undefined;
   const next = appointment.rescheduledToId ? appointments.find((item) => item.id === appointment.rescheduledToId) : undefined;
+  const encounterStatus = encounter ? encounterStatusLabel[encounter.status] : "未生成";
+  const checkInText = encounter?.checkedInAt ?? appointment.checkedInAt ?? (encounter ? "未记录（训练流程已开始）" : "未到诊");
+  const lastUpdated = encounter?.updatedAt && (!appointment.updatedAt || encounter.updatedAt >= appointment.updatedAt)
+    ? `${encounter.therapist} · ${formatAuditTime(encounter.updatedAt)}`
+    : appointment.updatedBy
+      ? `${appointment.updatedBy} · ${formatAuditTime(appointment.updatedAt)}`
+      : "历史数据";
   const fields = [
     ["预约号", appointment.id],
     ["预约时间", `${appointment.date} ${appointment.time}`],
@@ -441,17 +452,33 @@ function AppointmentDetail({ appointment, appointments, prescription, encounter,
     ["责任康复师", appointment.therapistName ?? appointment.checkedInBy ?? "待分配"],
     ["责任医生", appointment.doctorName],
     ["预约来源", appointment.source === "external" ? "外部预约/HIS" : "本系统预约"],
-    ["到诊时间", appointment.checkedInAt ?? "未到诊"],
+    ["训练就诊状态", encounterStatus],
+    ["到诊记录", checkInText],
     ["训练就诊号", encounter?.encounterId ?? "未生成"],
-    ["状态确认", appointment.statusConfirmedBy ? `${appointment.statusConfirmedBy} · ${formatAuditTime(appointment.statusConfirmedAt)}` : "未记录"],
-    ["最后更新", appointment.updatedBy ? `${appointment.updatedBy} · ${formatAuditTime(appointment.updatedAt)}` : "历史数据"]
+    ["状态确认", appointment.statusConfirmedBy ? `${appointment.statusConfirmedBy} · ${formatAuditTime(appointment.statusConfirmedAt)}` : encounter ? "以训练就诊状态为准" : "未记录"],
+    ["最后更新", lastUpdated]
   ];
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6"><article className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white"><div className="flex items-start justify-between border-b p-6"><div><p className="eyebrow">预约记录详情</p><div className="mt-1 flex items-center gap-3"><h2 className="text-xl font-bold">{appointment.patientName}</h2><StatusBadge tone={statusTone[appointment.status]}>{statusLabel[appointment.status]}</StatusBadge></div></div><button type="button" onClick={onClose} aria-label="关闭预约详情"><X className="h-5 w-5" /></button></div><div className="grid gap-px bg-slate-100 sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="bg-white p-4"><p className="text-xs font-bold text-slate-400">{label}</p><p className="mt-1.5 break-words text-sm font-semibold text-slate-800">{value}</p></div>)}</div>{(appointment.cancelledReason || appointment.note) && <div className="border-t p-5"><p className="text-xs font-bold text-slate-400">状态原因 / 备注</p><p className="mt-2 text-sm leading-6 text-slate-700">{appointment.cancelledReason || appointment.note}</p></div>}{(previous || next) && <div className="flex flex-wrap items-center gap-3 border-t bg-blue-50 p-5 text-sm"><b className="text-blue-950">改约关联</b>{previous && <button type="button" className="font-mono font-bold text-blue-700" onClick={() => onSelect(previous)}>原预约 {previous.id}</button>}{next && <button type="button" className="font-mono font-bold text-blue-700" onClick={() => onSelect(next)}>新预约 {next.id}</button>}</div>}</article></div>;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6"><article className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white"><div className="flex items-start justify-between border-b p-6"><div><p className="eyebrow">预约记录详情</p><div className="mt-1 flex flex-wrap items-center gap-3"><h2 className="text-xl font-bold">{appointment.patientName}</h2><StatusBadge tone={statusTone[displayStatus]}>{statusLabel[displayStatus]}</StatusBadge>{encounter && <StatusBadge tone={encounter.status === "completed" ? "green" : "orange"}>就诊：{encounterStatus}</StatusBadge>}</div></div><button type="button" onClick={onClose} aria-label="关闭预约详情"><X className="h-5 w-5" /></button></div><div className="grid gap-px bg-slate-100 sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="bg-white p-4"><p className="text-xs font-bold text-slate-400">{label}</p><p className="mt-1.5 break-words text-sm font-semibold text-slate-800">{value}</p></div>)}</div>{(appointment.cancelledReason || appointment.note) && <div className="border-t p-5"><p className="text-xs font-bold text-slate-400">{appointment.cancelledReason ? "状态原因" : "预约备注"}</p><p className="mt-2 text-sm leading-6 text-slate-700">{appointment.cancelledReason || appointment.note}</p></div>}<div className="flex flex-wrap items-center justify-between gap-3 border-t bg-slate-50 p-5"><div><p className="text-sm font-bold text-slate-900">下一步</p><p className="mt-1 text-xs text-slate-500">从当前预约继续查看患者和本次治疗，保留预约号与患者上下文。</p></div><div className="flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={() => { onClose(); onOpenPatient(appointment.patientId); }}><UserRound className="h-4 w-4" />打开患者档案</button>{encounter?.treatmentId ? <button type="button" className="btn-primary" onClick={() => { onClose(); onOpenTreatment(encounter.patientId, encounter.treatmentId); }}><ClipboardPenLine className="h-4 w-4" />查看本次治疗<ArrowRight className="h-4 w-4" /></button> : <span className="inline-flex min-h-10 items-center rounded-lg bg-slate-100 px-3 text-xs font-semibold text-slate-400">到诊后生成治疗记录</span>}</div></div>{(previous || next) && <div className="flex flex-wrap items-center gap-3 border-t bg-blue-50 p-5 text-sm"><b className="text-blue-950">改约关联</b>{previous && <button type="button" className="font-mono font-bold text-blue-700" onClick={() => onSelect(previous)}>原预约 {previous.id}</button>}{next && <button type="button" className="font-mono font-bold text-blue-700" onClick={() => onSelect(next)}>新预约 {next.id}</button>}</div>}</article></div>;
 }
 
 function addDays(date: string, days: number) {
   const [year, month, day] = date.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function resolveEncounter(appointment: Appointment, encounters: TrainingEncounter[], treatmentRecords: CardiopulmonaryTreatmentRecord[]) {
+  const encounter = encounters.find((entry) => entry.encounterId === appointment.encounterId || entry.appointmentId === appointment.id);
+  if (!encounter) return undefined;
+  const treatment = treatmentRecords.find((record) => record.encounterId === encounter.encounterId || record.treatmentId === encounter.treatmentId);
+  return treatment?.status === "completed" && encounter.status !== "completed"
+    ? { ...encounter, status: "completed" as const }
+    : encounter;
+}
+
+function resolveAppointmentStatus(appointment: Appointment, encounters: TrainingEncounter[], treatmentRecords: CardiopulmonaryTreatmentRecord[]): AppointmentStatus {
+  const encounter = encounters.find((entry) => entry.encounterId === appointment.encounterId || entry.appointmentId === appointment.id);
+  const treatment = encounter && treatmentRecords.find((record) => record.encounterId === encounter.encounterId || record.treatmentId === encounter.treatmentId);
+  return treatment?.status === "completed" ? "completed" : appointment.status;
 }
 
 function shanghaiDateTimeParts() {

@@ -3,6 +3,7 @@ import { Ban, CheckCircle2, FileVideo, FolderOpen, Link as LinkIcon, Play, Rotat
 import { can } from "../accessControl";
 import { PageHeader, SectionHeader, StatusBadge } from "../components/UI";
 import type { ContentStatus, Role } from "../types";
+import { localTrainingVideoDefinitions, localTrainingVideoUrl } from "../../trainingVideoCatalog";
 
 export type VideoCategory = "呼吸训练" | "有氧运动" | "抗阻运动" | "柔韧性运动" | "中医运动";
 export type PublishedTrainingVideo = {
@@ -19,16 +20,8 @@ export type TrainingVideo = PublishedTrainingVideo & {
   updatedBy?: string;
 };
 
-const localVideoUrl = (fileName: string) => `/local-training-videos/${encodeURIComponent(fileName)}`;
-const qiantanVideo = "云逛魔都 4K HDR ｜ 前滩夏日的傍晚：从繁华的太古里到静謐江滨绿道 [BV1HKKt6eEdh].mp4";
-const bikeVideo = "云逛魔都 4K HDR ｜ 沉浸式体验陆家嘴滨江骑行：南浦大桥到杨浦大桥 [BV1HKgX6LEe1].mp4";
-const breathingVideoUrl = "https://www.bilibili.com/video/BV1Av4y1p7SL/";
-
 export const initialTrainingVideos: TrainingVideo[] = [
-  { id: "VIDEO-BIKE-LOCAL-001", title: "云逛魔都 4K HDR ｜沉浸式滨江骑行", category: "有氧运动", subtype: "功率车", source: "local", url: localVideoUrl(bikeVideo), status: "PUBLISHED", fileSize: "871 MB", updatedBy: "服务器视频目录" },
-  { id: "VIDEO-BIKE-LOCAL-002", title: "前滩夏日傍晚骑行", category: "有氧运动", subtype: "功率车", source: "local", url: localVideoUrl(qiantanVideo), status: "PUBLISHED", fileSize: "983 MB", updatedBy: "本地视频目录" },
-  { id: "VIDEO-BREATH-LINK-001", title: "腹式呼吸与正念呼吸指导", category: "呼吸训练", subtype: "腹式呼吸", source: "link", url: breathingVideoUrl, status: "PUBLISHED", updatedBy: "王医生" },
-  { id: "VIDEO-BADUANJIN-LINK-001", title: "八段锦康复跟练", category: "中医运动", subtype: "八段锦", source: "link", url: breathingVideoUrl, status: "PUBLISHED", updatedBy: "周康复师" },
+  ...localTrainingVideoDefinitions.map((video) => ({ ...video, source: "local" as const, url: localTrainingVideoUrl(video.fileName), status: "PUBLISHED" as const })),
   { id: "VIDEO-RESIST-001", title: "弹力带上肢训练", category: "抗阻运动", subtype: "弹力带", source: "upload", url: "", status: "PENDING", updatedBy: "周康复师" },
   { id: "VIDEO-BIKE-OLD", title: "功率车旧版热身", category: "有氧运动", subtype: "功率车", source: "upload", url: "", status: "OFFLINE", updatedBy: "林管理员" }
 ];
@@ -63,9 +56,9 @@ export function VideoLibraryPage({
   const [subtype, setSubtype] = useState(categorySubtypes["有氧运动"][0]);
   const [externalUrl, setExternalUrl] = useState("");
   const [previewId, setPreviewId] = useState("VIDEO-BIKE-LOCAL-001");
-  const canPublish = can(role, "PUBLISH");
-  const canDelete = can(role, "DELETE");
-  const canPermanentDelete = can(role, "PERMANENT_DELETE");
+  const canPublish = role === "ADMIN" && can(role, "PUBLISH");
+  const canDelete = role === "ADMIN" && can(role, "DELETE");
+  const canPermanentDelete = role === "ADMIN" && can(role, "PERMANENT_DELETE");
   const visibleVideos = useMemo(() => videos.filter((video) => video.status !== "RECYCLED" || role === "ADMIN"), [role, videos]);
 
   function changeCategory(next: VideoCategory) {
@@ -130,7 +123,7 @@ export function VideoLibraryPage({
             <SectionHeader title="添加训练视频" description="支持本地文件上传，也支持通过链接嵌入；保存后先进入草稿。" />
             <div className="mb-4 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800">
               <FolderOpen className="mt-0.5 h-5 w-5 shrink-0" />
-              <span>功率车使用站点视频目录 <b>/local-training-videos</b>（服务器与本机开发环境通用）；呼吸训练和中医运动也可通过外部链接嵌入。患者端只展示已发布且与处方项目匹配的内容。</span>
+              <span>本地视频统一使用站点视频目录 <b>/training-videos</b>（服务器与本机开发环境通用）；患者端只展示已发布且与处方项目匹配的内容。</span>
             </div>
             <label className="block"><span className="field-label">视频名称</span><input value={title} onChange={(event) => setTitle(event.target.value)} className="text-field" placeholder="例如：腹式呼吸基础练习" /></label>
             <label className="mt-4 block"><span className="field-label">训练子类型</span><select value={subtype} onChange={(event) => setSubtype(event.target.value)} className="text-field">{categorySubtypes[category].map((item) => <option key={item}>{item}</option>)}</select></label>

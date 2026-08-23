@@ -31,8 +31,5 @@ services:
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://127.0.0.1:8787}
     ports:
       - "${APP_BIND:-0.0.0.0}:${APP_PORT:-8787}:8787"
-    volumes:
-      - ${TRAINING_VIDEO_DIR:-./public}:/app/training-videos:ro
-
 volumes:
   xinkang-postgres:
